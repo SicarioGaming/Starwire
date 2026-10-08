@@ -361,6 +361,13 @@ public class MoonBridge {
         }
     }
 
+    public static void bridgeClSetAdaptiveTriggers(short controllerNumber, byte eventFlags, byte typeLeft,
+                                                   byte typeRight, byte[] left, byte[] right) {
+        if (connectionListener != null) {
+            connectionListener.setAdaptiveTriggers(controllerNumber, eventFlags, typeLeft, typeRight, left, right);
+        }
+    }
+
     public static void setupBridge(VideoDecoderRenderer videoRenderer, AudioRenderer audioRenderer,
                                    NvConnectionListener connectionListener, int supportedVideoFormats) {
         MoonBridge.videoRenderer = videoRenderer;

@@ -24,4 +24,7 @@ public interface NvConnectionListener {
     void setMotionEventState(short controllerNumber, byte motionType, short reportRateHz);
 
     void setControllerLED(short controllerNumber, byte r, byte g, byte b);
+
+    default void setAdaptiveTriggers(short controllerNumber, byte eventFlags, byte typeLeft,
+                                     byte typeRight, byte[] left, byte[] right) {}
 }
