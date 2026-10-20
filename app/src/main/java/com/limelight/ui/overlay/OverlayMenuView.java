@@ -57,6 +57,7 @@ public class OverlayMenuView extends LinearLayout {
         void onToggleMouseEmulation();
         void onShowKeyboard();
         void onSendGuideButton();
+        void onShowBrightness();
         void onCustomCommand(CustomCommand command);
         void onMenuClosed();
 
@@ -200,6 +201,7 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_MONITORS = 20;
     private static final int ACTION_BITRATE = 21;
     private static final int ACTION_FIX_HOST_CURSOR = 22;
+    private static final int ACTION_BRIGHTNESS = 23;
     private static final int ACTION_IMPORTED_BASE = 400;
     private static final int ACTION_MONITOR_BASE = 300;
     private static final int ACTION_CUSTOM_BASE = 100;
@@ -431,6 +433,9 @@ public class OverlayMenuView extends LinearLayout {
                 getContext().getString(R.string.overlay_menu_onscreen_controller), ACTION_ONSCREEN_CONTROLLER, TOGGLE_ONSCREEN_CONTROLLER);
             addTile(R.drawable.ic_overlay_window_menu,
                 getContext().getString(R.string.overlay_menu_floating_button), ACTION_FLOATING_BUTTON, TOGGLE_FLOATING_BUTTON);
+            // Moonlight X's brightness slider, which the left edge opens only in a trackpad mode
+            addTile(R.drawable.ic_overlay_settings_brightness,
+                getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS);
 
             List<CustomCommand> customCommands = commandsManager.getCommands();
             for (int i = 0; i < customCommands.size(); i++) {
@@ -895,6 +900,11 @@ public class OverlayMenuView extends LinearLayout {
             } else if (action == ACTION_SEND_GUIDE) {
                 actionListener.onSendGuideButton();
                 shouldCloseMenu = true;
+            } else if (action == ACTION_BRIGHTNESS) {
+                // Closed first, so the slider gets the controller and remote input
+                closeMenu();
+                actionListener.onShowBrightness();
+                return;
             } else if (action == ACTION_CLOSE) {
                 closeMenu();
                 return;
