@@ -209,6 +209,8 @@ public class OverlayMenuView extends LinearLayout {
 
     private long lastAnalogNavTime = 0;
     private boolean flipFaceButtons = false;
+    // Not on TVs, whose screen brightness the app can't change
+    private boolean showBrightness = true;
 
     public OverlayMenuView(Context context) {
         super(context);
@@ -409,8 +411,10 @@ public class OverlayMenuView extends LinearLayout {
                 getContext().getString(R.string.overlay_menu_monitors), ACTION_MONITORS);
             addTile(R.drawable.ic_overlay_lightning,
                 getContext().getString(R.string.overlay_menu_bitrate), ACTION_BITRATE);
-            addTile(R.drawable.ic_overlay_settings_brightness,
-                getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS);
+            if (showBrightness) {
+                addTile(R.drawable.ic_overlay_settings_brightness,
+                    getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS);
+            }
             addTile(R.drawable.ic_overlay_mouse,
                 getContext().getString(R.string.overlay_menu_mouse_mode), ACTION_MOUSE_MODE);
             if (fixHostCursorShown) {
@@ -587,6 +591,10 @@ public class OverlayMenuView extends LinearLayout {
 
     public void setFlipFaceButtons(boolean flip) {
         this.flipFaceButtons = flip;
+    }
+
+    public void setShowBrightness(boolean show) {
+        this.showBrightness = show;
     }
 
     @Override
