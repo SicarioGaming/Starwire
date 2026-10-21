@@ -209,6 +209,8 @@ public class OverlayMenuView extends LinearLayout {
 
     private long lastAnalogNavTime = 0;
     private boolean flipFaceButtons = false;
+    // Not on TVs, whose screen brightness the app can't change
+    private boolean showBrightness = true;
 
     public OverlayMenuView(Context context) {
         super(context);
@@ -434,8 +436,10 @@ public class OverlayMenuView extends LinearLayout {
             addTile(R.drawable.ic_overlay_window_menu,
                 getContext().getString(R.string.overlay_menu_floating_button), ACTION_FLOATING_BUTTON, TOGGLE_FLOATING_BUTTON);
             // Moonlight X's brightness slider, which the left edge opens only in a trackpad mode
-            addTile(R.drawable.ic_overlay_settings_brightness,
-                getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS);
+            if (showBrightness) {
+                addTile(R.drawable.ic_overlay_settings_brightness,
+                    getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS);
+            }
 
             List<CustomCommand> customCommands = commandsManager.getCommands();
             for (int i = 0; i < customCommands.size(); i++) {
@@ -588,6 +592,10 @@ public class OverlayMenuView extends LinearLayout {
 
     public void setFlipFaceButtons(boolean flip) {
         this.flipFaceButtons = flip;
+    }
+
+    public void setShowBrightness(boolean show) {
+        this.showBrightness = show;
     }
 
     @Override
