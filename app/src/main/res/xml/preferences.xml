@@ -247,6 +247,13 @@
             android:entries="@array/overlay_hold_duration_names"
             android:entryValues="@array/overlay_hold_duration_values"
             android:defaultValue="1500" />
+        <ListPreference
+            android:key="left_edge_swipe_action"
+            android:title="@string/title_left_edge_swipe_action"
+            android:summary="@string/summary_left_edge_swipe_action"
+            android:entries="@array/left_edge_swipe_action_names"
+            android:entryValues="@array/left_edge_swipe_action_values"
+            android:defaultValue="brightness" />
         <CheckBoxPreference
             android:key="checkbox_enable_floating_button"
             android:title="@string/title_floating_button"
