@@ -448,7 +448,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Async decode and Async: LFR | Ported from Artemide (derflacco) |
 | Ultra Low Latency: MediaTek's own ultra-low-latency mode follows the setting, and low latency is set again after the decoder starts | Ported from Artemide (derflacco). The base option and its Snapdragon/Exynos/Amlogic flags are from Moonlight X (MoreOrLessSoftware) and Artemis |
 | Virtual Display: "Display on the PC" setting, "Start in Virtual/Primary Display" **(Apollo / Vibepollo)** | Ported from Artemis (Yukino Song), via Artemide |
-| Prevent Packet Loss (keeps Wi-Fi awake during streams) | Option from Artemis (Yukino Song), via Artemide; rewritten for Starwire as a small keep-alive packet |
+| Prevent Packet Loss (keeps Wi-Fi awake during streams) | Option from Artemis (Yukino Song), via Artemide; rewritten for Starwire as a small keep-alive ping |
 | Lite performance overlay (one compact line: data rate, ping, decode time, dropped frames, FPS) | Ported from Axixi2233's fork (axi), via Artemis and Artemide; the plain wording is new in Starwire |
 | 1% low FPS in the stats | Idea from Moonlight V+ (qiin2333) and Moonlight X Turnip (NoCrypt) |
 
@@ -578,7 +578,8 @@ the same value.
    Starwire uses its own fork of
    [moonlight-common-c](https://github.com/SicarioGaming/moonlight-common-c) (branch `main`),
    which adds the calls for PC commands and Prevent Packet Loss, and logabell's in-stream
-   microphone.
+   microphone. It also doesn't send Sunshine-family hosts a vibration message that only GeForce
+   Experience needs.
 3. Tell Gradle where the Android SDK is: Android Studio writes `local.properties` with `sdk.dir=`
    when you open the project, or you can set `ANDROID_HOME`. Gradle finds the NDK inside the SDK
    folder.
