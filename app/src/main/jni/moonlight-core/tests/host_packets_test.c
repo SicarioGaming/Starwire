@@ -1,9 +1,9 @@
-// Checks the packets moonlight-common-c sends a host for a controller and for Prevent Packet
-// Loss, through the real ControlStream.c and InputStream.c. Sunshine-family hosts log packets
-// they don't know: Vibepollo logs an unknown control packet type with a hex dump at debug level
-// (control_server_t::call() in its src/stream.cpp) and warns about an unknown input packet
-// (validate_packet() in its src/input.cpp). Not part of the app build; build and run on the host
-// from this folder with host_packets_test.sh.
+// Checks the packets moonlight-common-c sends a host as a stream starts, for a controller and for
+// Prevent Packet Loss, through the real ControlStream.c and InputStream.c. Sunshine-family hosts
+// log packets they don't know: Vibepollo logs an unknown control packet type with a hex dump at
+// debug level (control_server_t::call() in its src/stream.cpp) and warns about an unknown input
+// packet (validate_packet() in its src/input.cpp). Not part of the app build; build and run on
+// the host from this folder with host_packets_test.sh.
 //
 // ControlStream.c is included, not linked, so the test can give it a pretend ENet peer. ENet,
 // threads, queues and crypto are stubbed. "Encrypting" copies the data, so the test reads each
@@ -284,10 +284,11 @@ static void endStream(void) {
 }
 
 int main(void) {
-    // Vibepollo reports 7.1.431.-1
+    printf("A Sunshine-family host (Vibepollo reports 7.1.431.-1) as the stream starts:\n");
     startStream(7, 1, 431, -1);
+    check(countInput(ENABLE_HAPTICS_MAGIC) == 0, "no haptics enable packet (0x0D), which these hosts don't know");
 
-    printf("A controller on a Sunshine-family host:\n");
+    printf("A controller on that host:\n");
     sentCount = 0;
     LiSendControllerEvent(A_FLAG, 0, 0, 0, 0, 0, 0);
     threadEntry(threadContext);
@@ -303,10 +304,18 @@ int main(void) {
     check(sentCount == 1 && controlType(0) == 0x0200, "sent as a periodic ping (0x0200), a type the host knows");
     endStream();
 
-    printf("Prevent Packet Loss on GeForce Experience 7.1.431:\n");
+    printf("GeForce Experience 7.1.431 as the stream starts:\n");
     startStream(7, 1, 431, 0);
+    check(countInput(ENABLE_HAPTICS_MAGIC) == 1, "still sends the haptics enable packet, so GFE sends rumble");
+
+    printf("Prevent Packet Loss on GeForce Experience:\n");
     sentCount = 0;
     check(LiSendKeepAlivePayload() == -2 && sentCount == 0, "isn't sent");
+    endStream();
+
+    printf("GeForce Experience before 7.1 as the stream starts:\n");
+    startStream(7, 0, 0, 0);
+    check(sentCount == 0, "sends nothing, as these versions may drop the connection on a packet they don't know");
     endStream();
 
     printf(failures ? "\n%d checks failed\n" : "\nAll checks passed\n", failures);

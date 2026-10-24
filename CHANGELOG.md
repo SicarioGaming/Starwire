@@ -18,6 +18,8 @@ steps and the checksums for each version.
 - Prevent packet loss no longer fills the host's log. It sent a packet Sunshine, Apollo and
   Vibepollo don't know, which they log at their debug level: 50 times a second in Vibepollo. It
   now sends a ping, which they don't log at that level.
+- Starwire no longer sends Sunshine, Apollo and Vibepollo a controller vibration message that only
+  GeForce Experience uses. Vibepollo warned about it each time a stream started.
 
 ## [0.2.1] - 2026-10-23
 
