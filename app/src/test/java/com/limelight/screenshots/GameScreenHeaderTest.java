@@ -18,6 +18,7 @@ import android.widget.TextView;
 
 import com.limelight.AppView;
 import com.limelight.R;
+import com.limelight.ui.Wordmark;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -28,6 +29,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.GraphicsMode;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -118,7 +120,7 @@ public class GameScreenHeaderTest {
     // scale big text less. This gives the PC name and the wordmark the sizes Android 13 gives
     // them at its largest standard font size, 1.3x.
     @Test
-    public void theLettersFitAtAndroid13sLargestFontSize() {
+    public void theLettersFitAtAndroid13sLargestFontSize() throws Exception {
         assertEquals(Collections.emptyList(), clippingScaledEvenly(1.3f));
     }
 
@@ -126,26 +128,38 @@ public class GameScreenHeaderTest {
     // would be taller than the row. Centring can't keep them inside, so they only fit because the
     // wordmark steps down.
     @Test
-    public void theLettersFitWhenTheyWouldBeTallerThanTheRow() {
+    public void theLettersFitWhenTheyWouldBeTallerThanTheRow() throws Exception {
         assertEquals(Collections.emptyList(), clippingScaledEvenly(1.6f));
     }
 
     // What's cut off with the PC name and the wordmark this much bigger, the same for both, as
     // Android 13 scales them
-    private List<String> clippingScaledEvenly(float scale) {
+    private List<String> clippingScaledEvenly(float scale) throws Exception {
         assumeTrue("this screen has a font size of its own", fontScale == 1f);
         List<String> problems = new ArrayList<>();
         for (String pc : NAMES) {
             AppView screen = open(pc);
             TextView mark = screen.findViewById(R.id.cgWordmark);
             TextView name = screen.findViewById(R.id.appListText);
-            mark.setTextSize(TypedValue.COMPLEX_UNIT_PX,
-                    screen.getResources().getDimension(R.dimen.cg_wordmark_size) * scale);
+            float size = screen.getResources().getDimension(R.dimen.cg_wordmark_size) * scale;
+            mark.setTextSize(TypedValue.COMPLEX_UNIT_PX, size);
             name.setTextSize(TypedValue.COMPLEX_UNIT_PX, name.getTextSize() * scale);
             idle();
+            // WordmarkRow fits the wordmark from the size it was given. If that weren't the
+            // scaled size, the check below would only see the wordmark at its usual size.
+            assertEquals(pc + ": the wordmark wasn't fitted from its scaled size",
+                    size, wantedSize(mark), 0f);
             problems.addAll(clipping(screen, pc));
         }
         return problems;
+    }
+
+    // The size the wordmark was given, the one WordmarkRow fits it from. Wordmark keeps this to
+    // its own package, so it's read the way the app can't.
+    private static float wantedSize(TextView mark) throws Exception {
+        Method method = Wordmark.class.getDeclaredMethod("getWantedSize");
+        method.setAccessible(true);
+        return (float) method.invoke(mark);
     }
 
     // The checks catch a PC name that runs into the wordmark, a wordmark left too close to the
