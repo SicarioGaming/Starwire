@@ -120,6 +120,12 @@ public class WordmarkRow extends FrameLayout {
         int box = bottom - top + mark.getCompoundPaddingTop() + mark.getCompoundPaddingBottom();
         int baseline = (height - box) / 2 + mark.getCompoundPaddingTop() - top;
         measuring.getTextBounds(text.toString(), 0, text.length(), ink);
-        return baseline + ink.top >= 0 && baseline + ink.bottom <= height;
+        return insideRow(height, baseline + ink.top, baseline + ink.bottom);
+    }
+
+    // Whether letters from top to bottom, in pixels down from the top of a row this tall, are
+    // inside it
+    static boolean insideRow(int height, int top, int bottom) {
+        return top >= 0 && bottom <= height;
     }
 }
