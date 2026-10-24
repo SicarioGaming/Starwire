@@ -119,6 +119,20 @@ public class GameScreenHeaderTest {
     // them at its largest standard font size, 1.3x.
     @Test
     public void theLettersFitAtAndroid13sLargestFontSize() {
+        assertEquals(Collections.emptyList(), clippingScaledEvenly(1.3f));
+    }
+
+    // Scaled evenly to 1.6x, past Android 13's largest font size, the 40 sp wordmark's letters
+    // would be taller than the row. Centring can't keep them inside, so they only fit because the
+    // wordmark steps down.
+    @Test
+    public void theLettersFitWhenTheyWouldBeTallerThanTheRow() {
+        assertEquals(Collections.emptyList(), clippingScaledEvenly(1.6f));
+    }
+
+    // What's cut off with the PC name and the wordmark this much bigger, the same for both, as
+    // Android 13 scales them
+    private List<String> clippingScaledEvenly(float scale) {
         assumeTrue("this screen has a font size of its own", fontScale == 1f);
         List<String> problems = new ArrayList<>();
         for (String pc : NAMES) {
@@ -126,12 +140,12 @@ public class GameScreenHeaderTest {
             TextView mark = screen.findViewById(R.id.cgWordmark);
             TextView name = screen.findViewById(R.id.appListText);
             mark.setTextSize(TypedValue.COMPLEX_UNIT_PX,
-                    screen.getResources().getDimension(R.dimen.cg_wordmark_size) * 1.3f);
-            name.setTextSize(TypedValue.COMPLEX_UNIT_PX, name.getTextSize() * 1.3f);
+                    screen.getResources().getDimension(R.dimen.cg_wordmark_size) * scale);
+            name.setTextSize(TypedValue.COMPLEX_UNIT_PX, name.getTextSize() * scale);
             idle();
             problems.addAll(clipping(screen, pc));
         }
-        assertEquals(Collections.emptyList(), problems);
+        return problems;
     }
 
     // The checks catch a PC name that runs into the wordmark, a wordmark left too close to the
