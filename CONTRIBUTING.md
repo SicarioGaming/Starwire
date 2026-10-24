@@ -57,9 +57,11 @@ you ask for it.
   them with the change. The pictures were recorded on Windows; whether Linux draws exactly the
   same pixels hasn't been checked yet.
 - **Native tests:** a few C++ simulations of the frame pacer under
-  `app/src/main/jni/vulkan/tests`, inherited from Moonlight X, and `partial_frame_test.sh` under
-  `app/src/main/jni/moonlight-core/tests`, which checks moonlight-common-c's partial frames. The
-  **Native host tests** step in `.github/workflows/build.yml` shows how to build and run them.
+  `app/src/main/jni/vulkan/tests`, inherited from Moonlight X, and two under
+  `app/src/main/jni/moonlight-core/tests`: `partial_frame_test.sh` checks moonlight-common-c's
+  partial frames, and `host_packets_test.sh` checks a few of the packets it sends a host against
+  what the host understands. The **Native host tests** step in `.github/workflows/build.yml`
+  shows how to build and run them.
 - **On-device tests** (JUnit 4, instrumented) in `app/src/androidTest`, written for and run on my
   RedMagic Astra tablet. The smoke tests among them use the app the way a person would, with UI
   Automator. The ones that need a PC skip, and say why, when the device has no paired PC or it

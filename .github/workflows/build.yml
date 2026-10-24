@@ -80,6 +80,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           sh app/src/main/jni/moonlight-core/tests/partial_frame_test.sh
+          sh app/src/main/jni/moonlight-core/tests/host_packets_test.sh
           cd app/src/main/jni/vulkan/tests
           for t in frame_pacer present_scheduler; do
             g++ -std=c++17 -O2 -I.. ../$t.cpp ${t}_test.cpp -o "$RUNNER_TEMP/${t}_test"
