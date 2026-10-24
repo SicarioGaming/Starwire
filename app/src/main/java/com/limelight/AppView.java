@@ -95,6 +95,8 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
     private static final int NARROW_WIDTH_DP = 480;
     private static final int SHORT_HEIGHT_DP = 520;
     private int builtSizes;
+    // Text sizes are read from the font size the screen was built with
+    private float builtFontScale;
 
     private CoverImageView heroCover;
     private TextView heroLoaderText, heroLabel, heroTitle, miniTitle;
@@ -212,11 +214,12 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         super.onConfigurationChanged(newConfig);
 
         // Folding, unfolding, split screen or turning the phone into another set of sizes needs
-        // the layout built again. It's built again on this same screen, not with recreate(): on
+        // the layout built again, and so does a new font size, which views already on screen
+        // don't pick up. It's built again on this same screen, not with recreate(): on
         // the RedMagic tablet recreating crashed the app in 3 of 4 tries, inside the phone
         // maker's game mode (com.zte.gameassist GameActivityStub stops an observer it has already
         // cleared when a screen is paused and destroyed back to back).
-        boolean newSizes = sizesFor(newConfig) != builtSizes;
+        boolean newSizes = sizesFor(newConfig) != builtSizes || newConfig.fontScale != builtFontScale;
         if (newSizes) {
             buildScreen(newConfig);
         }
@@ -833,6 +836,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
         setContentView(R.layout.activity_app_view);
         builtSizes = sizesFor(config);
+        builtFontScale = config.fontScale;
         UiHelper.notifyNewRootView(this);
 
         String computerName = getIntent().getStringExtra(NAME_EXTRA);

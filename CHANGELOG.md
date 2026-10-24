@@ -19,6 +19,11 @@ steps and the checksums for each version.
   shrinks to make room, back to the size it was before, or further if the name would still reach
   it. It stays the same size on screens under 360 dp wide, like a Fold's cover screen.
 
+### Fixed
+
+- The games screen takes a new font size from Android's settings straight away. The PC name,
+  the wordmark and the selected game used to keep the old size until you opened the screen again.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.
