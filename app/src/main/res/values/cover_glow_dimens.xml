@@ -7,6 +7,11 @@
     <!-- Under 360 dp wide a 15-character PC name, like Windows gives, leaves no room for a bigger
          wordmark. Phones get one (values-w360dp). -->
     <dimen name="cg_wordmark_size">26sp</dimen>
+    <!-- The wordmark shrinks to stay 8 dp clear of a long PC name, down to the size it had before
+         it got bigger. It goes smaller, to cg_wordmark_smallest_size at the least, only if it
+         would still run into the name (WordmarkRow). -->
+    <dimen name="cg_wordmark_min_size">26sp</dimen>
+    <dimen name="cg_wordmark_smallest_size">26sp</dimen>
     <dimen name="cg_hero_cover_width">112dp</dimen>
     <dimen name="cg_hero_cover_height">150dp</dimen>
     <dimen name="cg_hero_gap">16dp</dimen>

@@ -15,8 +15,9 @@ steps and the checksums for each version.
 
 ### Changed
 
-- **The Starwire wordmark** on the games screen is a little bigger. It stays the same size on
-  screens under 360 dp wide, like a Fold's cover screen, where a long PC name needs the room.
+- **The Starwire wordmark** on the games screen is a little bigger. Beside a long PC name it
+  shrinks to make room, back to the size it was before, or further if the name would still reach
+  it. It stays the same size on screens under 360 dp wide, like a Fold's cover screen.
 
 ## [0.2.1] - 2026-10-23
 
