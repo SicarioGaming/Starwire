@@ -156,13 +156,16 @@ int gracefullyDisconnectEnetPeer(ENetHost* host, ENetPeer* enetPeer, enet_uint32
 }
 bool isReferenceFrameInvalidationEnabled(void) { return false; }
 
-// ENet: every packet given to enet_peer_send() is kept in sent[] as the host would get it
+// ENet: every packet given to enet_peer_send() is kept in sent[] as the host would get it. One
+// that doesn't fit is kept with a length of 0 and counted in unkept, and main() fails the run if
+// there are any, so no check reads an older packet's data.
 #define MAX_SENT 16
 static struct {
-    unsigned char data[256];
+    unsigned char data[512];  // An encrypted control message is under 280 bytes (sendMessageEnet())
     size_t length;
 } sent[MAX_SENT];
 static int sentCount;
+static int unkept;
 
 ENetPacket* enet_packet_create(const void* data, size_t dataLength, enet_uint32 flags) {
     ENetPacket* packet = calloc(1, sizeof(*packet));
@@ -186,6 +189,12 @@ int enet_peer_send(ENetPeer* enetPeer, enet_uint8 channelID, ENetPacket* packet)
     if (sentCount < MAX_SENT && packet->dataLength <= sizeof(sent[0].data)) {
         memcpy(sent[sentCount].data, packet->data, packet->dataLength);
         sent[sentCount].length = packet->dataLength;
+    }
+    else {
+        if (sentCount < MAX_SENT) {
+            sent[sentCount].length = 0;
+        }
+        unkept++;
     }
     sentCount++;
     enet_packet_destroy(packet);  // ENet owns a packet once it's been given one
@@ -232,11 +241,25 @@ static void check(bool ok, const char* what) {
 static unsigned read16le(const unsigned char* p) { return p[0] | (p[1] << 8); }
 static uint32_t read32le(const unsigned char* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24); }
 
-// A sent packet's control message type, after the host decrypts it. Every stream here uses the
-// encrypted control stream (hosts that report 7.1.431 or later).
+// A sent packet's control message, after the host decrypts it: its type, then its payload's
+// length, then the payload. Every stream here uses the encrypted control stream (hosts that
+// report 7.1.431 or later). A packet that wasn't kept, or is too short to hold all of its
+// message, has type 0xFFFF.
 #define CONTROL_HEADER_SIZE (sizeof(NVCTL_ENCRYPTED_PACKET_HEADER) + AES_GCM_TAG_LENGTH)
+#define MESSAGE_HEADER_SIZE sizeof(NVCTL_ENET_PACKET_HEADER_V2)
+static bool hasControlMessage(int i) {
+    return i < sentCount && i < MAX_SENT &&
+           sent[i].length >= CONTROL_HEADER_SIZE + MESSAGE_HEADER_SIZE &&
+           sent[i].length >= CONTROL_HEADER_SIZE + MESSAGE_HEADER_SIZE + read16le(sent[i].data + CONTROL_HEADER_SIZE + 2);
+}
 static unsigned controlType(int i) {
-    return read16le(sent[i].data + CONTROL_HEADER_SIZE);
+    return hasControlMessage(i) ? read16le(sent[i].data + CONTROL_HEADER_SIZE) : 0xFFFF;
+}
+static unsigned controlPayloadLength(int i) {
+    return hasControlMessage(i) ? read16le(sent[i].data + CONTROL_HEADER_SIZE + 2) : 0;
+}
+static const unsigned char* controlPayload(int i) {
+    return sent[i].data + CONTROL_HEADER_SIZE + MESSAGE_HEADER_SIZE;
 }
 
 // How many sent packets are input packets with this magic. An input packet is the payload of an
@@ -244,9 +267,9 @@ static unsigned controlType(int i) {
 static int countInput(uint32_t magic) {
     int count = 0;
     for (int i = 0; i < sentCount && i < MAX_SENT; i++) {
-        const unsigned char* payload = sent[i].data + CONTROL_HEADER_SIZE + sizeof(NVCTL_ENET_PACKET_HEADER_V2);
         if (controlType(i) == (unsigned short)packetTypes[IDX_INPUT_DATA] &&
-                read32le(payload + sizeof(uint32_t)) == magic) {
+                controlPayloadLength(i) >= 2 * sizeof(uint32_t) &&
+                read32le(controlPayload(i) + sizeof(uint32_t)) == magic) {
             count++;
         }
     }
@@ -302,6 +325,13 @@ int main(void) {
     sentCount = 0;
     check(LiSendKeepAlivePayload() == 0, "sent");
     check(sentCount == 1 && controlType(0) == 0x0200, "sent as a periodic ping (0x0200), a type the host knows");
+    // lossStatsThreadFunc() sends its pings with this 8-byte payload: a 16-bit length of 4, then
+    // a zero timestamp
+    static const unsigned char pingPayload[8] = { 4, 0, 0, 0, 0, 0, 0, 0 };
+    check(sentCount == 1 && controlPayloadLength(0) == sizeof(pingPayload) &&
+          sent[0].length == CONTROL_HEADER_SIZE + MESSAGE_HEADER_SIZE + sizeof(pingPayload) &&
+          memcmp(controlPayload(0), pingPayload, sizeof(pingPayload)) == 0,
+          "shaped like the pings the stream already sends: 8 bytes, a length of 4 and a zero timestamp");
     endStream();
 
     printf("GeForce Experience 7.1.431 as the stream starts:\n");
@@ -317,6 +347,9 @@ int main(void) {
     startStream(7, 0, 0, 0);
     check(sentCount == 0, "sends nothing, as these versions may drop the connection on a packet they don't know");
     endStream();
+
+    printf("This test:\n");
+    check(unkept == 0, "kept every packet sent, so the checks above read the real data");
 
     printf(failures ? "\n%d checks failed\n" : "\nAll checks passed\n", failures);
     return failures ? 1 : 0;
