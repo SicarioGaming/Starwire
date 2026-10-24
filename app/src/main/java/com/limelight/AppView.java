@@ -89,7 +89,9 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
     private static final String COVER_GLOW_PREF_FILENAME = "CoverGlow";
     private View appRoot, coverGlow, heroDetails;
     // The game screen has three sets of sizes (cover_glow_dimens.xml): narrow below 480 dp wide,
-    // a smaller header on wide screens under 520 dp tall (a phone held sideways), and the full one
+    // a smaller header on wide screens under 520 dp tall (a phone held sideways), and the full one.
+    // Narrow screens under 360 dp wide also keep a smaller wordmark.
+    private static final int SMALL_WIDTH_DP = 360;
     private static final int NARROW_WIDTH_DP = 480;
     private static final int SHORT_HEIGHT_DP = 520;
     private int builtSizes;
@@ -933,7 +935,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
     private static int sizesFor(Configuration config) {
         if (config.screenWidthDp < NARROW_WIDTH_DP) {
-            return 0;
+            return config.screenWidthDp < SMALL_WIDTH_DP ? 3 : 0;
         }
         return config.screenHeightDp < SHORT_HEIGHT_DP ? 1 : 2;
     }

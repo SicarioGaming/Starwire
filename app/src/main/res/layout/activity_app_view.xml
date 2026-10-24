@@ -46,9 +46,12 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- As tall as the PC name. The wordmark's text box can be a little taller than that,
+                 but only blank space above and below its letters spills over, so a bigger
+                 wordmark never pushes the game down -->
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
+                android:layout_height="44dp">
 
                 <TextView
                     android:id="@+id/appListText"

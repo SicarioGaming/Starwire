@@ -5,7 +5,7 @@
 <resources>
     <dimen name="cg_content_padding">28dp</dimen>
     <dimen name="cg_content_padding_top">8dp</dimen>
-    <dimen name="cg_wordmark_size">28sp</dimen>
+    <dimen name="cg_wordmark_size">33sp</dimen>
     <dimen name="cg_hero_cover_width">78dp</dimen>
     <dimen name="cg_hero_cover_height">104dp</dimen>
     <dimen name="cg_hero_gap">20dp</dimen>

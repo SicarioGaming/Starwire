@@ -13,6 +13,11 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Changed
+
+- **The Starwire wordmark** on the games screen is a little bigger. It stays the same size on
+  screens under 360 dp wide, like a Fold's cover screen, where a long PC name needs the room.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cover Glow's game screen on phones held upright, 360 to 479 dp wide: the narrow sizes in
+     values, with a bigger wordmark. It still clears a 15-character PC name at 360 dp. -->
+<resources>
+    <dimen name="cg_wordmark_size">30sp</dimen>
+</resources>
