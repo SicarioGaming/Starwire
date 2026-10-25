@@ -251,6 +251,42 @@ public class GameBrightnessTest {
     }
 
     @Test
+    public void noPartOfTheTouchThatClosesTheSliderReachesThePc() {
+        // What reached the PC, for every touch mode, before saying which went wrong
+        List<String> leaks = new ArrayList<>();
+        for (int touchMode : SWIPE_MODES) {
+            // Opened from the stream menu, the touch handling hasn't been told to drop anything
+            openStreamScreen(touchMode);
+            openFromTheMenu();
+            tapTheMiddle();
+            assertEquals(mode(touchMode) + "the tap didn't close the slider", View.GONE, slider.getVisibility());
+            if (!pc.sent.isEmpty()) {
+                leaks.add(mode(touchMode) + "the closing tap sent " + pc.sent);
+            }
+
+            // Again after a tap on the stream, this time closed by a drag
+            tapTheMiddle();
+            openFromTheMenu();
+            pc.sent.clear();
+            float x = background.getWidth() / 2f;
+            finger(MotionEvent.ACTION_DOWN, x, middleY());
+            finger(MotionEvent.ACTION_MOVE, x + dp(25), middleY());
+            finger(MotionEvent.ACTION_MOVE, x + dp(50), middleY());
+            finger(MotionEvent.ACTION_UP, x + dp(50), middleY());
+            advance(1000);
+            if (!pc.sent.isEmpty()) {
+                leaks.add(mode(touchMode) + "the closing drag sent " + pc.sent);
+            }
+
+            // The next tap is a click again
+            pc.sent.clear();
+            tapTheMiddle();
+            assertTrue(mode(touchMode) + "the next tap wasn't a click on the PC: " + pc.sent, clicked());
+        }
+        assertEquals("the touch that closed the slider reached the PC", new ArrayList<String>(), leaks);
+    }
+
+    @Test
     public void theSliderStaysUpUntilChangedThenHidesTwoSecondsAfter() {
         openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
         swipeInFromTheLeftEdge();

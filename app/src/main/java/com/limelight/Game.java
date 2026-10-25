@@ -139,6 +139,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private boolean edgeSwipeTracking = false;
     private float edgeSwipeStartX, edgeSwipeStartY;
     private long edgeSwipeStartTime;
+    // The touch on the stream that closed the brightness slider, until its last finger lifts
+    private boolean closingTouch = false;
 
     private static final int REFERENCE_HORIZ_RES = 1280;
     private static final int REFERENCE_VERT_RES = 720;
@@ -2694,12 +2696,23 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // NB: This is still needed even when we call the newer requestUnbufferedDispatch()!
             view.requestUnbufferedDispatch(event);
 
+            // A new touch, however the last one ended
+            closingTouch = false;
+
             // A touch on the stream closes the brightness slider, which otherwise stays up until
-            // it's been changed
+            // it's been changed. All of that touch is kept from the PC, not just its start.
             if (brightnessSliderView.isShowing()) {
                 brightnessSliderView.hide();
+                closingTouch = true;
                 return true;
             }
+        }
+        else if (closingTouch) {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP ||
+                    event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                closingTouch = false;
+            }
+            return true;
         }
 
         return handleMotionEvent(view, event);
