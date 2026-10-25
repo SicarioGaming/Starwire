@@ -144,6 +144,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     // In multi-touch mode, a touch the PC was told to forget, for an edge swipe or a third
     // finger, until its last finger lifts
     private boolean multiTouchCancelled = false;
+    // In multi-touch mode, true while the PC has a touch down: from the first finger it took
+    // until the last one lifts, or the touch is cancelled or taken back from it
+    private boolean multiTouchDown = false;
 
     private static final int REFERENCE_HORIZ_RES = 1280;
     private static final int REFERENCE_VERT_RES = 720;
@@ -2765,23 +2768,31 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         return false;
     }
 
-    // Lets go of what the fingers were doing on the PC, for an edge swipe or a third finger. The
-    // touch contexts then ignore the rest of the touch. In multi-touch mode the PC is told to
-    // forget its touches, and sendMultiTouch keeps the rest of the touch from it.
+    // Lets go of what the fingers were doing on the PC, for an edge swipe, a third finger or a
+    // switch to Pan/Zoom. The touch contexts then ignore the rest of the touch, and so does
+    // multi-touch mode.
     private void cancelTouches() {
         for (TouchContext aTouchContext : touchContextMap) {
             aTouchContext.cancelTouch();
         }
-        if (mouseMode == MOUSE_MODE_MULTI_TOUCH && !multiTouchCancelled &&
-                conn.sendTouchEvent(MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL, 0, 0, 0, 0, 0, 0,
-                        MoonBridge.LI_ROT_UNKNOWN) != MoonBridge.LI_ERR_UNSUPPORTED) {
+        cancelMultiTouch();
+    }
+
+    // If the PC has a touch down from multi-touch mode, tells it to forget its touches, and
+    // sendMultiTouch keeps the rest of the touch from it. Only multi-touch mode puts a touch
+    // down, and applyMouseMode calls this before it changes the mode.
+    private void cancelMultiTouch() {
+        if (multiTouchDown) {
+            multiTouchDown = false;
             multiTouchCancelled = true;
+            conn.sendTouchEvent(MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL, 0, 0, 0, 0, 0, 0,
+                    MoonBridge.LI_ROT_UNKNOWN);
         }
     }
 
     // Multi-touch mode: sends the touch to the PC as a touch, and returns false if the PC can't
-    // take touches. Once cancelTouches has taken a touch back from the PC, the rest of it goes no
-    // further, and its last finger lifting may end a 3 finger tap, as in the other modes.
+    // take touches. Once cancelMultiTouch has taken a touch back from the PC, the rest of it goes
+    // no further, and its last finger lifting may end a 3 finger tap, as in the other modes.
     private boolean sendMultiTouch(View view, MotionEvent event) {
         int action = event.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) {
@@ -2800,7 +2811,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
             return true;
         }
-        return trySendTouchEvent(view, event);
+        if (!trySendTouchEvent(view, event)) {
+            return false;
+        }
+        if (action == MotionEvent.ACTION_DOWN) {
+            multiTouchDown = true;
+        }
+        else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            multiTouchDown = false;
+        }
+        return true;
     }
 
     @Override
@@ -3925,10 +3945,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private void togglePanZoomMode() {
         isPanZoomMode = !isPanZoomMode;
 
-        // Release anything held down by the touch that started this
-        for (TouchContext touchContext : touchContextMap) {
-            touchContext.cancelTouch();
-        }
+        // Release anything a finger on the stream holds down, a touch on the PC included
+        cancelTouches();
 
         Toast.makeText(this, isPanZoomMode ? R.string.pan_zoom_mode_enabled : R.string.pan_zoom_mode_disabled,
                 Toast.LENGTH_SHORT).show();
@@ -3938,6 +3956,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
      * Rebuild the touch contexts for one of Artemide's touch modes (MOUSE_MODE_*).
      */
     private void applyMouseMode(int mode) {
+        // A finger held on the stream lets go of its touch on the PC. The touch contexts below
+        // let go of what they hold down.
+        cancelMultiTouch();
         mouseMode = mode;
 
         // The trackpad modes move the cursor relative to the finger; the others place it under it

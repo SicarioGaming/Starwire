@@ -371,12 +371,81 @@ public class GameMultiTouchTest {
     @Test
     public void panZoomModeStillTakesTheFingersInMultiTouchMode() {
         openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
-        // What the stream menu's Pan/Zoom tile does
-        ReflectionHelpers.callInstanceMethod(game, "togglePanZoomMode");
+        togglePanZoom();
         pinchOut();
         assertTrue("the pinch didn't zoom the stream", stream.getScaleX() > 1.5f);
         tap(across(0.5f), middleY());
         assertEquals(list(), pc.sent);
+    }
+
+    // What the stream menu's Pan/Zoom tile does
+    private void togglePanZoom() {
+        ReflectionHelpers.callInstanceMethod(game, "togglePanZoomMode");
+        idle();
+    }
+
+    // What the stream menu's Touch Mode picker does, and the Touch Sensitivity tile with the
+    // mode it's in
+    private void pickTouchMode(int touchMode) {
+        ReflectionHelpers.callInstanceMethod(game, "applyMouseMode", ClassParameter.from(int.class, touchMode));
+        idle();
+    }
+
+    @Test
+    public void turningOnPanZoomWithAFingerDownTakesTheTouchBackFromThePc() {
+        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        fingers(MotionEvent.ACTION_DOWN, at(0, across(0.5f), middleY()));
+        // Tapped with the other hand, while the finger stays on the stream
+        togglePanZoom();
+        fingers(MotionEvent.ACTION_MOVE, at(0, across(0.6f), middleY()));
+        fingers(MotionEvent.ACTION_UP, at(0, across(0.6f), middleY()));
+        advance(1000);
+        assertEquals("the touch was left down on the PC",
+                list("down 0 at 0.50,0.50", "cancel all 0 at 0.00,0.00"), pc.touches);
+
+        // Turned off again, it sends the PC nothing more, and the next tap reaches the PC
+        togglePanZoom();
+        tap(across(0.5f), middleY());
+        assertEquals(list("down 0 at 0.50,0.50", "cancel all 0 at 0.00,0.00",
+                "down 0 at 0.50,0.50", "up 0 at 0.50,0.50"), pc.touches);
+        assertEquals(list(), notTouches());
+    }
+
+    @Test
+    public void pickingATouchModeWithAFingerDownTakesTheTouchBackFromThePc() {
+        // Each mode in the picker, and multi-touch itself, which the Touch Sensitivity tile picks
+        int[] touchModes = {Game.MOUSE_MODE_DIRECT_TOUCH, Game.MOUSE_MODE_TRACKPAD_NATURAL,
+                Game.MOUSE_MODE_TRACKPAD_GAMING, Game.MOUSE_MODE_DISABLED,
+                Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED, Game.MOUSE_MODE_MULTI_TOUCH};
+        for (int touchMode : touchModes) {
+            openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+            fingers(MotionEvent.ACTION_DOWN, at(0, across(0.5f), middleY()));
+            pickTouchMode(touchMode);
+            fingers(MotionEvent.ACTION_UP, at(0, across(0.5f), middleY()));
+            advance(1000);
+            // In multi-touch mode the rest of the touch goes no further, as after a swipe
+            assertEquals("touch mode " + touchMode + ": the touch wasn't taken back from the PC",
+                    list("down 0 at 0.50,0.50", "cancel all 0 at 0.00,0.00"), pc.touches);
+        }
+    }
+
+    @Test
+    public void changingModesSendsNothingWhenThePcHasNoTouchDown() {
+        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        // After a tap
+        tap(across(0.5f), middleY());
+        togglePanZoom();
+        togglePanZoom();
+        pickTouchMode(Game.MOUSE_MODE_MULTI_TOUCH);
+        // After a touch the system cancels, which the PC is told to forget
+        fingers(MotionEvent.ACTION_DOWN, at(0, across(0.5f), middleY()));
+        fingers(MotionEvent.ACTION_CANCEL, at(0, across(0.5f), middleY()));
+        advance(1000);
+        togglePanZoom();
+        togglePanZoom();
+        pickTouchMode(Game.MOUSE_MODE_DIRECT_TOUCH);
+        assertEquals(list("down 0 at 0.50,0.50", "up 0 at 0.50,0.50",
+                "down 0 at 0.50,0.50", "cancel all 0 at 0.00,0.00"), pc.touches);
     }
 
     @Test
