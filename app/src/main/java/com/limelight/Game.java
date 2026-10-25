@@ -1714,9 +1714,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return overlayMenuView.dispatchKeyEvent(event);
         }
 
-        // Likewise the brightness slider shown from it
-        if (brightnessSliderView != null && brightnessSliderView.isControllerMode()) {
-            return brightnessSliderView.handleKeyEvent(event);
+        // Likewise the brightness slider shown from it, and the repeats of the key that closed it
+        if (brightnessSliderView != null && brightnessSliderView.handleKeyEvent(event)) {
+            return true;
         }
 
         // Handle a synthetic back button event that some Android OS versions

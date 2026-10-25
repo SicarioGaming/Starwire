@@ -36,7 +36,7 @@ public class BrightnessSliderView {
     // Up for a gamepad or remote (showForController())
     private boolean controllerMode = false;
     private Runnable onControllerClosed;
-    // The key that closed it, whose release is taken too
+    // The key that closed it, whose repeats and release are taken too
     private int closingKeyCode = KeyEvent.KEYCODE_UNKNOWN;
     private long lastStickStepMs = 0;
     // The brightness was changed since the slider was shown, which starts its hide timer
@@ -193,15 +193,22 @@ public class BrightnessSliderView {
 
     /**
      * Key events while the slider is up for a controller. Takes every one, so none reach the
-     * stream; the release of the key that closed it is taken too.
+     * stream; the key that closed it is taken too while it's held, its repeats and its release.
      */
     public boolean handleKeyEvent(KeyEvent event) {
         if (!controllerMode) {
-            if (event.getAction() == KeyEvent.ACTION_UP && event.getKeyCode() == closingKeyCode) {
-                closingKeyCode = KeyEvent.KEYCODE_UNKNOWN;
-                return true;
+            if (closingKeyCode == KeyEvent.KEYCODE_UNKNOWN || event.getKeyCode() != closingKeyCode) {
+                return false;
             }
-            return false;
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                // A new press: the release of the one that closed it went somewhere else
+                closingKeyCode = KeyEvent.KEYCODE_UNKNOWN;
+                return false;
+            }
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                closingKeyCode = KeyEvent.KEYCODE_UNKNOWN;
+            }
+            return true;
         }
 
         if (event.getAction() == KeyEvent.ACTION_DOWN) {

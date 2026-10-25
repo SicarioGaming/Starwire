@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
 import android.app.UiModeManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -17,6 +18,9 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.SeekBar;
+
+import com.limelight.binding.input.ControllerHandler;
+import com.limelight.preferences.PreferenceConfiguration;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -463,6 +467,54 @@ public class GameBrightnessTest {
         openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
         assertTrue("Game didn't see a TV", (Boolean) ReflectionHelpers.getField(game, "isAndroidTV"));
         assertFalse("the stream menu has a Brightness tile on a TV", theStreamMenuHasBrightness());
+    }
+
+    // A gamepad button as Android hands it out, repeat 1 and up while it's held. Device 0, so
+    // Game's controller handling takes it for the gamepad it doesn't know yet.
+    private static KeyEvent pad(long downTime, long eventTime, int action, int keyCode, int repeat) {
+        return new KeyEvent(downTime, eventTime, action, keyCode, repeat, 0, 0, 0, 0, InputDevice.SOURCE_GAMEPAD);
+    }
+
+    @Test
+    public void holdingTheButtonThatClosesTheSliderSendsThePcNothing() {
+        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        // Game's controller handling, sending to the recording connection as in a stream. There's
+        // no SHIELD accessory service to bind to, as on any device but an NVIDIA SHIELD.
+        shadowOf(RuntimeEnvironment.getApplication()).declareComponentUnbindable(
+                new ComponentName("com.nvidia.blakepairing", "com.nvidia.blakepairing.AccessoryService"));
+        PreferenceConfiguration prefConfig = ReflectionHelpers.getField(game, "prefConfig");
+        ControllerHandler controllers = new ControllerHandler(game, pc, game, prefConfig);
+        ReflectionHelpers.setField(game, "controllerHandler", controllers);
+        try {
+            for (int keyCode : new int[] {KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B}) {
+                openFromTheMenu();
+                long down = SystemClock.uptimeMillis();
+                assertTrue(game.dispatchKeyEvent(pad(down, down, KeyEvent.ACTION_DOWN, keyCode, 0)));
+                idle();
+                assertEquals("key " + keyCode + " didn't close the slider", View.GONE, slider.getVisibility());
+                // Held, Android repeats the press until it's let go
+                for (int repeat = 1; repeat <= 3; repeat++) {
+                    game.dispatchKeyEvent(pad(down, down + 400 + 50 * repeat, KeyEvent.ACTION_DOWN, keyCode, repeat));
+                }
+                game.dispatchKeyEvent(pad(down, down + 700, KeyEvent.ACTION_UP, keyCode, 0));
+                idle();
+                assertEquals("key " + keyCode + ": the PC got the button that closed the slider",
+                        new ArrayList<String>(), pc.sent);
+
+                // The next press is the game's, and it's let go there too
+                long next = SystemClock.uptimeMillis();
+                game.dispatchKeyEvent(pad(next, next, KeyEvent.ACTION_DOWN, keyCode, 0));
+                game.dispatchKeyEvent(pad(next, next + 100, KeyEvent.ACTION_UP, keyCode, 0));
+                idle();
+                assertTrue("key " + keyCode + ": the next press didn't reach the PC: " + pc.sent,
+                        pc.sent.size() >= 2 && !pc.sent.get(0).equals("pad0"));
+                assertEquals("key " + keyCode + ": the next press was left held: " + pc.sent,
+                        "pad0", pc.sent.get(pc.sent.size() - 1));
+                pc.sent.clear();
+            }
+        } finally {
+            controllers.destroy();
+        }
     }
 
     // A left stick (or d-pad hat) position, up negative
