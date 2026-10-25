@@ -55,6 +55,7 @@ public class RecordingConnection extends NvConnection {
             case MoonBridge.LI_TOUCH_EVENT_MOVE: return "move";
             case MoonBridge.LI_TOUCH_EVENT_CANCEL: return "cancel";
             case MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL: return "cancel all";
+            case MoonBridge.LI_TOUCH_EVENT_HOVER: return "hover";
             default: return "type " + eventType;
         }
     }

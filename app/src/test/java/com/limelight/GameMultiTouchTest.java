@@ -332,6 +332,104 @@ public class GameMultiTouchTest {
         assertEquals(list("touch1", "touch2"), pc.sent);
     }
 
+    // The fingers' event handed straight to Game's touch listener, at their places on the view
+    // behind the stream, with these flags. Robolectric's window loses an event's flags, so a
+    // finger the system cancelled (FLAG_CANCELED) has to come this way.
+    private void straightToGame(int action, int flags, float[]... points) {
+        MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[points.length];
+        MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[points.length];
+        for (int i = 0; i < points.length; i++) {
+            properties[i] = new MotionEvent.PointerProperties();
+            properties[i].id = (int) points[i][0];
+            properties[i].toolType = MotionEvent.TOOL_TYPE_FINGER;
+            coords[i] = new MotionEvent.PointerCoords();
+            coords[i].x = points[i][1];
+            coords[i].y = points[i][2];
+            coords[i].pressure = 1;
+            coords[i].size = 1;
+        }
+        long now = SystemClock.uptimeMillis();
+        MotionEvent event = MotionEvent.obtain(now, now, action, points.length, properties, coords, 0, 0, 1f, 1f,
+                0, 0, InputDevice.SOURCE_TOUCHSCREEN, flags);
+        assertEquals("the event lost its flags", flags, event.getFlags());
+        game.onTouch(background, event);
+        event.recycle();
+        idle();
+    }
+
+    // A quick three-finger tap, straight to Game, whose last finger lifts with these flags
+    private void threeFingerTapStraightToGame(int lastFingerFlags) {
+        float y = middleY();
+        float[] one = at(0, across(0.3f), y);
+        float[] two = at(1, across(0.5f), y);
+        float[] three = at(2, across(0.7f), y);
+        straightToGame(MotionEvent.ACTION_DOWN, 0, one);
+        straightToGame(pointer(MotionEvent.ACTION_POINTER_DOWN, 1), 0, one, two);
+        straightToGame(pointer(MotionEvent.ACTION_POINTER_DOWN, 2), 0, one, two, three);
+        straightToGame(pointer(MotionEvent.ACTION_POINTER_UP, 2), 0, one, two, three);
+        straightToGame(pointer(MotionEvent.ACTION_POINTER_UP, 1), 0, one, two);
+        straightToGame(MotionEvent.ACTION_UP, lastFingerFlags, one);
+    }
+
+    @Test
+    public void aThreeFingerTapWhoseLastFingerTheSystemCancelledLeavesTheMenuShut() {
+        // On Android 13 and later, Game leaves the menu shut when the last finger's up is marked
+        // as cancelled, as it does in the other touch modes
+        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        threeFingerTapStraightToGame(MotionEvent.FLAG_CANCELED);
+        assertFalse("a finger the system cancelled opened the stream menu", menuShowing());
+        assertEquals(list("down 0 at 0.30,0.50", "down 1 at 0.50,0.50", "cancel all 0 at 0.00,0.00"), pc.touches);
+
+        // The same tap with the finger lifted as usual opens it
+        threeFingerTapStraightToGame(0);
+        assertTrue("the three-finger tap didn't open the stream menu", menuShowing());
+    }
+
+    // A finger just above the screen, as the stream view hands it to Game, half way across and
+    // down the stream
+    private void hover() {
+        MotionEvent.PointerProperties[] properties = {new MotionEvent.PointerProperties()};
+        properties[0].id = 0;
+        properties[0].toolType = MotionEvent.TOOL_TYPE_FINGER;
+        MotionEvent.PointerCoords[] coords = {new MotionEvent.PointerCoords()};
+        coords[0].x = stream.getWidth() / 2f;
+        coords[0].y = stream.getHeight() / 2f;
+        long now = SystemClock.uptimeMillis();
+        MotionEvent event = MotionEvent.obtain(now, now, MotionEvent.ACTION_HOVER_MOVE, 1, properties, coords, 0, 0,
+                1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
+        game.onGenericMotion(stream, event);
+        event.recycle();
+        idle();
+    }
+
+    @Test
+    public void onceATouchThePcWasToldToForgetIsOverTheFingersReachItAgain() {
+        // A finger hovering between touches doesn't start a touch, so it shows whether the
+        // touch taken back from the PC is over, however it ended
+        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        float y = middleY();
+        float[] one = at(0, across(0.3f), y);
+        float[] two = at(1, across(0.5f), y);
+        float[] three = at(2, across(0.7f), y);
+        // Three fingers held, then lifted
+        threeFingers(400);
+        hover();
+        // Three fingers, then the system cancels the touch
+        fingers(MotionEvent.ACTION_DOWN, one);
+        fingers(pointer(MotionEvent.ACTION_POINTER_DOWN, 1), one, two);
+        fingers(pointer(MotionEvent.ACTION_POINTER_DOWN, 2), one, two, three);
+        fingers(MotionEvent.ACTION_CANCEL, one, two, three);
+        hover();
+        List<String> threeFingersTakenBack =
+                list("down 0 at 0.30,0.50", "down 1 at 0.50,0.50", "cancel all 0 at 0.00,0.00");
+        List<String> expected = new ArrayList<>(threeFingersTakenBack);
+        expected.add("hover 0 at 0.50,0.50");
+        expected.addAll(threeFingersTakenBack);
+        expected.add("hover 0 at 0.50,0.50");
+        assertEquals(expected, pc.touches);
+        assertFalse("three fingers held opened the stream menu", menuShowing());
+    }
+
     @Test
     public void withAPcThatTakesNoTouchesMultiTouchWorksAsDirectTouch() {
         // As with GeForce Experience
@@ -366,6 +464,21 @@ public class GameMultiTouchTest {
         openStreamScreen(Game.MOUSE_MODE_DISABLED);
         tap(across(0.5f), middleY());
         assertEquals(list(), pc.sent);
+    }
+
+    @Test
+    public void theOtherTouchModesSendNoTouchForTheSwipeOrTheThreeFingerTap() {
+        for (int touchMode : MOUSE_MODES) {
+            openStreamScreen(touchMode);
+            swipeInFromTheLeftEdge();
+            assertTrue("touch mode " + touchMode + ": the swipe didn't open the brightness slider", sliderShowing());
+            // Closes the slider
+            tap(across(0.5f), middleY());
+            threeFingers(100);
+            assertTrue("touch mode " + touchMode + ": the three-finger tap didn't open the stream menu",
+                    menuShowing());
+            assertEquals("touch mode " + touchMode + " sent a touch", list(), pc.touches);
+        }
     }
 
     @Test
