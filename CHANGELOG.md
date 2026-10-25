@@ -16,23 +16,26 @@ steps and the checksums for each version.
 ### Added
 
 - **A Brightness item in the stream menu,** which opens the brightness slider. A controller moves
-  it in 5% steps, and A, B or Back closes it. It isn't shown on Android TV, where the app can't
-  change the screen's brightness. From Moonlight X. Checked by tests, not yet tried in a stream.
-- **A Left edge swipe action setting,** in Settings under Overlay Menu. It says what a quick swipe
-  in from the left edge of the screen does while streaming: open the brightness slider (the
+  it in 5% steps, and A, B or Back closes it. It isn't shown on Android TV. From Moonlight X.
+  Checked by tests, not yet tried in a stream.
+- **A Left edge swipe action setting,** in Settings under In-stream menu. It says what a swipe in
+  from the left edge of the screen does while streaming: open the brightness slider (the
   default), open the stream menu, or nothing. From Moonlight X. Checked by tests, not yet tried in
   a stream.
 
 ### Fixed
 
-- **A touch near the left edge of the screen goes to the game** like any other touch. It used to
-  open the brightness slider instead. Now only a quick swipe in from the edge opens the slider, in
-  the trackpad, direct touch and multi-touch modes, and the Left edge swipe action setting can
-  turn that off. The slider also works differently once it's open. It used to hide 3 seconds
-  after it opened. Now it stays up until you change it, then hides 2 seconds after your last
-  change. Until then, a touch on the stream closes it, and none of that touch reaches the game.
-  From Moonlight X. Thank you to u/zolidz64 for reporting it. Checked by tests, not yet tried in
-  a stream.
+- **A tap near the left edge of the screen goes to the game** like any other tap. It used to open
+  the brightness slider instead. Now a swipe in from the edge opens the slider, in the trackpad,
+  direct touch and multi-touch modes. The swipe starts within 80 dp of the left edge (about
+  1.3 cm) and moves 60 dp to the right (about 1 cm) within half a second. That isn't fast, so a
+  slow drag to the right from near the edge, like moving the cursor, opens the slider too. The
+  drag goes to the game until it has moved 60 dp, and the rest of it doesn't. If you play with a
+  finger near the left edge, set Left edge swipe action to Disabled. The slider also works
+  differently once it's open. It used to hide 3 seconds after it opened. Now it stays up until
+  you change it, then hides 2 seconds after your last change. Until then, a touch on the stream
+  closes it, and none of that touch reaches the game. From Moonlight X. Thank you to u/zolidz64
+  for reporting it. Checked by tests, not yet tried in a stream.
 
 ## [0.2.1] - 2026-10-23
 
