@@ -13,6 +13,13 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Changed
+
+- **Virtual display** is the new name of the setting that was called "Display on the PC", in
+  Settings under PC and in a game's App Settings, so it's easier to find. Its choices are now Host
+  default, On (a screen made for this device) and Off (the PC's main monitor). A choice you
+  already made stays as it was. Thank you to u/elenayebenes for asking about it.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

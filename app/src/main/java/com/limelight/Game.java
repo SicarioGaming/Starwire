@@ -297,7 +297,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public static final String EXTRA_SERVER_CERT = "ServerCert";
     public static final String EXTRA_QUICK_LAUNCH_APP_KEY = "QuickLaunchAppKey";
     public static final String EXTRA_APPLY_PREFERENCE_OVERRIDES = "ApplyPreferenceOverrides";
-    // StreamConfiguration.VIRTUAL_DISPLAY_*; when absent the "Display on the PC" setting decides
+    // StreamConfiguration.VIRTUAL_DISPLAY_*; when absent the "Virtual display" setting decides
     public static final String EXTRA_VIRTUAL_DISPLAY = "VirtualDisplay";
     public static final String ACTION_QUIT_APP = "com.limelight.QUIT_STREAMING_APP";
 
