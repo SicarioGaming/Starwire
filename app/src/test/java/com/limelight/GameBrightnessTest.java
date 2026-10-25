@@ -20,6 +20,7 @@ import android.view.View;
 import android.widget.SeekBar;
 
 import com.limelight.binding.input.ControllerHandler;
+import com.limelight.nvstream.jni.MoonBridge;
 import com.limelight.preferences.PreferenceConfiguration;
 
 import org.junit.Test;
@@ -54,7 +55,7 @@ import java.util.List;
         qualifiers = "w960dp-h540dp-land-xhdpi") // a 1080p handheld
 public class GameBrightnessTest {
     // The touch modes where a swipe in from the left edge opens the slider. In multi-touch mode,
-    // touches from the view behind the stream go the way they do in direct touch.
+    // touches reach the PC as touches; GameMultiTouchTest has more on that mode.
     private static final int[] SWIPE_MODES = {Game.MOUSE_MODE_TRACKPAD_NATURAL, Game.MOUSE_MODE_TRACKPAD_GAMING,
             Game.MOUSE_MODE_MULTI_TOUCH, Game.MOUSE_MODE_DIRECT_TOUCH, Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED};
 
@@ -197,10 +198,12 @@ public class GameBrightnessTest {
     }
 
     // A mouse button pressed and released on the PC: the left one, or the right one in direct
-    // touch with the buttons swapped
+    // touch with the buttons swapped. In multi-touch mode, a touch that went down and up.
     private boolean clicked() {
         return (pc.sent.contains("down1") && pc.sent.contains("up1"))
-                || (pc.sent.contains("down3") && pc.sent.contains("up3"));
+                || (pc.sent.contains("down3") && pc.sent.contains("up3"))
+                || (pc.sent.contains("touch" + MoonBridge.LI_TOUCH_EVENT_DOWN)
+                        && pc.sent.contains("touch" + MoonBridge.LI_TOUCH_EVENT_UP));
     }
 
     private static String mode(int touchMode) {
@@ -295,6 +298,11 @@ public class GameBrightnessTest {
             assertFalse(mode(touchMode) + "the start of the drag didn't reach the PC", pc.sent.isEmpty());
             assertEquals(mode(touchMode) + "a mouse button was left held on the PC: " + pc.sent,
                     countStartingWith("down"), countStartingWith("up"));
+            // In multi-touch mode the drag was a touch, which the PC is told to forget
+            if (touchMode == Game.MOUSE_MODE_MULTI_TOUCH) {
+                assertEquals(mode(touchMode) + "the touch was left down on the PC: " + pc.sent,
+                        "touch" + MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL, pc.sent.get(pc.sent.size() - 1));
+            }
             finger(MotionEvent.ACTION_UP, dp(80), middleY());
         }
     }

@@ -141,6 +141,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private long edgeSwipeStartTime;
     // The touch on the stream that closed the brightness slider, until its last finger lifts
     private boolean closingTouch = false;
+    // In multi-touch mode, a touch the PC was told to forget, for an edge swipe or a third
+    // finger, until its last finger lifts
+    private boolean multiTouchCancelled = false;
 
     private static final int REFERENCE_HORIZ_RES = 1280;
     private static final int REFERENCE_VERT_RES = 720;
@@ -2467,12 +2470,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     return true;
                 }
 
-                if (mouseMode == MOUSE_MODE_MULTI_TOUCH && view == streamView && trySendTouchEvent(view, event)) {
-                    // Multi-touch mode sends touches straight to the host when it supports them
-                    // (Sunshine and Vibepollo do); otherwise fall through to direct touch
-                    return true;
-                }
-
                 // If this is the parent view, we'll offset our coordinates to appear as if they
                 // are relative to the StreamView like our StreamView touch events are.
                 float xOffset, yOffset;
@@ -2502,10 +2499,18 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                     // Cancel the first and second touches to avoid
                     // erroneous events
-                    for (TouchContext aTouchContext : touchContextMap) {
-                        aTouchContext.cancelTouch();
-                    }
+                    cancelTouches();
 
+                    return true;
+                }
+
+                // Fingers land on the view behind the stream, since the stream view lets touches
+                // through to it. So this takes touches from any view (it used to want the stream
+                // view's, and so never sent one). It comes after the 3 finger gesture, where
+                // upstream had native touch, and after the edge swipe, so both work here too.
+                if (mouseMode == MOUSE_MODE_MULTI_TOUCH && view != null && sendMultiTouch(view, event)) {
+                    // Multi-touch mode sends touches straight to the host when it supports them
+                    // (Sunshine and Vibepollo do); otherwise fall through to direct touch
                     return true;
                 }
 
@@ -2742,9 +2747,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 float vertical = Math.abs(event.getRawY() - edgeSwipeStartY);
                 if (in >= EDGE_SWIPE_DISTANCE_DP * getResources().getDisplayMetrics().density && vertical < in) {
                     edgeSwipeTracking = false;
-                    for (TouchContext aTouchContext : touchContextMap) {
-                        aTouchContext.cancelTouch();
-                    }
+                    cancelTouches();
                     if (prefConfig.leftEdgeSwipeAction.equals("overlay_menu")) {
                         overlayMenuView.show();
                     }
@@ -2760,6 +2763,44 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 break;
         }
         return false;
+    }
+
+    // Lets go of what the fingers were doing on the PC, for an edge swipe or a third finger. The
+    // touch contexts then ignore the rest of the touch. In multi-touch mode the PC is told to
+    // forget its touches, and sendMultiTouch keeps the rest of the touch from it.
+    private void cancelTouches() {
+        for (TouchContext aTouchContext : touchContextMap) {
+            aTouchContext.cancelTouch();
+        }
+        if (mouseMode == MOUSE_MODE_MULTI_TOUCH && !multiTouchCancelled &&
+                conn.sendTouchEvent(MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL, 0, 0, 0, 0, 0, 0,
+                        MoonBridge.LI_ROT_UNKNOWN) != MoonBridge.LI_ERR_UNSUPPORTED) {
+            multiTouchCancelled = true;
+        }
+    }
+
+    // Multi-touch mode: sends the touch to the PC as a touch, and returns false if the PC can't
+    // take touches. Once cancelTouches has taken a touch back from the PC, the rest of it goes no
+    // further, and its last finger lifting may end a 3 finger tap, as in the other modes.
+    private boolean sendMultiTouch(View view, MotionEvent event) {
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            // A new touch, however the last one ended
+            multiTouchCancelled = false;
+        }
+        else if (multiTouchCancelled) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                multiTouchCancelled = false;
+                if (action == MotionEvent.ACTION_UP &&
+                        (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || (event.getFlags() & MotionEvent.FLAG_CANCELED) == 0) &&
+                        event.getEventTime() - threeFingerDownTime < THREE_FINGER_TAP_THRESHOLD) {
+                    // This is a 3 finger tap to bring up the overlay menu
+                    runOnUiThread(() -> overlayMenuView.show());
+                }
+            }
+            return true;
+        }
+        return trySendTouchEvent(view, event);
     }
 
     @Override
