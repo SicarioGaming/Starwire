@@ -182,7 +182,8 @@ chmod +x .git/hooks/commit-msg
 
 The hook lets git's own "Merge ...", "Revert ..." and `fixup!` messages through, so those commands
 keep working. Before opening a pull request, squash the fixups and reword a revert as
-`revert: <what it undoes>`.
+`revert: <what it undoes>`. It also lets an upstream commit through when `git cherry-pick -x`
+brings it in, as the check above skips those.
 
 To fix a message that's already committed, use `git commit --amend` for the latest commit, or
 `git rebase -i origin/main` and "reword" for older ones, then push with

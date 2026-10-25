@@ -15,7 +15,8 @@
 #   --msg-file   checks one message, for .git/hooks/commit-msg. It lets git's own "Merge ...",
 #                "Revert ..." and fixup!/squash!/amend! messages through, so merging, reverting and
 #                autosquash keep working. The pull request check still asks for those to be
-#                reworded ("revert: ...") or squashed before merging.
+#                reworded ("revert: ...") or squashed before merging. It also lets an upstream
+#                commit brought in with git cherry-pick -x through, as the range check skips it.
 #   --self-test  runs planted good and bad messages, branch names and commits (in a throwaway repo
 #                in a temporary folder) and says if any is classified wrong.
 #
@@ -61,7 +62,7 @@ bad() { VERDICT=bad; PROBLEMS+=("$1"); }
 # entry). MODE is "range" for a commit already made, or "hook" for a message about to be committed.
 check_message() {
   local mode=$1 msg=$2 subject rest second type scope_part scope bang after desc first word base t
-  local types_list
+  local types_list last
   VERDICT=good; PROBLEMS=()
   msg=${msg//$'\r'/}
   subject=${msg%%$'\n'*}
@@ -72,6 +73,10 @@ check_message() {
   if [ -z "$subject" ]; then bad "the message is empty"; return; fi
   if [ "$mode" = hook ]; then
     case $subject in "Merge "*|"Revert "*|"fixup!"*|"squash!"*|"amend!"*) VERDICT=skip; return ;; esac
+    # git cherry-pick -x from upstream: the range check skips these by the same last line
+    last=${msg%$'\n'}
+    last=${last##*$'\n'}
+    if [[ $last =~ $RE_PICK ]]; then VERDICT=skip; return; fi
   fi
   case $subject in
     "fixup!"*|"squash!"*|"amend!"*)
@@ -349,6 +354,9 @@ self_test() {
   msg hook good "fix: stop the crash"
   msg hook bad "Fix the thing"
   msg hook bad "fixed: the thing"
+  msg hook skip $'Port the fix\n\nCo-Authored-By: Test <test@example.invalid>\n(cherry picked from commit 0123456789abcdef0123456789abcdef01234567)\n'
+  msg hook bad $'Port the fix\n\n(cherry picked from commit 0123456)\n\nA note below the line'
+  msg range bad $'Port the fix\n\n(cherry picked from commit 0123456)\n\nA note below the line'
 
   # Branch names
   for s in main master develop release/v0.2.1 feature/dualsense-triggers bugfix/mic-echo \
@@ -432,7 +440,10 @@ self_test() {
   printf '%s\n' "Fix the thing" "# a comment" > "$tmp/m2"
   printf '%s\n' "Merge branch 'side2'" > "$tmp/m3"
   printf '%s\r\n' "" "fix: stop the crash" "" "Windows line endings." > "$tmp/m4"
-  for s in "0 m1" "1 m2" "0 m3" "0 m4"; do
+  # What git cherry-pick -x leaves for git cherry-pick --continue after a conflict
+  printf '%s\n' "Port the fix" "" "(cherry picked from commit $c_side)" "" "# Conflicts:" \
+    "#	app/src/main/res/values/strings.xml" > "$tmp/m5"
+  for s in "0 m1" "1 m2" "0 m3" "0 m4" "0 m5"; do
     set -- $s
     bash "$SELF" --msg-file "$tmp/$2" >/dev/null 2>&1; status=$?
     result "$1" "$status" "--msg-file $2 exits $1"
