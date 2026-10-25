@@ -13,13 +13,26 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **A Brightness item in the stream menu,** which opens the brightness slider. A controller moves
+  it in 5% steps, and A, B or Back closes it. It isn't shown on Android TV, where the app can't
+  change the screen's brightness. From Moonlight X. Checked by tests, not yet tried in a stream.
+- **A Left edge swipe action setting,** in Settings under Overlay Menu. It says what a quick swipe
+  in from the left edge of the screen does while streaming: open the brightness slider (the
+  default), open the stream menu, or nothing. From Moonlight X. Checked by tests, not yet tried in
+  a stream.
+
 ### Fixed
 
-- **Touches near the left edge of the screen go to the game** in the multi-touch and direct touch
-  modes. They used to open the brightness slider. The slider now opens from the stream menu's new
-  Brightness item, where a controller moves it in 5% steps, or from the left edge with touch as a
-  trackpad (the default). It hides 2 seconds after your last change. From Moonlight X. Thank you
-  to u/zolidz64 for reporting it. Checked by tests, not yet tried in a stream.
+- **A touch near the left edge of the screen goes to the game** like any other touch. It used to
+  open the brightness slider instead. Now only a quick swipe in from the edge opens the slider, in
+  the trackpad, direct touch and multi-touch modes, and the Left edge swipe action setting can
+  turn that off. The slider also works differently once it's open. It used to hide 3 seconds
+  after it opened. Now it stays up until you change it, then hides 2 seconds after your last
+  change. Until then, a touch on the stream closes it, and none of that touch reaches the game.
+  From Moonlight X. Thank you to u/zolidz64 for reporting it. Checked by tests, not yet tried in
+  a stream.
 
 ## [0.2.1] - 2026-10-23
 

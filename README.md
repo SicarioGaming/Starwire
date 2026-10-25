@@ -430,7 +430,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | On-screen controller toggle | Ported from Artemis (Yukino Song), via Artemide |
 | Monitor switcher (Monitor 1–6, using the host's Ctrl+Alt+Shift+F1… shortcuts) | Idea from Moonlit Artemis (Mohammad Forhad / 4had45) |
 | Change bitrate mid-stream **(Vibepollo)** | Idea from Moonlight V+ (qiin2333) |
-| Coming in the next release: a Brightness item that opens the brightness slider. A controller moves it in 5% steps, and it hides 2 seconds after your last change. The left edge of the screen opens it only with touch as a trackpad, so in the other touch modes a touch there goes to the game. Checked by tests, not yet tried in a stream | Ported from Moonlight X (MoreOrLessSoftware), as a tile in Starwire's menu |
+| Coming in the next release: a Brightness item that opens the brightness slider, left out on Android TV. A controller moves it in 5% steps. A quick swipe in from the left edge of the screen opens the slider too, or the menu, or nothing, as the new Left edge swipe action setting says, and a tap at the edge goes to the game. The slider stays up until you change it, then hides 2 seconds after your last change. Checked by tests, not yet tried in a stream | Ported from Moonlight X (MoreOrLessSoftware), as a tile in Starwire's menu and a setting under Overlay Menu |
 
 </details>
 
