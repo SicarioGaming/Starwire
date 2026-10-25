@@ -134,6 +134,34 @@ public class GameBrightnessTest {
         idle();
     }
 
+    // Several fingers' event. Each point is a finger's id, then its x and y. For a finger going
+    // down or up while others stay, the action says which point it is (see pointer).
+    private void fingers(int action, float[]... points) {
+        MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[points.length];
+        MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[points.length];
+        for (int i = 0; i < points.length; i++) {
+            properties[i] = new MotionEvent.PointerProperties();
+            properties[i].id = (int) points[i][0];
+            properties[i].toolType = MotionEvent.TOOL_TYPE_FINGER;
+            coords[i] = new MotionEvent.PointerCoords();
+            coords[i].x = points[i][1];
+            coords[i].y = points[i][2];
+            coords[i].pressure = 1;
+            coords[i].size = 1;
+        }
+        long now = SystemClock.uptimeMillis();
+        MotionEvent event = MotionEvent.obtain(now, now, action, points.length, properties, coords, 0, 0, 1f, 1f,
+                0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
+        game.onTouch(background, event);
+        event.recycle();
+        idle();
+    }
+
+    // ACTION_POINTER_DOWN or ACTION_POINTER_UP for the finger at this place in the event
+    private static int pointer(int action, int index) {
+        return action | (index << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
+    }
+
     // A tap, and the time a click takes to be released on the PC
     private void tap(float x, float y) {
         finger(MotionEvent.ACTION_DOWN, x, y);
@@ -226,6 +254,51 @@ public class GameBrightnessTest {
         assertFalse("a swipe from further in opened the slider", showing());
     }
 
+    // A steady drag to the right from this far in from the left edge, 3 dp every 16 ms frame:
+    // about 190 dp a second, like moving the cursor. It ends this far from where it started,
+    // with the finger still down.
+    private void dragRightFrom(float startDp, float byDp) {
+        finger(MotionEvent.ACTION_DOWN, dp(startDp), middleY());
+        for (float moved = 3; moved <= byDp; moved += 3) {
+            advance(16);
+            finger(MotionEvent.ACTION_MOVE, dp(startDp + moved), middleY());
+        }
+    }
+
+    private int countStartingWith(String prefix) {
+        int count = 0;
+        for (String input : pc.sent) {
+            if (input.startsWith(prefix)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    @Test
+    public void aDragFromTheEdgeOpensTheSliderOnlyAt60DpInAndItsStartReachesThePc() {
+        for (int touchMode : SWIPE_MODES) {
+            // Lifted 57 dp from where it started, short of the 60 dp the swipe needs
+            openStreamScreen(touchMode);
+            dragRightFrom(20, 57);
+            finger(MotionEvent.ACTION_UP, dp(77), middleY());
+            advance(1000);
+            assertFalse(mode(touchMode) + "a 57 dp drag from the edge opened the slider", showing());
+            assertFalse(mode(touchMode) + "the drag didn't reach the PC", pc.sent.isEmpty());
+
+            // The same drag carried on to 60 dp opens it, about 300 ms after it started, slow as
+            // it is. Until then it went to the PC as any drag does, and any mouse button it held
+            // there is let go.
+            pc.sent.clear();
+            dragRightFrom(20, 60);
+            assertTrue(mode(touchMode) + "a 60 dp drag from the edge didn't open the slider", showing());
+            assertFalse(mode(touchMode) + "the start of the drag didn't reach the PC", pc.sent.isEmpty());
+            assertEquals(mode(touchMode) + "a mouse button was left held on the PC: " + pc.sent,
+                    countStartingWith("down"), countStartingWith("up"));
+            finger(MotionEvent.ACTION_UP, dp(80), middleY());
+        }
+    }
+
     @Test
     public void theSettingCanOpenTheStreamMenuInsteadOrNothing() {
         openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING, "overlay_menu");
@@ -280,6 +353,24 @@ public class GameBrightnessTest {
             advance(1000);
             if (!pc.sent.isEmpty()) {
                 leaks.add(mode(touchMode) + "the closing drag sent " + pc.sent);
+            }
+
+            // And by two fingers, the first lifting before the second: the touch lasts until
+            // the last finger lifts
+            tapTheMiddle();
+            openFromTheMenu();
+            pc.sent.clear();
+            float y = middleY();
+            fingers(MotionEvent.ACTION_DOWN, new float[] {0, x, y});
+            fingers(pointer(MotionEvent.ACTION_POINTER_DOWN, 1), new float[] {0, x, y}, new float[] {1, x + dp(100), y});
+            fingers(MotionEvent.ACTION_MOVE, new float[] {0, x + dp(20), y}, new float[] {1, x + dp(120), y});
+            fingers(pointer(MotionEvent.ACTION_POINTER_UP, 0), new float[] {0, x + dp(20), y}, new float[] {1, x + dp(120), y});
+            fingers(MotionEvent.ACTION_MOVE, new float[] {1, x + dp(150), y});
+            fingers(MotionEvent.ACTION_UP, new float[] {1, x + dp(150), y});
+            advance(1000);
+            assertEquals(mode(touchMode) + "two fingers didn't close the slider", View.GONE, slider.getVisibility());
+            if (!pc.sent.isEmpty()) {
+                leaks.add(mode(touchMode) + "the closing two-finger touch sent " + pc.sent);
             }
 
             // The next tap is a click again
@@ -461,7 +552,7 @@ public class GameBrightnessTest {
 
     @Test
     public void onAndroidTvTheStreamMenuLeavesBrightnessOut() {
-        // The app can't change a TV's screen brightness
+        // As in Moonlight X, which leaves it out on a TV
         shadowOf((UiModeManager) context.getSystemService(Context.UI_MODE_SERVICE))
                 .setCurrentModeType(Configuration.UI_MODE_TYPE_TELEVISION);
         openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
@@ -475,16 +566,22 @@ public class GameBrightnessTest {
         return new KeyEvent(downTime, eventTime, action, keyCode, repeat, 0, 0, 0, 0, InputDevice.SOURCE_GAMEPAD);
     }
 
-    @Test
-    public void holdingTheButtonThatClosesTheSliderSendsThePcNothing() {
-        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
-        // Game's controller handling, sending to the recording connection as in a stream. There's
-        // no SHIELD accessory service to bind to, as on any device but an NVIDIA SHIELD.
+    // Game's controller handling, sending to the recording connection as in a stream. There's no
+    // SHIELD accessory service to bind to, as on any device but an NVIDIA SHIELD. The caller
+    // destroys it.
+    private ControllerHandler useControllerHandling() {
         shadowOf(RuntimeEnvironment.getApplication()).declareComponentUnbindable(
                 new ComponentName("com.nvidia.blakepairing", "com.nvidia.blakepairing.AccessoryService"));
         PreferenceConfiguration prefConfig = ReflectionHelpers.getField(game, "prefConfig");
         ControllerHandler controllers = new ControllerHandler(game, pc, game, prefConfig);
         ReflectionHelpers.setField(game, "controllerHandler", controllers);
+        return controllers;
+    }
+
+    @Test
+    public void holdingTheButtonThatClosesTheSliderSendsThePcNothing() {
+        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        ControllerHandler controllers = useControllerHandling();
         try {
             for (int keyCode : new int[] {KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B}) {
                 openFromTheMenu();
@@ -509,6 +606,37 @@ public class GameBrightnessTest {
                 assertTrue("key " + keyCode + ": the next press didn't reach the PC: " + pc.sent,
                         pc.sent.size() >= 2 && !pc.sent.get(0).equals("pad0"));
                 assertEquals("key " + keyCode + ": the next press was left held: " + pc.sent,
+                        "pad0", pc.sent.get(pc.sent.size() - 1));
+                pc.sent.clear();
+            }
+        } finally {
+            controllers.destroy();
+        }
+    }
+
+    @Test
+    public void aNewPressReachesThePcWhenTheClosingButtonsReleaseWentElsewhere() {
+        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        ControllerHandler controllers = useControllerHandling();
+        try {
+            for (int keyCode : new int[] {KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B}) {
+                openFromTheMenu();
+                long down = SystemClock.uptimeMillis();
+                assertTrue(game.dispatchKeyEvent(pad(down, down, KeyEvent.ACTION_DOWN, keyCode, 0)));
+                idle();
+                assertEquals("key " + keyCode + " didn't close the slider", View.GONE, slider.getVisibility());
+
+                // Its release never comes to Game. The next press is the game's, held a moment
+                // and let go there.
+                advance(1000);
+                long next = SystemClock.uptimeMillis();
+                game.dispatchKeyEvent(pad(next, next, KeyEvent.ACTION_DOWN, keyCode, 0));
+                game.dispatchKeyEvent(pad(next, next + 400, KeyEvent.ACTION_DOWN, keyCode, 1));
+                game.dispatchKeyEvent(pad(next, next + 500, KeyEvent.ACTION_UP, keyCode, 0));
+                idle();
+                assertTrue("key " + keyCode + ": the new press didn't reach the PC: " + pc.sent,
+                        pc.sent.size() >= 2 && !pc.sent.get(0).equals("pad0"));
+                assertEquals("key " + keyCode + ": the new press was left held: " + pc.sent,
                         "pad0", pc.sent.get(pc.sent.size() - 1));
                 pc.sent.clear();
             }
