@@ -180,7 +180,8 @@ dates are in UTC.
    the version and notes as in [UPDATING.md](UPDATING.md) (section 3, steps 1 and 2): raise
    `versionName` and `versionCode` in app/build.gradle together, and move CHANGELOG.md's
    `[Unreleased]` lines under the new version. Reword the README rows that say "Coming in the
-   next release" to name it (NextReleaseRowsTest fails until you do). The release checklist done
+   next release" or "Coming in" this version to say "From" it, like "From 0.2.1"
+   (NextReleaseRowsTest fails until you do). The release checklist done
    and the on-device tests passing (`.github/tools/device-test.sh -s <serial> --allow-stream`).
 2. Merge it into `main` as one merge commit:
 
