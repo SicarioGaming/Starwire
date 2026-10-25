@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.preference.PreferenceManager;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -25,17 +26,20 @@ import org.robolectric.util.ReflectionHelpers;
 import org.robolectric.util.ReflectionHelpers.ClassParameter;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * The brightness slider on the stream screen, from Moonlight X: the left edge opens it only with
- * the touchscreen as a trackpad, the stream menu opens it for a controller, and it hides a couple
- * of seconds after it was last changed.
+ * The brightness slider on the stream screen, from Moonlight X. A swipe in from the left edge
+ * opens it (or the stream menu, or nothing, as the Left edge swipe action setting says), while a
+ * tap at the edge goes to the game like any other. The stream menu opens it for a controller,
+ * and it hides a couple of seconds after it was last changed.
  *
  * Game runs as in GameFloatingButtonTest: with no game in its Intent, onCreate sets up the stream
- * screen, the slider among it, and then finishes before anything connects. The test then lets go
- * of the input, as Ctrl+Alt+Shift+Z does in a stream, so Game's touch and key handling hand back
- * everything they would send to the PC and answer false. onTouch or onKeyDown answering true
- * means something took the input before it could reach the game.
+ * screen, the slider among it, and then finishes before anything connects. The test then gives
+ * Game a RecordingConnection, which writes down what Game sends the PC, and keeps the input
+ * grabbed, as in a stream. Touches come through the view behind the stream, as a finger's do on
+ * a device.
  */
 @RunWith(RobolectricTestRunner.class)
 // MoonBridge loads the native streaming library in its static block. Instrumenting it lets
@@ -43,28 +47,48 @@ import java.time.Duration;
 @Config(sdk = 36, instrumentedPackages = {"com.limelight.nvstream.jni"},
         qualifiers = "w960dp-h540dp-land-xhdpi") // a 1080p handheld
 public class GameBrightnessTest {
-    private static final int[] TRACKPAD_MODES = {Game.MOUSE_MODE_TRACKPAD_NATURAL, Game.MOUSE_MODE_TRACKPAD_GAMING};
-    // The touch modes where a touch goes to the PC where it lands
-    private static final int[] WHERE_IT_LANDS_MODES = {Game.MOUSE_MODE_MULTI_TOUCH, Game.MOUSE_MODE_DIRECT_TOUCH,
-            Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED, Game.MOUSE_MODE_DISABLED};
+    // The touch modes where a swipe in from the left edge opens the slider. In multi-touch mode,
+    // touches from the view behind the stream go the way they do in direct touch.
+    private static final int[] SWIPE_MODES = {Game.MOUSE_MODE_TRACKPAD_NATURAL, Game.MOUSE_MODE_TRACKPAD_GAMING,
+            Game.MOUSE_MODE_MULTI_TOUCH, Game.MOUSE_MODE_DIRECT_TOUCH, Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED};
 
     private final Context context = RuntimeEnvironment.getApplication();
 
     private Game game;
+    private RecordingConnection pc;
+    private View background;
     private View stream;
     private View slider;
+    private View menu;
     private SeekBar bar;
     private int closedTimes;
 
     private void openStreamScreen(int touchMode) {
+        openStreamScreen(touchMode, null);
+    }
+
+    // edgeSwipeAction: the Left edge swipe action setting, or null to leave it at its default
+    private void openStreamScreen(int touchMode, String edgeSwipeAction) {
+        if (edgeSwipeAction != null) {
+            PreferenceManager.getDefaultSharedPreferences(context).edit()
+                    .putString("left_edge_swipe_action", edgeSwipeAction).commit();
+        }
         game = Robolectric.buildActivity(Game.class, new Intent(context, Game.class)).create().visible().get();
-        // What the stream menu's Touch Mode picker does
+        pc = new RecordingConnection(context);
+        ReflectionHelpers.setField(game, "conn", pc);
+        // What the stream menu's Touch Mode picker does. It makes the touch handling anew, now
+        // sending to the recording connection.
         ReflectionHelpers.callInstanceMethod(game, "applyMouseMode", ClassParameter.from(int.class, touchMode));
-        ReflectionHelpers.callInstanceMethod(game, "setInputGrabState", ClassParameter.from(boolean.class, false));
+        background = game.findViewById(R.id.backgroundTouchView);
         stream = game.findViewById(R.id.surfaceView);
         slider = game.findViewById(R.id.brightnessSliderContainer);
+        menu = game.findViewById(R.id.overlayMenuView);
         bar = game.findViewById(R.id.brightnessSlider);
         idle();
+        // Well past the start of Robolectric's clock, so a finger lifted isn't taken for the end
+        // of a 3-finger tap, which Game times from 0 until there has been one
+        advance(5000);
+        pc.sent.clear();
         assertEquals("the slider starts hidden", View.GONE, slider.getVisibility());
     }
 
@@ -90,66 +114,144 @@ public class GameBrightnessTest {
         return value * context.getResources().getDisplayMetrics().density;
     }
 
-    // A finger going down on the stream, as Game's touch listener gets it
-    private boolean touchDown(float x, float y) {
-        MotionEvent event = MotionEvent.obtain(SystemClock.uptimeMillis(), SystemClock.uptimeMillis(),
-                MotionEvent.ACTION_DOWN, x, y, 0);
+    private float middleY() {
+        return background.getHeight() / 2f;
+    }
+
+    // One finger's event, as Game's touch listener gets it from the view behind the stream
+    private void finger(int action, float x, float y) {
+        long now = SystemClock.uptimeMillis();
+        MotionEvent event = MotionEvent.obtain(now, now, action, x, y, 0);
         event.setSource(InputDevice.SOURCE_TOUCHSCREEN);
-        boolean taken = game.onTouch(stream, event);
+        game.onTouch(background, event);
         event.recycle();
         idle();
-        return taken;
     }
 
-    // 40 dp from the left, inside the 80 dp strip the slider used to take in every touch mode
-    private boolean touchTheLeftEdge() {
-        return touchDown(dp(40), stream.getHeight() / 2f);
+    // A tap, and the time a click takes to be released on the PC
+    private void tap(float x, float y) {
+        finger(MotionEvent.ACTION_DOWN, x, y);
+        finger(MotionEvent.ACTION_UP, x, y);
+        advance(1000);
     }
 
-    private boolean touchTheMiddle() {
-        return touchDown(stream.getWidth() / 2f, stream.getHeight() / 2f);
+    // 40 dp from the left, inside the 80 dp strip the slider used to take
+    private void tapTheLeftEdge() {
+        tap(dp(40), middleY());
     }
+
+    private void tapTheMiddle() {
+        tap(background.getWidth() / 2f, middleY());
+    }
+
+    // From 10 dp in from the edge, 70 dp to the right at once: past the 60 dp the swipe needs, well
+    // inside its 500 ms. Then on another 50 dp before the finger lifts.
+    private void swipeInFromTheLeftEdge() {
+        finger(MotionEvent.ACTION_DOWN, dp(10), middleY());
+        finger(MotionEvent.ACTION_MOVE, dp(80), middleY());
+        sentAtTheSwipe = new ArrayList<>(pc.sent);
+        finger(MotionEvent.ACTION_MOVE, dp(130), middleY());
+        finger(MotionEvent.ACTION_UP, dp(130), middleY());
+        advance(1000);
+    }
+
+    // What the PC had been sent when the swipe reached its 60 dp
+    private List<String> sentAtTheSwipe;
 
     private boolean showing() {
         return slider.getVisibility() == View.VISIBLE;
     }
 
+    // A mouse button pressed and released on the PC: the left one, or the right one in direct
+    // touch with the buttons swapped
+    private boolean clicked() {
+        return (pc.sent.contains("down1") && pc.sent.contains("up1"))
+                || (pc.sent.contains("down3") && pc.sent.contains("up3"));
+    }
+
+    private static String mode(int touchMode) {
+        return "touch mode " + touchMode + ": ";
+    }
+
     @Test
-    public void whereTouchesLandOnThePcTheLeftEdgeGoesToTheGame() {
-        for (int mode : WHERE_IT_LANDS_MODES) {
-            openStreamScreen(mode);
-            assertFalse("touch mode " + mode + ": the left edge didn't reach the game", touchTheLeftEdge());
-            assertEquals("touch mode " + mode + ": the slider opened", View.GONE, slider.getVisibility());
+    public void aTapAtTheLeftEdgeGoesToTheGameInEveryTouchMode() {
+        for (int touchMode : SWIPE_MODES) {
+            openStreamScreen(touchMode);
+            tapTheLeftEdge();
+            assertFalse(mode(touchMode) + "the tap opened the slider", showing());
+            assertTrue(mode(touchMode) + "the tap wasn't a click on the PC: " + pc.sent, clicked());
+        }
+        // With touch off, the stream ignores it
+        openStreamScreen(Game.MOUSE_MODE_DISABLED);
+        tapTheLeftEdge();
+        assertFalse("touch off: the tap opened the slider", showing());
+        assertEquals(new ArrayList<String>(), pc.sent);
+    }
+
+    @Test
+    public void aSwipeInFromTheLeftEdgeOpensTheSliderAndTheRestOfItGoesNoFurther() {
+        for (int touchMode : SWIPE_MODES) {
+            openStreamScreen(touchMode);
+            swipeInFromTheLeftEdge();
+            assertTrue(mode(touchMode) + "the swipe didn't open the slider", showing());
+            // The finger carries on and lifts: the touch was cancelled where the swipe was seen
+            assertEquals(mode(touchMode) + "the rest of the swipe reached the PC", sentAtTheSwipe, pc.sent);
         }
     }
 
     @Test
-    public void asATrackpadTheLeftEdgeOpensTheSliderAndKeepsTheTouch() {
-        for (int mode : TRACKPAD_MODES) {
-            openStreamScreen(mode);
-            assertFalse("touch mode " + mode + ": the middle didn't reach the game", touchTheMiddle());
-            assertFalse("touch mode " + mode + ": the middle opened the slider", showing());
-            assertTrue("touch mode " + mode + ": the left edge reached the game", touchTheLeftEdge());
-            assertTrue("touch mode " + mode + ": the left edge didn't open the slider", showing());
-        }
-    }
-
-    @Test
-    public void aTouchOnTheStreamClosesTheSliderAndGoesNoFurther() {
+    public void aSlowSteepOrInnerSwipeLeavesTheSliderShut() {
         openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
-        touchTheLeftEdge();
-        assertTrue(showing());
+        // Longer than 500 ms to get 60 dp in
+        finger(MotionEvent.ACTION_DOWN, dp(10), middleY());
+        advance(600);
+        finger(MotionEvent.ACTION_MOVE, dp(80), middleY());
+        finger(MotionEvent.ACTION_UP, dp(80), middleY());
+        assertFalse("a slow swipe opened the slider", showing());
+        // More down than in
+        finger(MotionEvent.ACTION_DOWN, dp(10), middleY() - dp(100));
+        finger(MotionEvent.ACTION_MOVE, dp(80), middleY());
+        finger(MotionEvent.ACTION_UP, dp(80), middleY());
+        assertFalse("a steep swipe opened the slider", showing());
+        // From 100 dp in, past the 80 dp strip at the edge
+        finger(MotionEvent.ACTION_DOWN, dp(100), middleY());
+        finger(MotionEvent.ACTION_MOVE, dp(170), middleY());
+        finger(MotionEvent.ACTION_UP, dp(170), middleY());
+        assertFalse("a swipe from further in opened the slider", showing());
+    }
 
-        assertTrue("the touch that closed the slider reached the game", touchTheMiddle());
+    @Test
+    public void theSettingCanOpenTheStreamMenuInsteadOrNothing() {
+        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING, "overlay_menu");
+        swipeInFromTheLeftEdge();
+        assertEquals("the swipe didn't open the stream menu", View.VISIBLE, menu.getVisibility());
+        assertFalse("the swipe opened the slider", showing());
+
+        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING, "off");
+        swipeInFromTheLeftEdge();
+        assertFalse("the swipe opened the slider", showing());
+        assertEquals("the swipe opened the stream menu", View.GONE, menu.getVisibility());
+        assertTrue("the swipe didn't move the PC's cursor: " + pc.sent, pc.sent.contains("move"));
+    }
+
+    @Test
+    public void aTouchOnTheStreamClosesTheSlider() {
+        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        swipeInFromTheLeftEdge();
+        assertTrue(showing());
+        pc.sent.clear();
+
+        tapTheMiddle();
         assertEquals(View.GONE, slider.getVisibility());
         // The next one goes to the game again
-        assertFalse(touchTheMiddle());
+        tapTheMiddle();
+        assertTrue("the next tap wasn't a click on the PC: " + pc.sent, clicked());
     }
 
     @Test
     public void theSliderStaysUpUntilChangedThenHidesTwoSecondsAfter() {
         openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
-        touchTheLeftEdge();
+        swipeInFromTheLeftEdge();
         // It used to hide 3 s after it opened, changed or not
         advance(10_000);
         assertTrue("the slider hid before it was changed", showing());
@@ -259,6 +361,7 @@ public class GameBrightnessTest {
         }
         assertTrue("a stick push went to the stream", game.onGenericMotionEvent(stick(0.2f)));
         assertTrue("the slider closed", showing());
+        assertEquals(new ArrayList<String>(), pc.sent);
     }
 
     @Test
@@ -282,6 +385,7 @@ public class GameBrightnessTest {
                                 ClassParameter.from(KeyEvent.class, key(action, KeyEvent.KEYCODE_DPAD_UP))));
             }
         }
+        assertEquals(new ArrayList<String>(), pc.sent);
     }
 
     // A left stick (or d-pad hat) position, up negative
