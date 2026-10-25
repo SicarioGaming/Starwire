@@ -435,7 +435,8 @@ public class OverlayMenuView extends LinearLayout {
                 getContext().getString(R.string.overlay_menu_onscreen_controller), ACTION_ONSCREEN_CONTROLLER, TOGGLE_ONSCREEN_CONTROLLER);
             addTile(R.drawable.ic_overlay_window_menu,
                 getContext().getString(R.string.overlay_menu_floating_button), ACTION_FLOATING_BUTTON, TOGGLE_FLOATING_BUTTON);
-            // Moonlight X's brightness slider, which the left edge opens only in a trackpad mode
+            // Moonlight X's brightness slider, which a swipe in from the left edge also opens
+            // unless Left edge swipe action says otherwise
             if (showBrightness) {
                 addTile(R.drawable.ic_overlay_settings_brightness,
                     getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS);

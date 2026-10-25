@@ -1,7 +1,7 @@
 package com.limelight.ui;
 
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
 
@@ -11,11 +11,14 @@ import org.junit.Test;
  */
 public class SettingCreditsTest {
     @Test
-    public void theTrackpadSettingCreditsMoonlightXForTheLeftEdgeSlider() {
-        // As a trackpad, the left edge opens Moonlight X's brightness slider
-        String credit = CoverGlowSettings.creditFor("checkbox_touchscreen_trackpad");
-        assertNotNull(credit);
-        assertTrue(credit, credit.contains("brightness slider"));
-        assertTrue(credit, credit.contains("Moonlight X by MoreOrLessSoftware"));
+    public void theLeftEdgeSwipeSettingCreditsMoonlightX() {
+        assertEquals("From Moonlight X by MoreOrLessSoftware", CoverGlowSettings.creditFor("left_edge_swipe_action"));
+    }
+
+    @Test
+    public void theTrackpadSettingIsMoonlightsOwnAgain() {
+        // It used to credit Moonlight X for the left edge slider, which now has a setting of its own
+        // and works in the other touch modes too
+        assertNull(CoverGlowSettings.creditFor("checkbox_touchscreen_trackpad"));
     }
 }

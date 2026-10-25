@@ -277,14 +277,12 @@ public final class CoverGlowSettings {
         CREDITS.put("checkbox_prevent_packet_loss", "From Artemis by Yukino Song, via Artemide");
         CREDITS.put("seekbar_touch_sensitivity", "From Artemis by Yukino Song and Axixi2233");
         for (String key : new String[] {"overlay_custom_commands", "overlay_trigger_button", "overlay_hold_duration",
-                "video_format", "video_renderer", "pyrowave_late_frames"}) {
+                "left_edge_swipe_action", "video_format", "video_renderer", "pyrowave_late_frames"}) {
             CREDITS.put(key, moonlightX);
         }
         // The settings are Moonlight's own; entering any value is from Moonlight X
         CREDITS.put("list_resolution", "Custom resolutions from Moonlight X by MoreOrLessSoftware");
         CREDITS.put("list_fps", "Custom frame rates from Moonlight X by MoreOrLessSoftware");
-        // Moonlight's own setting; as a trackpad, the left edge opens Moonlight X's brightness slider
-        CREDITS.put("checkbox_touchscreen_trackpad", "Left-edge brightness slider from Moonlight X by MoreOrLessSoftware");
         CREDITS.put("import_shortcuts_file", "File format from Axixi2233 and Artemis by Yukino Song");
         CREDITS.put("clear_imported_shortcuts", "File format from Axixi2233 and Artemis by Yukino Song");
         CREDITS.put("checkbox_pinch_to_zoom", "Idea from Moonlit Artemis by 4had45");
