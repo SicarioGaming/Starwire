@@ -5,8 +5,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
+import android.app.UiModeManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
@@ -386,6 +388,45 @@ public class GameBrightnessTest {
             }
         }
         assertEquals(new ArrayList<String>(), pc.sent);
+    }
+
+    // Whether this view, or any view inside it, shows exactly this text
+    private static boolean hasText(View view, String text) {
+        if (view instanceof android.widget.TextView) {
+            return text.contentEquals(((android.widget.TextView) view).getText());
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                if (hasText(group.getChildAt(i), text)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean theStreamMenuHasBrightness() {
+        ReflectionHelpers.callInstanceMethod(menu, "show");
+        idle();
+        assertEquals("the stream menu didn't open", View.VISIBLE, menu.getVisibility());
+        return hasText(menu, context.getString(R.string.overlay_menu_brightness));
+    }
+
+    @Test
+    public void theStreamMenuHasABrightnessTile() {
+        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        assertTrue("no Brightness tile in the stream menu", theStreamMenuHasBrightness());
+    }
+
+    @Test
+    public void onAndroidTvTheStreamMenuLeavesBrightnessOut() {
+        // The app can't change a TV's screen brightness
+        shadowOf((UiModeManager) context.getSystemService(Context.UI_MODE_SERVICE))
+                .setCurrentModeType(Configuration.UI_MODE_TYPE_TELEVISION);
+        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        assertTrue("Game didn't see a TV", (Boolean) ReflectionHelpers.getField(game, "isAndroidTV"));
+        assertFalse("the stream menu has a Brightness tile on a TV", theStreamMenuHasBrightness());
     }
 
     // A left stick (or d-pad hat) position, up negative
