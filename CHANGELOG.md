@@ -15,9 +15,9 @@ steps and the checksums for each version.
 
 ### Added
 
-- **Shortcuts for Windows' virtual desktops in the stream menu:** Win+Tab (Task View), and
-  Win+Ctrl+Right and Win+Ctrl+Left (next and previous desktop), on the Shortcuts page. Checked by
-  tests, not yet tried in a stream.
+- **Shortcuts for Windows' virtual desktops in the stream menu:** Win+Ctrl+Left and
+  Win+Ctrl+Right (previous and next desktop) side by side, then Win+Tab (Task View), on the
+  Shortcuts page. Checked by tests, not yet tried in a stream.
 
 ## [0.2.1] - 2026-10-23
 

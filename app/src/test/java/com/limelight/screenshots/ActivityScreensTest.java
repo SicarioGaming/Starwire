@@ -253,6 +253,15 @@ public class ActivityScreensTest {
             assertTrue("no " + activity.getString(label) + " on the page", tile != null);
             assertNoWordBroken(tile);
         }
+        // Previous and next desktop sit side by side, previous on the left like its arrow
+        int[] left = new int[2];
+        int[] right = new int[2];
+        View previous = findTile(menu, activity.getString(R.string.overlay_menu_send_win_ctrl_left));
+        View next = findTile(menu, activity.getString(R.string.overlay_menu_send_win_ctrl_right));
+        previous.getLocationInWindow(left);
+        next.getLocationInWindow(right);
+        assertTrue("previous desktop at " + left[0] + "," + left[1] + " and next at " + right[0] + ","
+                + right[1] + " aren't side by side", left[1] == right[1] && left[0] + previous.getWidth() <= right[0]);
         for (int i = 0; i < menu.getChildCount(); i++) {
             if (menu.getChildAt(i) instanceof ScrollView) {
                 ScrollView grid = (ScrollView) menu.getChildAt(i);

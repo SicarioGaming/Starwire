@@ -126,8 +126,8 @@ public class OverlayMenuView extends LinearLayout {
         }
     }
 
-    // Artemide's "Send keys" menu in the same order, then Task View and Windows' virtual
-    // desktops
+    // Artemide's "Send keys" menu in the same order, then Windows' previous and next virtual
+    // desktop, which share a row like the arrow keys, then Task View
     private static final Shortcut[] SHORTCUTS = {
         new Shortcut(R.string.overlay_menu_send_esc, VK_ESCAPE),
         new Shortcut(R.string.overlay_menu_send_f11, VK_F11),
@@ -143,12 +143,12 @@ public class OverlayMenuView extends LinearLayout {
         new Shortcut(R.string.overlay_menu_send_ctrl_alt_shift_f1, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_F1),
         new Shortcut(R.string.overlay_menu_send_ctrl_alt_shift_f12, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_F12),
         new Shortcut(R.string.overlay_menu_send_win_alt_b, VK_LWIN, VK_LMENU, VK_B),
-        new Shortcut(R.string.overlay_menu_send_win_tab, VK_LWIN, VK_TAB)
-            .spoken(R.string.overlay_menu_a11y_win_tab),
-        new Shortcut(R.string.overlay_menu_send_win_ctrl_right, VK_LWIN, VK_LCONTROL, VK_RIGHT)
-            .spoken(R.string.overlay_menu_a11y_win_ctrl_right),
         new Shortcut(R.string.overlay_menu_send_win_ctrl_left, VK_LWIN, VK_LCONTROL, VK_LEFT)
             .spoken(R.string.overlay_menu_a11y_win_ctrl_left),
+        new Shortcut(R.string.overlay_menu_send_win_ctrl_right, VK_LWIN, VK_LCONTROL, VK_RIGHT)
+            .spoken(R.string.overlay_menu_a11y_win_ctrl_right),
+        new Shortcut(R.string.overlay_menu_send_win_tab, VK_LWIN, VK_TAB)
+            .spoken(R.string.overlay_menu_a11y_win_tab),
     };
 
     private static final short[] TASK_MANAGER_KEYS = {VK_LCONTROL, VK_LSHIFT, VK_ESCAPE};

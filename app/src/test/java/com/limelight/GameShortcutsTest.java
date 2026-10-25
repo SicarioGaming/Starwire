@@ -3,6 +3,8 @@ package com.limelight;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
 import android.content.Context;
@@ -120,7 +122,7 @@ public class GameShortcutsTest {
     }
 
     @Test
-    public void theShortcutsPageEndsWithTaskViewAndTheDesktops() {
+    public void theShortcutsPageEndsWithTheDesktopsAndTaskView() {
         // The tiles, not the bar below them
         List<String> labels = new ArrayList<>();
         for (int i = 0; i < menu.getChildCount(); i++) {
@@ -130,9 +132,16 @@ public class GameShortcutsTest {
         }
         // After Artemide's set, which ends with Win+Alt+B, and before Back
         String winAltB = context.getString(R.string.overlay_menu_send_win_alt_b);
-        assertEquals(Arrays.asList(winAltB, "Win+Tab", "Win+Ctrl+Right", "Win+Ctrl+Left",
+        assertEquals(Arrays.asList(winAltB, "Win+Ctrl+Left", "Win+Ctrl+Right", "Win+Tab",
                         context.getString(R.string.overlay_menu_back)),
                 labels.subList(labels.indexOf(winAltB), labels.size()));
+
+        // Previous and next desktop share a row, previous first, like the arrow keys
+        View left = findTile(menu, "Win+Ctrl+Left");
+        View right = findTile(menu, "Win+Ctrl+Right");
+        assertSame("previous and next desktop aren't in one row", left.getParent(), right.getParent());
+        ViewGroup row = (ViewGroup) left.getParent();
+        assertTrue("next desktop comes before previous", row.indexOfChild(left) < row.indexOfChild(right));
 
         // TalkBack says what each one does, then its keys
         assertEquals("Task View, Win+Tab", findTile(menu, "Win+Tab").getContentDescription().toString());
