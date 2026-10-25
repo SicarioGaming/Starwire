@@ -36,8 +36,9 @@ import java.util.List;
 /**
  * The stream menu's Shortcuts page as the stream screen sends it: a tap on a tile goes through
  * Game's own key sender to the connection, which records each key here instead of sending it to
- * a PC. With no game in its Intent, Game.onCreate sets up the menu and then finishes before
- * anything connects. OverlayMenuViewTest (on a device) covers the rest of the menu.
+ * a PC. With no game in its Intent, Game.onCreate finds the menu and gives it the game's name
+ * and cover, then finishes before it makes a connection or gives the menu its listener.
+ * OverlayMenuViewTest (on a device) covers the rest of the menu.
  */
 @RunWith(RobolectricTestRunner.class)
 // MoonBridge loads the native streaming library in its static block. Instrumenting it lets
@@ -80,8 +81,10 @@ public class GameShortcutsTest {
         game = Robolectric.buildActivity(Game.class, new Intent(context, Game.class)).create().get();
         ReflectionHelpers.setField(game, "conn", new RecordingConnection());
         menu = game.findViewById(R.id.overlayMenuView);
-        // Game sets its own listener only once a stream starts. Its onSendKeys hands the keys
-        // to sendKeys, and so does this one. A proxy, so a new menu action needs nothing here.
+        // Game's own listener comes from setupOverlayMenu, which onCreate reaches only for a
+        // real game, after it makes the connection and the controller handler. That listener's
+        // onSendKeys hands the keys to sendKeys, and so does this one. A proxy, so a new menu
+        // action needs nothing here.
         menu.setMenuActionListener((OverlayMenuView.MenuActionListener) Proxy.newProxyInstance(
                 OverlayMenuView.MenuActionListener.class.getClassLoader(),
                 new Class<?>[] {OverlayMenuView.MenuActionListener.class},
