@@ -454,6 +454,14 @@
     <string name="overlay_menu_send_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1</string>
     <string name="overlay_menu_send_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12</string>
     <string name="overlay_menu_send_win_alt_b">Win+Alt+B</string>
+    <!-- Windows' Task View and its next and previous virtual desktop -->
+    <string name="overlay_menu_send_win_tab">Win+Tab</string>
+    <string name="overlay_menu_send_win_ctrl_right">Win+Ctrl+Right</string>
+    <string name="overlay_menu_send_win_ctrl_left">Win+Ctrl+Left</string>
+    <!-- What TalkBack says for those three: what each one does, then its keys -->
+    <string name="overlay_menu_a11y_win_tab">Task View, Win+Tab</string>
+    <string name="overlay_menu_a11y_win_ctrl_right">Next desktop, Win+Ctrl+Right</string>
+    <string name="overlay_menu_a11y_win_ctrl_left">Previous desktop, Win+Ctrl+Left</string>
     <string name="menu_button">Menu</string>
     <string name="title_floating_button">Floating menu button</string>
     <string name="summary_floating_button">Show a draggable button over the stream that opens the menu</string>

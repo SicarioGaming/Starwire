@@ -13,6 +13,12 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **Shortcuts for Windows' virtual desktops in the stream menu:** Win+Tab (Task View), and
+  Win+Ctrl+Right and Win+Ctrl+Left (next and previous desktop), on the Shortcuts page. Checked by
+  tests, not yet tried in a stream.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.
