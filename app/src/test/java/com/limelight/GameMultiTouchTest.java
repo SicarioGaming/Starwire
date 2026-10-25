@@ -446,6 +446,11 @@ public class GameMultiTouchTest {
         threeFingers(100);
         assertTrue("the three-finger tap didn't open the stream menu", menuShowing());
         assertEquals(list(), pc.touches);
+        // Each touch was offered to the PC first. It took none, so it was never told to forget
+        // one, for the swipe or the third finger.
+        assertEquals("the tap wasn't offered to the PC as a touch", "down 0 at 0.50,0.50", pc.refused.get(0));
+        assertFalse("a PC that took no touch was told to forget one: " + pc.refused,
+                pc.refused.contains("cancel all 0 at 0.00,0.00"));
     }
 
     @Test
@@ -524,13 +529,15 @@ public class GameMultiTouchTest {
         assertEquals(list(), notTouches());
     }
 
+    // Each mode in the Touch Mode picker, and multi-touch itself, which the Touch Sensitivity tile
+    // picks
+    private static final int[] PICKED_MODES = {Game.MOUSE_MODE_DIRECT_TOUCH, Game.MOUSE_MODE_TRACKPAD_NATURAL,
+            Game.MOUSE_MODE_TRACKPAD_GAMING, Game.MOUSE_MODE_DISABLED,
+            Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED, Game.MOUSE_MODE_MULTI_TOUCH};
+
     @Test
     public void pickingATouchModeWithAFingerDownTakesTheTouchBackFromThePc() {
-        // Each mode in the picker, and multi-touch itself, which the Touch Sensitivity tile picks
-        int[] touchModes = {Game.MOUSE_MODE_DIRECT_TOUCH, Game.MOUSE_MODE_TRACKPAD_NATURAL,
-                Game.MOUSE_MODE_TRACKPAD_GAMING, Game.MOUSE_MODE_DISABLED,
-                Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED, Game.MOUSE_MODE_MULTI_TOUCH};
-        for (int touchMode : touchModes) {
+        for (int touchMode : PICKED_MODES) {
             openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
             fingers(MotionEvent.ACTION_DOWN, at(0, across(0.5f), middleY()));
             pickTouchMode(touchMode);
@@ -539,6 +546,44 @@ public class GameMultiTouchTest {
             // In multi-touch mode the rest of the touch goes no further, as after a swipe
             assertEquals("touch mode " + touchMode + ": the touch wasn't taken back from the PC",
                     list("down 0 at 0.50,0.50", "cancel all 0 at 0.00,0.00"), pc.touches);
+        }
+    }
+
+    // Two fingers on the stream, then the second lifts. The first stays down, so the PC still
+    // has a touch down.
+    private void twoFingersThenTheSecondLifts() {
+        float y = middleY();
+        float[] one = at(0, across(0.3f), y);
+        float[] two = at(1, across(0.6f), y);
+        fingers(MotionEvent.ACTION_DOWN, one);
+        fingers(pointer(MotionEvent.ACTION_POINTER_DOWN, 1), one, two);
+        fingers(pointer(MotionEvent.ACTION_POINTER_UP, 1), one, two);
+    }
+
+    // What the PC gets for that, when it's then told to forget the first finger
+    private static final List<String> SECOND_FINGER_LIFTED_THEN_TAKEN_BACK = list("down 0 at 0.30,0.50",
+            "down 1 at 0.60,0.50", "up 1 at 0.60,0.50", "cancel all 0 at 0.00,0.00");
+
+    @Test
+    public void turningOnPanZoomAfterOneOfTwoFingersLiftsTakesTheTouchBackFromThePc() {
+        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        twoFingersThenTheSecondLifts();
+        togglePanZoom();
+        fingers(MotionEvent.ACTION_UP, at(0, across(0.3f), middleY()));
+        advance(1000);
+        assertEquals("the first finger was left down on the PC", SECOND_FINGER_LIFTED_THEN_TAKEN_BACK, pc.touches);
+    }
+
+    @Test
+    public void pickingATouchModeAfterOneOfTwoFingersLiftsTakesTheTouchBackFromThePc() {
+        for (int touchMode : PICKED_MODES) {
+            openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+            twoFingersThenTheSecondLifts();
+            pickTouchMode(touchMode);
+            fingers(MotionEvent.ACTION_UP, at(0, across(0.3f), middleY()));
+            advance(1000);
+            assertEquals("touch mode " + touchMode + ": the first finger was left down on the PC",
+                    SECOND_FINGER_LIFTED_THEN_TAKEN_BACK, pc.touches);
         }
     }
 

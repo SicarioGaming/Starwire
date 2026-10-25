@@ -13,7 +13,8 @@ import java.util.Locale;
  * A connection to no PC that writes down the input Game sends it, in order, for the JVM tests:
  * "down1" and "up1" for a mouse button (1 is the left one), "pos" for the cursor placed, "move"
  * for it moved, "scroll", "touch" with the event type, "pad" with the buttons held (in hex), and
- * "key" for a key or text. Touches are also written down in full, in touches.
+ * "key" for a key or text. Touches are also written down in full, in touches, and the ones a PC
+ * that takes no touches turned away, in refused.
  */
 public class RecordingConnection extends NvConnection {
     public final List<String> sent = new ArrayList<>();
@@ -22,6 +23,9 @@ public class RecordingConnection extends NvConnection {
     public final List<String> touches = new ArrayList<>();
     // False for a PC that can't take touches, as GeForce Experience can't
     public boolean takesTouches = true;
+    // Each touch such a PC turned away, written as in touches. It reaches neither sent nor
+    // touches, so this is the only way a test can see one.
+    public final List<String> refused = new ArrayList<>();
 
     public RecordingConnection(Context context) {
         super(context, null, 0, "test", null, null, null);
@@ -40,11 +44,13 @@ public class RecordingConnection extends NvConnection {
     @Override
     public int sendTouchEvent(byte eventType, int pointerId, float x, float y, float pressureOrDistance,
                               float contactAreaMajor, float contactAreaMinor, short rotation) {
+        String touch = String.format(Locale.ROOT, "%s %d at %.2f,%.2f", touchName(eventType), pointerId, x, y);
         if (!takesTouches) {
+            refused.add(touch);
             return MoonBridge.LI_ERR_UNSUPPORTED;
         }
         sent.add("touch" + eventType);
-        touches.add(String.format(Locale.ROOT, "%s %d at %.2f,%.2f", touchName(eventType), pointerId, x, y));
+        touches.add(touch);
         return 0;
     }
 
