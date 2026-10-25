@@ -13,6 +13,14 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Touches near the left edge of the screen go to the game** in the multi-touch and direct touch
+  modes. They used to open the brightness slider. The slider now opens from the stream menu's new
+  Brightness item, where a controller moves it in 5% steps, or from the left edge with touch as a
+  trackpad (the default). It hides 2 seconds after your last change. From Moonlight X. Thank you
+  to u/zolidz64 for reporting it. Checked by tests, not yet tried in a stream.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.
