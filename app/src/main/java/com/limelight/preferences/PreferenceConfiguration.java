@@ -91,6 +91,7 @@ public class PreferenceConfiguration {
     private static final String OVERLAY_TRIGGER_BUTTON_PREF_STRING = "overlay_trigger_button";
     private static final String OVERLAY_HOLD_DURATION_PREF_STRING = "overlay_hold_duration";
     private static final String ENABLE_FLOATING_BUTTON_PREF_STRING = "checkbox_enable_floating_button";
+    private static final String BACK_OPENS_MENU_PREF_STRING = "checkbox_back_opens_menu";
     // Where the floating button was dragged to, one spot for landscape screens and one for
     // portrait (FloatingButton). Saved by the drag; they aren't on the settings screen.
     private static final String FLOATING_BUTTON_LANDSCAPE_X_PREF_STRING = "floating_button_landscape_x";
@@ -190,6 +191,7 @@ public class PreferenceConfiguration {
     private static final String DEFAULT_OVERLAY_TRIGGER_BUTTON = "select";
     private static final String DEFAULT_OVERLAY_HOLD_DURATION = "1500";
     private static final boolean DEFAULT_ENABLE_FLOATING_BUTTON = true;
+    private static final boolean DEFAULT_BACK_OPENS_MENU = true;
     private static final int DEFAULT_TOUCH_SENSITIVITY = 100;
     private static final boolean DEFAULT_AUTO_RESUME_STREAM = false;
 
@@ -273,6 +275,8 @@ public class PreferenceConfiguration {
     public String overlayTriggerButton;
     public int overlayHoldDurationMs;
     public boolean enableFloatingButton;
+    // Back opens the stream menu instead of leaving the stream (idea from Artemis, via Artemide)
+    public boolean backOpensMenu;
     public int touchSensitivity; // percent, applies to the trackpad touch modes
     public boolean enablePerfOverlayLite;
     public boolean preventPacketLoss;
@@ -982,6 +986,7 @@ public class PreferenceConfiguration {
         config.overlayTriggerButton = prefs.getString(OVERLAY_TRIGGER_BUTTON_PREF_STRING, DEFAULT_OVERLAY_TRIGGER_BUTTON);
         config.overlayHoldDurationMs = Integer.parseInt(prefs.getString(OVERLAY_HOLD_DURATION_PREF_STRING, DEFAULT_OVERLAY_HOLD_DURATION));
         config.enableFloatingButton = prefs.getBoolean(ENABLE_FLOATING_BUTTON_PREF_STRING, DEFAULT_ENABLE_FLOATING_BUTTON);
+        config.backOpensMenu = prefs.getBoolean(BACK_OPENS_MENU_PREF_STRING, DEFAULT_BACK_OPENS_MENU);
         config.touchSensitivity = prefs.getInt(TOUCH_SENSITIVITY_PREF_STRING, DEFAULT_TOUCH_SENSITIVITY);
         config.enablePerfOverlayLite = prefs.getBoolean(PERF_OVERLAY_LITE_PREF_STRING, false);
         config.preventPacketLoss = prefs.getBoolean(PREVENT_PACKET_LOSS_PREF_STRING, false);

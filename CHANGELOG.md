@@ -13,6 +13,16 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **Back opens the menu,** on by default. Back (the navigation bar's button or the back gesture)
+  now opens the stream menu instead of ending the stream, and Back again closes it. To leave, use
+  Disconnect or Quit Session in the menu. A switch in **Settings → In-stream menu** turns it off,
+  and Back ends the stream again. A mouse right-click that Android sends as Back still reaches the
+  PC as a right-click, and a controller's B still goes to the game. The idea comes from Artemis
+  (Yukino Song), via Artemide. Thank you to u/Glove5751 for asking for it. Tested in JVM tests
+  only. Not yet tried on a phone or a tablet.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

@@ -275,6 +275,7 @@ public final class CoverGlowSettings {
             CREDITS.put(key, artemis);
         }
         CREDITS.put("checkbox_prevent_packet_loss", "From Artemis by Yukino Song, via Artemide");
+        CREDITS.put("checkbox_back_opens_menu", "Idea from Artemis by Yukino Song, via Artemide");
         CREDITS.put("seekbar_touch_sensitivity", "From Artemis by Yukino Song and Axixi2233");
         for (String key : new String[] {"overlay_custom_commands", "overlay_trigger_button", "overlay_hold_duration",
                 "video_format", "video_renderer", "pyrowave_late_frames"}) {

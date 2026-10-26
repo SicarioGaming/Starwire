@@ -457,6 +457,8 @@
     <string name="menu_button">Menu</string>
     <string name="title_floating_button">Floating menu button</string>
     <string name="summary_floating_button">Show a draggable button over the stream that opens the menu</string>
+    <string name="title_back_opens_menu">Back opens the menu</string>
+    <string name="summary_back_opens_menu">Back opens the stream menu instead of ending the stream. To leave, use Disconnect or Quit Session in the menu.</string>
 
     <!-- Starwire: pan/zoom, mouse modes, touch sensitivity, clipboard and server commands (from Artemide) -->
     <string name="overlay_menu_pan_zoom">Pan/Zoom</string>
