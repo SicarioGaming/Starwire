@@ -13,6 +13,12 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Fixed
+
+- Starwire no longer tries to show an error or a "please wait" box on a screen Android has
+  already closed, which could crash the app. That could happen when a connection error or the
+  host's answer came in late. The idea is from Moonlight V+ (qiin2333).
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

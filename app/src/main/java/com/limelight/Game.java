@@ -4074,7 +4074,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
 
             runOnUiThread(() -> {
-                if (isFinishing()) {
+                // The host can answer after Game is gone, destroyed or finishing
+                if (isFinishing() || isDestroyed()) {
                     return;
                 }
 
