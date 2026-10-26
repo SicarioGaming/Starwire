@@ -430,7 +430,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | On-screen controller toggle | Ported from Artemis (Yukino Song), via Artemide |
 | Monitor switcher (Monitor 1–6, using the host's Ctrl+Alt+Shift+F1… shortcuts) | Idea from Moonlit Artemis (Mohammad Forhad / 4had45) |
 | Change bitrate mid-stream **(Vibepollo)** | Idea from Moonlight V+ (qiin2333) |
-| Coming in the next release: Quit Session asks before it closes the game on the PC. Yes quits, and No or Back keeps streaming, by touch or with a controller. Checked by tests, not yet tried in a stream | Ported from Moonlight X (MoreOrLessSoftware) |
+| Coming in the next release: Quit Session asks before it closes the game on the PC. Yes quits, and No or Back keeps streaming. Checked by tests with touch and a controller's A and B buttons, not yet tried in a stream | Ported from Moonlight X (MoreOrLessSoftware) |
 
 </details>
 

@@ -16,8 +16,13 @@ steps and the checksums for each version.
 ### Changed
 
 - **Quit Session in the stream menu asks first,** because it closes the game on the PC and
-  anything unsaved there is lost. Yes quits. No or Back keeps streaming. You can answer by touch
-  or with a controller. From Moonlight X. Checked by tests, not yet tried in a stream.
+  anything unsaved there is lost. Yes quits. No or Back keeps streaming. Tests answer it by touch,
+  and with a controller's A and B buttons as Android passes them on. From Moonlight X. Not yet
+  tried in a stream, so we don't know yet which answer a controller starts on. Two catches with a
+  controller. With Flip face buttons on, the question doesn't swap A and B the way the menu does,
+  so the button that picked Quit Session cancels it; the bitrate and touch mode pickers already
+  work that way. And a controller run by Starwire's own USB driver can't answer it, as it can't
+  move through the menu either.
 - **Google's video decoders, as on Pixel phones, are asked for the most frames they can handle**
   at the stream's size, instead of just the stream's frame rate. They set their speed to just
   meet what they're asked for. Moonlight X measured about 9 ms a frame before and about 7.8 ms
@@ -31,8 +36,9 @@ steps and the checksums for each version.
 - **The last setting in Settings scrolls clear of the gesture bar.** With gesture navigation,
   the see-through bar at the bottom of the screen covered it. The list still runs behind the bar,
   and its last row now scrolls up above it. The same code also leaves room for the bar under the
-  game list, the PC list and per-game settings; no test checks those yet. From Moonlight X.
-  Checked by a test, not yet tried on a device.
+  game list, the PC list, per-game settings, the Quick Launch app picker and the Credits and
+  Open-source licences pages; no test checks those screens yet. From Moonlight X. Checked by
+  tests, not yet tried on a device.
 
 ## [0.2.1] - 2026-10-23
 
