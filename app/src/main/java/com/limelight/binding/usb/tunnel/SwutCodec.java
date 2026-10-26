@@ -392,12 +392,17 @@ public final class SwutCodec {
         }
     }
 
+    // Digits, letters and . _ : - only, as in usbipdcpp's 1-1.2 or 1-3:1. The bus id comes from a
+    // phone that may be hostile, and the helper may hand it to a command, where " & | % ^ < > and
+    // the like mean something.
     private static boolean busIdOk(byte[] b, int at, int length) {
         if (length < 1 || length > MAX_BUS_ID) {
             return false;
         }
         for (int i = at; i < at + length; i++) {
-            if (b[i] < 0x21 || b[i] > 0x7E) {
+            int c = b[i];
+            if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                    || c == '.' || c == '_' || c == ':' || c == '-')) {
                 return false;
             }
         }
@@ -465,9 +470,9 @@ public final class SwutCodec {
 
     /**
      * A well-formed SHARE, or null: every length within its limits and adding up to exactly the
-     * frame, a printable bus id, an 18-byte device descriptor, a configuration descriptor whose
-     * wTotalLength is its length, and at most one report descriptor per interface. Whether the
-     * device is allowed is the device rules' job, not this.
+     * frame, a bus id of digits, letters and . _ : - only, an 18-byte device descriptor, a
+     * configuration descriptor whose wTotalLength is its length, and at most one report descriptor
+     * per interface. Whether the device is allowed is the device rules' job, not this.
      */
     public static Share parseShare(byte[] f) {
         if (typeOf(f) != TYPE_SHARE) {

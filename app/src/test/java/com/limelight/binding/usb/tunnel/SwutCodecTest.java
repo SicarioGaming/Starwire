@@ -405,6 +405,28 @@ public class SwutCodecTest {
         assertEquals(name.substring(0, 32), s.nameText());
     }
 
+    // The bus id comes from a phone that may be hostile, and the helper may hand it to a command
+    // (usbip.exe attach -b), where these characters mean something
+    @Test
+    public void aBusIdIsDigitsLettersAndDotUnderscoreColonDashOnly() throws Exception {
+        byte[] dev = SwutVectors.DEVICE_DESCRIPTOR;
+        byte[] config = SwutVectors.CONFIGURATION;
+        int[] one = {0};
+        byte[][] report = {SwutVectors.REPORT};
+        byte[] f = v("frame.share");
+        for (char c : "\"&|^%<>!$'`()*+,/;=?@[\\]{}~# ".toCharArray()) {
+            String bad = "1" + c + "1";
+            assertThrows(bad, IllegalArgumentException.class, () -> SwutCodec.share(0, bad, "x", dev, config, one, report));
+            byte[] g = f.clone();
+            g[7] = (byte) c;   // the '-' of the vectors' bus id 1-1
+            assertNull(bad, SwutCodec.parseShare(g));
+        }
+        // usbipdcpp's two forms: bus and port path, or bus, address and port when Android hides the path
+        for (String good : new String[] {"1-1.2", "2-1.4.3", "1-3:1", "Bus_a-Z9"}) {
+            assertEquals(good, SwutCodec.parseShare(SwutCodec.share(0, good, "x", dev, config, one, report)).busId);
+        }
+    }
+
     @Test
     public void framesAndTheirHeaders() throws Exception {
         assertEquals(SwutCodec.TYPE_KEEPALIVE, SwutCodec.typeOf(v("frame.keepalive")));

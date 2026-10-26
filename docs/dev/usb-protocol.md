@@ -239,7 +239,7 @@ Rules for Starwire:
 | 0..4 | frame header, type 5 |
 | 4 | flags: bit 0 set means you confirmed sharing this keyboard or mouse just now. Other bits 0 |
 | 5 | bus id length B, 1 to 31 |
-| 6..6+B | the bus id the exporter gives the device, ASCII 0x21 to 0x7E |
+| 6..6+B | the bus id the exporter gives the device: digits, letters, `.`, `_`, `:` and `-` only, like `1-1.2` or `1-3:1` |
 | next 1 | name length N, 0 to 64 |
 | next N | the device's name as Android reports it, UTF-8 |
 | next 18 | the device descriptor |
@@ -250,7 +250,8 @@ Rules for Starwire:
 
 The lengths must add up to the frame exactly, and the payload is at most 16384 bytes. At most one
 report descriptor per interface. Whoever receives a name removes control and formatting
-characters before showing it.
+characters before showing it. The bus id is held to so few characters because the helper may
+pass it to a command, where characters like `"`, `&`, `|`, `%`, `^`, `<` and `>` mean something.
 
 **SHARE_ACK** (the helper):
 
