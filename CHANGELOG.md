@@ -16,9 +16,12 @@ steps and the checksums for each version.
 ### Added
 
 - **Controller vibration strength,** under Controllers: 0 to 100% of the game's rumble, on every
-  controller and on this device when it vibrates in place of one. 0% turns rumble off, and new
-  installs start at 100%, as before. Checked by unit tests only so far. It hasn't been tried on a
-  device or felt on a real controller yet, the G8+ included.
+  controller and on this device when it vibrates in place of one. Audio haptics on the controller
+  follows it too. 0% turns both off, and new installs start at 100%, as before. Checked by unit
+  tests only so far: pads on Starwire's USB driver, pads whose motors Android drives, built-in
+  controls, the on-screen controls and the fallback to this device. No test covers Shield
+  controllers, or audio haptics, which goes through the same code as the game's rumble. It hasn't
+  been tried on a device or felt on a real controller yet, the G8+ included.
 
 ## [0.2.1] - 2026-10-23
 
