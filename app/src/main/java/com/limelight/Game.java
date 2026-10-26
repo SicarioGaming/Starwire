@@ -3982,6 +3982,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }).start();
     }
 
+    // How leaveStream() copies the PC's clipboard, running the Runnable on the UI thread after
+    interface HostClipboardCopy {
+        void copyThen(Runnable then);
+    }
+
+    // For tests: a copy that doesn't use the network
+    HostClipboardCopy hostClipboardCopy = then -> syncClipboardFromHost(true, then);
+
     /**
      * Leaving from the menu ends the stream at once, and the host only answers clipboard requests
      * during a stream, so with automatic sync on, copy the PC's clipboard first.
@@ -3996,7 +4004,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 }
             };
             streamView.postDelayed(stopOnce, 2000);
-            syncClipboardFromHost(true, stopOnce);
+            hostClipboardCopy.copyThen(stopOnce);
         }
         else {
             stop.run();

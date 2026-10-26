@@ -23,8 +23,12 @@ import android.widget.TextView;
 
 import com.limelight.binding.input.ControllerHandler;
 import com.limelight.binding.input.driver.UsbDriverService;
+import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.overlay.OverlayMenuButton;
 import com.limelight.ui.overlay.OverlayMenuView;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -172,6 +176,33 @@ public class GameQuitTest {
         assertEquals(game.getString(R.string.yes), dialog.getButton(DialogInterface.BUTTON_POSITIVE).getText().toString());
 
         dialog.getButton(DialogInterface.BUTTON_POSITIVE).performClick();
+        idle();
+        ControllerHandler controllers = ReflectionHelpers.getField(game, "controllerHandler");
+        assertTrue("the game on the PC is quit", controllers.pendingApplicationQuit);
+        assertTrue("the stream screen closes", game.isFinishing());
+    }
+
+    /**
+     * With automatic clipboard sync on, leaving copies the PC's clipboard first, because the PC
+     * stops answering once the stream ends. Yes still leaves that way, through leaveStream().
+     */
+    @Test
+    public void yesCopiesThePcClipboardBeforeQuitting() {
+        List<Runnable> copies = new ArrayList<>();
+        game.hostClipboardCopy = copies::add;
+        PreferenceConfiguration prefs = ReflectionHelpers.getField(game, "prefConfig");
+        prefs.smartClipboardSync = true;
+        ReflectionHelpers.setField(game, "connected", true);
+
+        AlertDialog dialog = tapQuit();
+        dialog.getButton(DialogInterface.BUTTON_POSITIVE).performClick();
+        idle();
+        assertEquals("the PC's clipboard is copied first", 1, copies.size());
+        assertFalse("quit before the copy finished", quitting());
+
+        // The copy is done. Nothing really streams here, so stopConnection() can't talk to a PC.
+        ReflectionHelpers.setField(game, "connected", false);
+        copies.get(0).run();
         idle();
         ControllerHandler controllers = ReflectionHelpers.getField(game, "controllerHandler");
         assertTrue("the game on the PC is quit", controllers.pendingApplicationQuit);
