@@ -424,6 +424,86 @@ public class SwutCodecTest {
         assertNull(SwutCodec.parseShare(v("frame.bind")));
     }
 
+    // A SHARE for bus id 1-1, made byte by byte from the doc's table and not by the codec, so its
+    // fields can go past the limits share() keeps to
+    private static byte[] rawShare(byte[] name, byte[] config, int[] interfaces, byte[][] reports) {
+        ByteArrayOutputStream p = new ByteArrayOutputStream();
+        p.write(0);   // flags
+        p.write(3);
+        p.write(SwutVectors.ascii("1-1"), 0, 3);
+        p.write(name.length);
+        p.write(name, 0, name.length);
+        p.write(SwutVectors.DEVICE_DESCRIPTOR, 0, SwutVectors.DEVICE_DESCRIPTOR.length);
+        p.write(config.length);
+        p.write(config.length >> 8);
+        p.write(config, 0, config.length);
+        p.write(reports.length);
+        for (int i = 0; i < reports.length; i++) {
+            p.write(interfaces[i]);
+            p.write(reports[i].length);
+            p.write(reports[i].length >> 8);
+            p.write(reports[i], 0, reports[i].length);
+        }
+        byte[] payload = p.toByteArray();
+        byte[] f = new byte[SwutCodec.FRAME_HEADER + payload.length];
+        f[0] = SwutCodec.TYPE_SHARE;
+        f[2] = (byte) payload.length;
+        f[3] = (byte) (payload.length >> 8);
+        System.arraycopy(payload, 0, f, SwutCodec.FRAME_HEADER, payload.length);
+        return f;
+    }
+
+    // The vectors' configuration descriptor, cut or padded with zeros to this length, its wTotalLength made to match
+    private static byte[] configOf(int length) {
+        byte[] c = Arrays.copyOf(SwutVectors.CONFIGURATION, length);
+        c[2] = (byte) length;
+        c[3] = (byte) (length >> 8);
+        return c;
+    }
+
+    private static byte[] filled(int length) {
+        byte[] b = new byte[length];
+        Arrays.fill(b, (byte) 'a');
+        return b;
+    }
+
+    // SHARE's upper bounds are what keeps a hostile phone from making the helper read too much:
+    // each limit passes, and one more doesn't
+    @Test
+    public void aShareKeepsToItsUpperBounds() throws Exception {
+        byte[] name = SwutVectors.ascii(SwutVectors.NAME);
+        byte[] config = SwutVectors.CONFIGURATION;
+        int[] one = {0};
+        byte[][] report = {SwutVectors.REPORT};
+        assertArrayEquals("the doc's table gives the vectors' SHARE", v("frame.share"), rawShare(name, config, one, report));
+
+        assertNotNull(SwutCodec.parseShare(rawShare(filled(64), config, one, report)));
+        assertNull("a 65-byte name", SwutCodec.parseShare(rawShare(filled(65), config, one, report)));
+
+        int[] interfaces = new int[17];
+        byte[][] reports = new byte[17][];
+        for (int i = 0; i < 17; i++) {
+            interfaces[i] = i;
+            reports[i] = new byte[] {(byte) 0xC0};
+        }
+        assertNotNull(SwutCodec.parseShare(rawShare(name, config, Arrays.copyOf(interfaces, 16), Arrays.copyOf(reports, 16))));
+        assertNull("17 report descriptors", SwutCodec.parseShare(rawShare(name, config, interfaces, reports)));
+
+        assertNotNull(SwutCodec.parseShare(rawShare(name, configOf(4096), one, report)));
+        assertNull("a 4097-byte configuration", SwutCodec.parseShare(rawShare(name, configOf(4097), one, report)));
+
+        assertNotNull(SwutCodec.parseShare(rawShare(name, config, one, new byte[][] {filled(4096)})));
+        assertNull("a 4097-byte report descriptor", SwutCodec.parseShare(rawShare(name, config, one, new byte[][] {filled(4097)})));
+
+        // A payload of exactly 16384 bytes, and one more
+        int[] three = {0, 1, 2};
+        byte[][] most = {filled(4096), filled(4096), filled(4060)};
+        byte[] full = rawShare(new byte[0], configOf(4096), three, most);
+        assertEquals(SwutCodec.FRAME_HEADER + SwutCodec.MAX_PAYLOAD, full.length);
+        assertNotNull(SwutCodec.parseShare(full));
+        assertNull("a 16385-byte payload", SwutCodec.parseShare(rawShare(new byte[] {'a'}, configOf(4096), three, most)));
+    }
+
     @Test
     public void starwireWontMakeAShareTheHelperWouldRefuse() {
         byte[] dev = SwutVectors.DEVICE_DESCRIPTOR;
