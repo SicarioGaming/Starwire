@@ -487,6 +487,24 @@ public class GameMultiTouchTest {
     }
 
     @Test
+    public void byDefaultWithAPcThatTakesNoTouchesASwipeInFromTheLeftEdgeReachesItAsTheMouse() {
+        // Nothing saved, and a PC that takes no touches, as with GeForce Experience. Multi-touch
+        // mode then works as direct touch, and the swipe goes to the PC as a drag.
+        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        pc.takesTouches = false;
+        swipeInFromTheLeftEdge();
+        assertFalse("the swipe opened the brightness slider", sliderShowing());
+        assertFalse("the swipe opened the stream menu", menuShowing());
+        assertEquals(list(), pc.touches);
+        // Each part of it was offered to the PC as a touch first, and turned away
+        assertEquals(list("down 0 at 0.01,0.50", "move 0 at 0.08,0.50", "move 0 at 0.14,0.50", "up 0 at 0.14,0.50"),
+                pc.refused);
+        // Then it went as in direct touch: the cursor put under the finger, the left button held
+        // while it moved with the finger, and let go where it lifted
+        assertEquals(list("pos", "down1", "pos", "pos", "up1"), pc.sent);
+    }
+
+    @Test
     public void theOtherTouchModesStillSendTheMouse() {
         for (int touchMode : MOUSE_MODES) {
             openStreamScreen(touchMode);
