@@ -33,10 +33,12 @@ package com.limelight.binding.input.dualsense;
  * changed since the last one, so it never restarts a trigger effect or redoes lights nobody asked
  * to change, which is how Linux's driver works. Rumble is the exception: while a motor runs, every
  * report carries the motor values, and one more report carries the change to zero. After that,
- * rumble is left out, which per SDL hands the actuators back to HD haptics.
+ * rumble is left out, which per SDL hands the actuators back to HD haptics. The light bar setup is
+ * the other exception: it always goes in a report of its own, before any colour.
  *
- * A spike: not wired into the app and not yet tried on a real pad. Not thread-safe. Plain Java, so
- * JVM tests run it as the app would.
+ * DualSenseSession uses it for the Bluetooth reports, for the trigger effects and their strength
+ * only; nothing else here is sent by the app yet, and none of it has been tried on a real pad. Not
+ * thread-safe. Plain Java, so JVM tests run it as the app does.
  */
 public final class DualSenseOutput {
     public static final int COMMON_SIZE = 47;
@@ -212,6 +214,17 @@ public final class DualSenseOutput {
     }
 
     /**
+     * Fades out the light Bluetooth pairing left on, so the light bar takes colours afterwards.
+     * The next report is exactly Linux's dualsense_reset_leds (hid-playstation.c, sent once when
+     * a pad connects, before any colour): flags 2 0x02 and light bar setup 0x02, nothing else.
+     * Anything else already set waits for the report after it. Moonlight V+ sends the same setup
+     * report on its own first too (DualSenseBluetoothOutput.kt:85-92 at 5840bab3).
+     */
+    public void resetLightbar() {
+        lightbarSetupPending = true;
+    }
+
+    /**
      * Sends everything set so far again with the next report, for example after the pad
      * reconnects. Hosts send trigger effects only when they change, so a reconnected pad would
      * otherwise lose the game's effect. Running motors need nothing: every report carries them.
@@ -257,6 +270,19 @@ public final class DualSenseOutput {
         int flags1 = 0;
         int flags2 = 0;
 
+        // The light bar setup goes on its own, before any colour, as Linux sends it. Whatever
+        // else changed goes in the next report.
+        if (lightbarSetupPending) {
+            if (releaseLedsPending) {
+                report[at + FLAGS1] = FLAG1_RELEASE_LEDS;
+                releaseLedsPending = false;
+            }
+            report[at + FLAGS2] = FLAG2_LIGHTBAR_SETUP;
+            report[at + LIGHTBAR_SETUP] = LIGHTBAR_SETUP_LIGHT_OUT;
+            lightbarSetupPending = false;
+            return;
+        }
+
         if (rumbleChanged || motorLeft != 0 || motorRight != 0) {
             flags0 |= FLAG0_HAPTICS_SELECT;
             if (improvedRumble) {
@@ -277,15 +303,6 @@ public final class DualSenseOutput {
             flags0 |= FLAG0_LEFT_TRIGGER;
             leftTrigger.writeTo(report, at + LEFT_TRIGGER);
             leftTriggerChanged = false;
-        }
-        if (releaseLedsPending) {
-            flags1 |= FLAG1_RELEASE_LEDS;
-            releaseLedsPending = false;
-        }
-        if (lightbarSetupPending) {
-            flags2 |= FLAG2_LIGHTBAR_SETUP;
-            report[at + LIGHTBAR_SETUP] = LIGHTBAR_SETUP_LIGHT_OUT;
-            lightbarSetupPending = false;
         }
         if (lightbarChanged) {
             flags1 |= FLAG1_LIGHTBAR;
