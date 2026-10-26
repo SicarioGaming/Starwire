@@ -17,9 +17,10 @@ import org.robolectric.annotation.Config;
 import org.robolectric.shadows.MediaCodecInfoBuilder;
 
 /**
- * Google's decoders (Pixel's Tensor chips, and AOSP's software ones) clock themselves to just meet
- * the operating rate they're given, so they're asked for the most they can do at the stream's
- * size, not the stream's frame rate (Moonlight X d88c6b3b). The decoders here are built from
+ * Google's decoders, the ones named c2.google on Pixel's Tensor chips, clock themselves to just
+ * meet the operating rate they're given, so they're asked for the most they can do at the stream's
+ * size, not the stream's frame rate (Moonlight X d88c6b3b). AOSP's software decoders are named
+ * c2.android, so this doesn't touch them. The decoders here are built from
  * profile levels, so Android's own rules say what they can do. No Pixel was tried.
  */
 @RunWith(RobolectricTestRunner.class)

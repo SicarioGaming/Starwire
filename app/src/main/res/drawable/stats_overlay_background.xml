@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Behind the performance stats and the stream summary shown as a stream starts -->
+<!-- Behind the performance stats while streaming -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <corners android:radius="4dp" />
