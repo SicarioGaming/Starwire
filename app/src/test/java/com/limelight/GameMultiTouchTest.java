@@ -304,6 +304,27 @@ public class GameMultiTouchTest {
         assertEquals(list("touch1", "touch7"), pc.sent);
     }
 
+    // What each touch the PC got was, without where it was
+    private List<String> touchesWithoutPlaces() {
+        List<String> names = new ArrayList<>();
+        for (String touch : pc.touches) {
+            names.add(touch.substring(0, touch.indexOf(" at ")));
+        }
+        return names;
+    }
+
+    @Test
+    public void byDefaultASwipeInFromTheLeftEdgeReachesThePcAsATouchInFull() {
+        // Nothing saved, as for anyone who never changed the Left edge swipe action
+        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        swipeInFromTheLeftEdge();
+        assertFalse("the swipe opened the brightness slider", sliderShowing());
+        assertFalse("the swipe opened the stream menu", menuShowing());
+        // Not taken back from the PC: it goes down, moves twice and lifts there
+        assertEquals(list("down 0", "move 0", "move 0", "up 0"), touchesWithoutPlaces());
+        assertEquals(list(), notTouches());
+    }
+
     // Three fingers down one after another, then up, this long after the third went down
     private void threeFingers(int heldMs) {
         float y = middleY();
