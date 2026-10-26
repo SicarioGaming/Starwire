@@ -19,7 +19,8 @@ import org.robolectric.annotation.Config;
  * The "Controller vibration strength" setting as a stream uses it. The PC's rumble goes through
  * ControllerHandler to a controller: here a stand-in for a pad on Starwire's own USB driver, which
  * keeps what it was told. The setting is read the way a stream reads it, from the saved settings.
- * RumbleStrengthTest covers the arithmetic.
+ * RumbleStrengthTest covers the arithmetic, and VibratorRumbleStrengthTest the paths through
+ * Android's own vibrators.
  */
 @RunWith(RobolectricTestRunner.class)
 // MoonBridge loads the native streaming library in its static block. Instrumenting it lets
