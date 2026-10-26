@@ -620,6 +620,8 @@ public class GameBrightnessTest {
     @Test
     public void withTheSwipeOffByDefaultTheBrightnessTileStillOpensTheSlider() {
         openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        PreferenceConfiguration prefConfig = ReflectionHelpers.getField(game, "prefConfig");
+        assertEquals("the stream didn't take the swipe as off by default", "off", prefConfig.leftEdgeSwipeAction);
         // What Game does once it has a connection, so the menu's tiles do what they say
         ControllerHandler controllers = useControllerHandling();
         try {
