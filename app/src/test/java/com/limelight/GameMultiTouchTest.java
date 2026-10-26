@@ -68,6 +68,20 @@ public class GameMultiTouchTest {
     private View menu;
 
     private void openStreamScreen(int touchMode) {
+        openStreamScreen(touchMode, null);
+    }
+
+    // With the Left edge swipe action set to the brightness slider. It's off by default.
+    private void openStreamScreenWithTheSwipeOn(int touchMode) {
+        openStreamScreen(touchMode, "brightness");
+    }
+
+    // edgeSwipeAction: the Left edge swipe action setting, or null to leave it at its default
+    private void openStreamScreen(int touchMode, String edgeSwipeAction) {
+        if (edgeSwipeAction != null) {
+            PreferenceManager.getDefaultSharedPreferences(context).edit()
+                    .putString("left_edge_swipe_action", edgeSwipeAction).commit();
+        }
         game = Robolectric.buildActivity(Game.class, new Intent(context, Game.class)).create().visible().get();
         pc = new RecordingConnection(context);
         ReflectionHelpers.setField(game, "conn", pc);
@@ -246,7 +260,7 @@ public class GameMultiTouchTest {
 
     @Test
     public void aTapAtTheLeftEdgeReachesThePcAsATouch() {
-        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_MULTI_TOUCH);
         // 40 dp from the left, inside the 80 dp strip the edge swipe starts in
         tap(dp(40), middleY());
         assertFalse("the tap opened the brightness slider", sliderShowing());
@@ -266,7 +280,7 @@ public class GameMultiTouchTest {
 
     @Test
     public void aSwipeInFromTheLeftEdgeOpensTheSliderAndTakesTheTouchBackFromThePc() {
-        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_MULTI_TOUCH);
         swipeInFromTheLeftEdge();
         assertTrue("the swipe didn't open the brightness slider", sliderShowing());
         // The touch started on the PC, and the PC is told to forget it once it's a swipe.
@@ -284,9 +298,7 @@ public class GameMultiTouchTest {
 
     @Test
     public void theSwipeCanOpenTheStreamMenuInMultiTouchModeToo() {
-        PreferenceManager.getDefaultSharedPreferences(context).edit()
-                .putString("left_edge_swipe_action", "overlay_menu").commit();
-        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH, "overlay_menu");
         swipeInFromTheLeftEdge();
         assertTrue("the swipe didn't open the stream menu", menuShowing());
         assertEquals(list("touch1", "touch7"), pc.sent);
@@ -433,7 +445,7 @@ public class GameMultiTouchTest {
     @Test
     public void withAPcThatTakesNoTouchesMultiTouchWorksAsDirectTouch() {
         // As with GeForce Experience
-        openStreamScreen(Game.MOUSE_MODE_MULTI_TOUCH);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_MULTI_TOUCH);
         pc.takesTouches = false;
         tap(across(0.5f), middleY());
         assertTrue("the tap wasn't a click on the PC: " + pc.sent,
@@ -474,7 +486,7 @@ public class GameMultiTouchTest {
     @Test
     public void theOtherTouchModesSendNoTouchForTheSwipeOrTheThreeFingerTap() {
         for (int touchMode : MOUSE_MODES) {
-            openStreamScreen(touchMode);
+            openStreamScreenWithTheSwipeOn(touchMode);
             swipeInFromTheLeftEdge();
             assertTrue("touch mode " + touchMode + ": the swipe didn't open the brightness slider", sliderShowing());
             // Closes the slider
