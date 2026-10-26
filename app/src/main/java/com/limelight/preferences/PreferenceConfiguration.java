@@ -8,6 +8,8 @@ import android.preference.PreferenceManager;
 import android.view.Display;
 
 import com.limelight.binding.audio.VbanSender;
+import com.limelight.binding.input.dualsense.TriggerPreset;
+import com.limelight.binding.input.dualsense.TriggerStrength;
 import com.limelight.nvstream.jni.MoonBridge;
 
 public class PreferenceConfiguration {
@@ -88,6 +90,12 @@ public class PreferenceConfiguration {
     private static final String GAMEPAD_TOUCHPAD_AS_MOUSE_PREF_STRING = "checkbox_gamepad_touchpad_as_mouse";
     private static final String GAMEPAD_MOTION_SENSORS_PREF_STRING = "checkbox_gamepad_motion_sensors";
     private static final String GAMEPAD_MOTION_FALLBACK_PREF_STRING = "checkbox_gamepad_motion_fallback";
+    // DualSense trigger effects over Bluetooth (Experimental), Settings > Controllers
+    public static final String DUALSENSE_EFFECTS_PREF_STRING = "checkbox_dualsense_effects";
+    public static final String DUALSENSE_TRIGGER_PRESET_PREF_STRING = "list_dualsense_trigger_preset";
+    public static final String DUALSENSE_TRIGGER_STRENGTH_PREF_STRING = "list_dualsense_trigger_strength";
+    // How the last stream's DualSense check ended (DualSenseStatus), for the status line
+    public static final String DUALSENSE_LAST_STATUS_PREF_STRING = "dualsense_last_status";
     private static final String OVERLAY_TRIGGER_BUTTON_PREF_STRING = "overlay_trigger_button";
     private static final String OVERLAY_HOLD_DURATION_PREF_STRING = "overlay_hold_duration";
     private static final String ENABLE_FLOATING_BUTTON_PREF_STRING = "checkbox_enable_floating_button";
@@ -187,6 +195,7 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_GAMEPAD_TOUCHPAD_AS_MOUSE = false;
     private static final boolean DEFAULT_GAMEPAD_MOTION_SENSORS = true;
     private static final boolean DEFAULT_GAMEPAD_MOTION_FALLBACK = false;
+    private static final boolean DEFAULT_DUALSENSE_EFFECTS = false;
     private static final String DEFAULT_OVERLAY_TRIGGER_BUTTON = "select";
     private static final String DEFAULT_OVERLAY_HOLD_DURATION = "1500";
     private static final boolean DEFAULT_ENABLE_FLOATING_BUTTON = true;
@@ -270,6 +279,9 @@ public class PreferenceConfiguration {
     public boolean gamepadMotionSensors;
     public boolean gamepadTouchpadAsMouse;
     public boolean gamepadMotionSensorsFallbackToDevice;
+    public boolean dualSenseEffects;
+    public TriggerPreset dualSenseTriggerPreset;
+    public int dualSenseTriggerStrength;
     public String overlayTriggerButton;
     public int overlayHoldDurationMs;
     public boolean enableFloatingButton;
@@ -979,6 +991,11 @@ public class PreferenceConfiguration {
         config.gamepadTouchpadAsMouse = prefs.getBoolean(GAMEPAD_TOUCHPAD_AS_MOUSE_PREF_STRING, DEFAULT_GAMEPAD_TOUCHPAD_AS_MOUSE);
         config.gamepadMotionSensors = prefs.getBoolean(GAMEPAD_MOTION_SENSORS_PREF_STRING, DEFAULT_GAMEPAD_MOTION_SENSORS);
         config.gamepadMotionSensorsFallbackToDevice = prefs.getBoolean(GAMEPAD_MOTION_FALLBACK_PREF_STRING, DEFAULT_GAMEPAD_MOTION_FALLBACK);
+        config.dualSenseEffects = prefs.getBoolean(DUALSENSE_EFFECTS_PREF_STRING, DEFAULT_DUALSENSE_EFFECTS);
+        config.dualSenseTriggerPreset = TriggerPreset.fromPref(
+                prefs.getString(DUALSENSE_TRIGGER_PRESET_PREF_STRING, TriggerPreset.NONE.prefValue));
+        config.dualSenseTriggerStrength = TriggerStrength.fromPref(
+                prefs.getString(DUALSENSE_TRIGGER_STRENGTH_PREF_STRING, Integer.toString(TriggerStrength.FULL)));
         config.overlayTriggerButton = prefs.getString(OVERLAY_TRIGGER_BUTTON_PREF_STRING, DEFAULT_OVERLAY_TRIGGER_BUTTON);
         config.overlayHoldDurationMs = Integer.parseInt(prefs.getString(OVERLAY_HOLD_DURATION_PREF_STRING, DEFAULT_OVERLAY_HOLD_DURATION));
         config.enableFloatingButton = prefs.getBoolean(ENABLE_FLOATING_BUTTON_PREF_STRING, DEFAULT_ENABLE_FLOATING_BUTTON);

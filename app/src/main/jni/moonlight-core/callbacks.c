@@ -47,6 +47,7 @@ static jmethodID BridgeClSetHdrModeMethod;
 static jmethodID BridgeClRumbleTriggersMethod;
 static jmethodID BridgeClSetMotionEventStateMethod;
 static jmethodID BridgeClSetControllerLEDMethod;
+static jmethodID BridgeClSetAdaptiveTriggersMethod;
 static jbyteArray DecodedFrameBuffer;
 static jshortArray DecodedAudioBuffer;
 
@@ -290,6 +291,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeClRumbleTriggersMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClRumbleTriggers", "(SSS)V");
     BridgeClSetMotionEventStateMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetMotionEventState", "(SBS)V");
     BridgeClSetControllerLEDMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetControllerLED", "(SBBB)V");
+    BridgeClSetAdaptiveTriggersMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetAdaptiveTriggers", "(SBBB[B[B)V");
 }
 
 int BridgeDrSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
@@ -669,6 +671,44 @@ void BridgeClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, u
     }
 }
 
+// The host's DualSense trigger effects (control message 0x5503), which moonlight-common-c has
+// already parsed. The two blocks are the game's 10 parameter bytes for each trigger, copied as
+// the host sent them; Java checks them before anything reaches a pad. Wired the way Nightjar's
+// commit bdd7890c14 by Ramazan Kara (GPL-3.0) does it.
+void BridgeClSetAdaptiveTriggers(uint16_t controllerNumber, uint8_t eventFlags, uint8_t typeLeft,
+                                 uint8_t typeRight, uint8_t* left, uint8_t* right) {
+    JNIEnv* env = GetThreadEnv();
+
+    jbyteArray leftArray = (*env)->NewByteArray(env, DS_EFFECT_PAYLOAD_SIZE);
+    jbyteArray rightArray = (*env)->NewByteArray(env, DS_EFFECT_PAYLOAD_SIZE);
+    if (leftArray == NULL || rightArray == NULL) {
+        // Out of memory: drop this message, as Java would have nothing to send
+        (*env)->ExceptionClear(env);
+        if (leftArray != NULL) {
+            (*env)->DeleteLocalRef(env, leftArray);
+        }
+        if (rightArray != NULL) {
+            (*env)->DeleteLocalRef(env, rightArray);
+        }
+        return;
+    }
+    (*env)->SetByteArrayRegion(env, leftArray, 0, DS_EFFECT_PAYLOAD_SIZE, (const jbyte*)left);
+    (*env)->SetByteArrayRegion(env, rightArray, 0, DS_EFFECT_PAYLOAD_SIZE, (const jbyte*)right);
+
+    // The jshort and jbyte casts are needed to satisfy CheckJNI, as for the LED above
+    (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeClSetAdaptiveTriggersMethod,
+                                 (jshort)controllerNumber, (jbyte)eventFlags, (jbyte)typeLeft, (jbyte)typeRight,
+                                 leftArray, rightArray);
+
+    // This thread stays attached, so free the arrays now rather than at detach
+    (*env)->DeleteLocalRef(env, leftArray);
+    (*env)->DeleteLocalRef(env, rightArray);
+    if ((*env)->ExceptionCheck(env)) {
+        // We will crash here
+        (*JVM)->DetachCurrentThread(JVM);
+    }
+}
+
 void BridgeClLogMessage(const char* format, ...) {
     va_list va;
     va_start(va, format);
@@ -706,6 +746,7 @@ static CONNECTION_LISTENER_CALLBACKS BridgeConnListenerCallbacks = {
         .rumbleTriggers = BridgeClRumbleTriggers,
         .setMotionEventState = BridgeClSetMotionEventState,
         .setControllerLED = BridgeClSetControllerLED,
+        .setAdaptiveTriggers = BridgeClSetAdaptiveTriggers,
 };
 
 static bool

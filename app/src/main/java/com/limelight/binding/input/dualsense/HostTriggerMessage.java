@@ -18,8 +18,8 @@ package com.limelight.binding.input.dualsense;
  * </pre>
  * 25 bytes. Left comes before right here, but the pad's report has right before left.
  *
- * In the app, moonlight-common-c parses the message and would pass the fields to Java through a
- * setAdaptiveTriggers callback (fromCallback). parse reads the raw payload, which pins the layout
+ * In the app, moonlight-common-c parses the message and passes the fields to Java through its
+ * setAdaptiveTriggers callback (fromCallback, by way of MoonBridge and ControllerHandler). parse reads the raw payload, which pins the layout
  * down in tests. Only the triggers whose bit is set change, as in Nonary's moonlight-qt.
  */
 public final class HostTriggerMessage {
