@@ -208,6 +208,33 @@
     <string name="summary_checkbox_gamepad_motion_fallback">Uses your device\'s built-in motion sensors if gamepad sensors are not supported by your connected gamepad or your Android version.\nNote: Enabling this option may cause your gamepad to appear as a PlayStation controller on the host.</string>
 
     <!-- DualSense trigger effects over Bluetooth (Experimental), under Controllers -->
+    <string name="category_dualsense">DualSense (Experimental)</string>
+    <string name="title_checkbox_dualsense_effects">Trigger effects</string>
+    <string name="summary_checkbox_dualsense_effects">Adaptive triggers on a DualSense paired over Bluetooth, on Android 12 and newer. It uses a hidden Android call, so an update can stop it. Not tried with a real pad yet.</string>
+    <string name="summary_checkbox_dualsense_effects_old_android">Needs Android 12 or newer.</string>
+    <string name="title_dualsense_status">Status</string>
+    <string name="title_dualsense_test">Test</string>
+    <string name="summary_dualsense_test">Sends a gun click to both triggers for 10 seconds.</string>
+    <string name="dualsense_test_sent">Sent a gun click to both triggers. Pull R2 or L2 now. It turns off in 10 seconds. If you feel nothing, the pad didn\'t get it.</string>
+    <string name="title_list_dualsense_trigger_preset">Trigger preset</string>
+    <string name="summary_list_dualsense_trigger_preset">%s. A preset plays until the game sends its own effect.</string>
+    <string name="dualsense_preset_none">None (the game\'s effects only)</string>
+    <string name="dualsense_preset_light_resistance">Light resistance</string>
+    <string name="dualsense_preset_gun_click">Gun click</string>
+    <string name="dualsense_preset_heavy_pedal">Heavy pedal</string>
+    <string name="dualsense_preset_buzz">Buzz while pulled</string>
+    <string name="dualsense_preset_off">Off (no effects, not even the game\'s)</string>
+    <string name="title_list_dualsense_trigger_strength">Trigger strength</string>
+    <string name="summary_list_dualsense_trigger_strength">%s. The pad\'s own power limit, for the game\'s effects and the presets. It may not weaken plain resistance.</string>
+    <string name="dualsense_strength_full">Full (8 of 8)</string>
+    <string name="dualsense_strength_7">7 of 8</string>
+    <string name="dualsense_strength_6">6 of 8</string>
+    <string name="dualsense_strength_5">5 of 8</string>
+    <string name="dualsense_strength_4">4 of 8</string>
+    <string name="dualsense_strength_3">3 of 8</string>
+    <string name="dualsense_strength_2">2 of 8</string>
+    <string name="dualsense_strength_lightest">Lightest (1 of 8)</string>
+    <string name="dualsense_permission_denied">Trigger effects need the Nearby devices permission.</string>
     <string name="dualsense_status_off">Off. The DualSense works as it always has.</string>
     <string name="dualsense_status_checking">Looking for the DualSense.</string>
     <string name="dualsense_status_needs_android_12">Needs Android 12 or newer. The DualSense works as it always has.</string>
@@ -220,6 +247,7 @@
     <string name="dualsense_status_send_failed">Android wouldn\'t send to the pad. The DualSense works as it always has.</string>
     <string name="dualsense_status_ready">DualSense found. Tap Test to feel an effect.</string>
     <string name="dualsense_status_working">Trigger effects on. Android took the last effect, which doesn\'t prove the pad got it.</string>
+    <string name="dualsense_status_last_stream">Last stream: %1$s</string>
 
     <string name="category_overlay_menu">Overlay Menu</string>
     <string name="title_overlay_trigger_button">Menu trigger button</string>

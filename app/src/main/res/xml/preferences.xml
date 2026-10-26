@@ -230,6 +230,47 @@
             android:title="@string/title_checkbox_gamepad_motion_fallback"
             android:summary="@string/summary_checkbox_gamepad_motion_fallback"
             android:defaultValue="false" />
+        <!-- A group inside Controllers. Android won't put a category in a category, so its
+             heading is a row, and it gets no section button of its own -->
+        <Preference
+            android:key="dualsense_heading"
+            android:title="@string/category_dualsense"
+            android:layout="@layout/cg_pref_subheading"
+            android:selectable="false"
+            android:persistent="false" />
+        <CheckBoxPreference
+            android:key="checkbox_dualsense_effects"
+            android:title="@string/title_checkbox_dualsense_effects"
+            android:summary="@string/summary_checkbox_dualsense_effects"
+            android:defaultValue="false" />
+        <Preference
+            android:key="dualsense_status"
+            android:title="@string/title_dualsense_status"
+            android:summary="@string/dualsense_status_off"
+            android:selectable="false"
+            android:persistent="false" />
+        <Preference
+            android:key="dualsense_test"
+            android:dependency="checkbox_dualsense_effects"
+            android:title="@string/title_dualsense_test"
+            android:summary="@string/summary_dualsense_test"
+            android:persistent="false" />
+        <ListPreference
+            android:key="list_dualsense_trigger_preset"
+            android:dependency="checkbox_dualsense_effects"
+            android:title="@string/title_list_dualsense_trigger_preset"
+            android:summary="@string/summary_list_dualsense_trigger_preset"
+            android:entries="@array/dualsense_preset_names"
+            android:entryValues="@array/dualsense_preset_values"
+            android:defaultValue="none" />
+        <ListPreference
+            android:key="list_dualsense_trigger_strength"
+            android:dependency="checkbox_dualsense_effects"
+            android:title="@string/title_list_dualsense_trigger_strength"
+            android:summary="@string/summary_list_dualsense_trigger_strength"
+            android:entries="@array/dualsense_strength_names"
+            android:entryValues="@array/dualsense_strength_values"
+            android:defaultValue="8" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_overlay_menu"
         android:key="category_overlay_menu">

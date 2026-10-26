@@ -1,5 +1,6 @@
 package com.limelight.screenshots;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
@@ -7,6 +8,7 @@ import android.app.Activity;
 import android.content.res.Configuration;
 import android.text.Layout;
 import android.os.Looper;
+import android.preference.Preference;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,6 +16,7 @@ import android.widget.BaseAdapter;
 import android.widget.FrameLayout;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -114,6 +117,39 @@ public class ActivityScreensTest {
         ActivityController<StreamSettings> controller =
                 Robolectric.buildActivity(StreamSettings.class).setup();
         capture(controller.get().getWindow().getDecorView(), "settings");
+    }
+
+    /**
+     * Settings scrolled to Controllers > DualSense (Experimental), as it is the first time: the
+     * switch off, so the status line says so and nothing looks for a pad.
+     */
+    @Test
+    public void dualSenseSettings() {
+        ActivityController<StreamSettings> controller =
+                Robolectric.buildActivity(StreamSettings.class).setup();
+        shadowOf(Looper.getMainLooper()).idle();
+        Activity activity = controller.get();
+        ListView list = activity.findViewById(android.R.id.list);
+        int group = -1;
+        for (int i = 0; i < list.getAdapter().getCount(); i++) {
+            Object item = list.getAdapter().getItem(i);
+            if (item instanceof Preference && "dualsense_heading".equals(((Preference) item).getKey())) {
+                group = i;
+                break;
+            }
+        }
+        assertTrue("no DualSense group in the settings list", group >= 0);
+        // Its rows, in order, right under its heading
+        String[] rows = {"checkbox_dualsense_effects", "dualsense_status", "dualsense_test",
+                "list_dualsense_trigger_preset", "list_dualsense_trigger_strength"};
+        for (int i = 0; i < rows.length; i++) {
+            assertEquals(rows[i], ((Preference) list.getAdapter().getItem(group + 1 + i)).getKey());
+        }
+        Preference status = (Preference) list.getAdapter().getItem(group + 2);
+        assertEquals(activity.getString(R.string.dualsense_status_off), String.valueOf(status.getSummary()));
+        list.setSelection(group);
+        shadowOf(Looper.getMainLooper()).idle();
+        capture(activity.getWindow().getDecorView(), "dualSenseSettings");
     }
 
     /**

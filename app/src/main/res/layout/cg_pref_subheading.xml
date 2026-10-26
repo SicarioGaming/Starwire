@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cover Glow: a group's heading inside a settings section (DualSense under Controllers),
+     a step smaller than the section headings (cg_pref_category) -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/title"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="22dp"
+    android:paddingBottom="6dp"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp"
+    android:fontFamily="sans-serif-medium"
+    android:textColor="#FFC4B5FD"
+    android:textSize="17sp" />

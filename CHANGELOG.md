@@ -13,6 +13,23 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **DualSense trigger effects over Bluetooth (Experimental, off by default),** in Settings,
+  Controllers, DualSense. On Android 12 and newer, a DualSense paired over Bluetooth gets the
+  game's own adaptive trigger effects from a host that sends them (going by its source,
+  Vibepollo does when it emulates a DualSense), or one of four presets when the game sends
+  none: light resistance, gun click, heavy pedal or buzz. The game's effects win over a preset,
+  and "Off" turns both off. Trigger strength has 8 steps and uses the pad's own power limit.
+  Starwire checks the link every time the pad connects and goes back to the usual path if
+  anything fails; the status line says why. Test sends one effect. Rumble and the light bar work
+  as before. It asks for the Nearby devices permission and uses a hidden Android call, through
+  HiddenApiBypass (LSPosed), whose files Gradle checks by SHA-256. How the reports reach the pad
+  and how the pad is found are ported from Moonlight V+ (qiin2333); passing the host's effects to
+  Java follows Nightjar (Ramazan Kara). **Not tried on a device yet:** no report has reached a
+  real DualSense, and nobody has felt the presets or the strength steps. Tested with JVM tests
+  against a fake Bluetooth link.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.
