@@ -186,6 +186,8 @@ public class GameBackKeyTest {
     public void backAgainClosesTheMenu() {
         openStreamScreen();
         pressSystemBack();
+        assertEquals("the first Back didn't open the menu", View.VISIBLE, menu.getVisibility());
+        assertFalse("the first Back ended the stream", game.isFinishing());
         pressSystemBack();
         assertEquals("the second Back didn't close the menu", View.GONE, menu.getVisibility());
         assertFalse("the second Back ended the stream", game.isFinishing());
@@ -230,6 +232,18 @@ public class GameBackKeyTest {
     @Test
     public void holdingARemotesBackStillOpensTheMenuOnce() {
         openStreamScreen();
+        holdRemoteBack();
+    }
+
+    @Test
+    public void withTheSettingOffHoldingARemotesBackStillOpensTheMenu() {
+        turnBackOpensMenuOff();
+        openStreamScreen();
+        holdRemoteBack();
+    }
+
+    // Moonlight X opens the menu when a remote's Back is held, whatever the setting
+    private void holdRemoteBack() {
         assertRemoteBack();
         long downTime = SystemClock.uptimeMillis();
         key(KeyEvent.ACTION_DOWN, downTime, KeyEvent.KEYCODE_BACK, NO_DEVICE, REMOTE_SOURCES, 0);
