@@ -13,6 +13,13 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **Controller vibration strength,** under Controllers: 0 to 100% of the game's rumble, on every
+  controller and on this device when it vibrates in place of one. 0% turns rumble off, and new
+  installs start at 100%, as before. Checked by unit tests only so far. It hasn't been tried on a
+  device or felt on a real controller yet, the G8+ included.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

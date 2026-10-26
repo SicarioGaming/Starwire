@@ -184,6 +184,9 @@
     <string name="category_gamepad_settings">Gamepad Settings</string>
     <string name="title_checkbox_multi_controller">Automatic gamepad presence detection</string>
     <string name="summary_checkbox_multi_controller">Unchecking this option forces a gamepad to always be present</string>
+    <string name="title_seekbar_controller_vibration_strength">Controller vibration strength</string>
+    <string name="summary_seekbar_controller_vibration_strength">How strongly the game\'s rumble plays on every controller, and on this device when it vibrates in place of one. 0% turns rumble off.</string>
+    <string name="suffix_seekbar_controller_vibration_strength">%</string>
     <string name="title_checkbox_vibrate_fallback">Emulate rumble support with vibration</string>
     <string name="summary_checkbox_vibrate_fallback">Vibrates your device to emulate rumble if your gamepad does not support it</string>
     <string name="title_seekbar_vibrate_fallback_strength">Adjust emulated rumble intensity</string>
