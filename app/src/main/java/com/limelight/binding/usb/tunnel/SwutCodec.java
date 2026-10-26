@@ -86,6 +86,7 @@ public final class SwutCodec {
     public static final int RULE_UNREADABLE = 7;
     public static final int RULE_OTHER_CLASS = 8;
     public static final int RULE_MISMATCH = 9;
+    public static final int RULE_TOO_FAST = 10;
 
     // SHARE
     public static final int FLAG_CONFIRMED_INPUT = 1;

@@ -40,9 +40,14 @@ final class SwutVectors {
     }
 
     static byte[] fileBytes() throws IOException {
-        try (InputStream in = SwutVectors.class.getClassLoader().getResourceAsStream("swut-v1-vectors.txt")) {
+        return fileBytes("swut-v1-vectors.txt");
+    }
+
+    /** A shared file from app/src/test/resources: these vectors, or the device rules' cases. */
+    static byte[] fileBytes(String name) throws IOException {
+        try (InputStream in = SwutVectors.class.getClassLoader().getResourceAsStream(name)) {
             if (in == null) {
-                throw new IOException("swut-v1-vectors.txt isn't on the test classpath");
+                throw new IOException(name + " isn't on the test classpath");
             }
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] buffer = new byte[4096];
@@ -55,8 +60,13 @@ final class SwutVectors {
 
     /** name=hex lines, in the file's order. */
     static Map<String, String> read() throws IOException {
+        return read("swut-v1-vectors.txt");
+    }
+
+    /** name=value lines of a shared file, in the file's order. */
+    static Map<String, String> read(String file) throws IOException {
         Map<String, String> v = new LinkedHashMap<>();
-        for (String line : new String(fileBytes(), StandardCharsets.US_ASCII).split("\n")) {
+        for (String line : new String(fileBytes(file), StandardCharsets.US_ASCII).split("\n")) {
             int eq = line.indexOf('=');
             if (eq > 0) {
                 v.put(line.substring(0, eq), line.substring(eq + 1));

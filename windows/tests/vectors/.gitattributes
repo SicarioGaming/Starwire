@@ -1,3 +1,4 @@
 # The shared vectors are checked byte for byte (SHA-256), so Git must never change their line endings
 swmc-v1-vectors.txt -text
 swut-v1-vectors.txt -text
+swut-v1-policy.txt -text

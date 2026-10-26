@@ -39,10 +39,13 @@ the fingerprints differ between the two sides, and without the key they can't ma
 fits.
 
 **What can be shared.** Pads, wheels, sticks and audio devices. Keyboards and mice only if you say
-yes on the phone, each time. Storage, network adapters, hubs, and vendor-specific devices from
-vendors the rules don't list are refused, with the reason. Starwire checks before it asks the PC.
-The helper checks again, and compares each descriptor Windows asks for with the one Starwire
-described, before Windows gets it.
+yes on the phone, each time. Devices that say they're storage, network adapters or hubs, and
+vendor-specific devices from vendors the rules don't list, are refused, with the reason. Starwire
+checks before it asks the PC. The helper checks again, and compares each descriptor Windows asks
+for with the one Starwire described, before Windows gets it. It also keeps back the Microsoft
+descriptors and vendor requests a device could use to choose its own Windows driver. What the
+checks can't catch is a device that lies about its vendor and product ID, since Windows ties some
+drivers to those IDs, a few storage drivers among them.
 
 **What it doesn't protect against.**
 
@@ -50,9 +53,10 @@ described, before Windows gets it.
   mice included (it can say yes itself), until you unpair it in the receiver's menu. It could
   already stream and type on the PC through its pairing with the host, so unpair it there too.
 - A hostile USB device. The rules narrow what reaches Windows, but Windows still reads parts of a
-  shared device the helper doesn't check (see "USB/IP inside the tunnel"). And Windows picks
-  drivers by vendor and product ID, so a device that lies about its IDs can reach another
-  device's driver.
+  shared device the helper doesn't check (see "USB/IP inside the tunnel"), and the drivers that
+  load read whatever it sends. And Windows picks some drivers by vendor and product ID, so a
+  device that lies about its IDs can reach another device's driver, a storage one included (see
+  "What the rules can't see").
 - Malware on the phone or the PC, which can reach USB devices directly.
 - Someone on the network can block, slow or flood the tunnel, and can see the sizes and timing of
   its packets, as with any encrypted connection. With a keyboard shared, the timing can hint at
@@ -328,7 +332,9 @@ USB/IP protocol document):
    descriptor's idVendor, idProduct, bcdDevice, class, subclass, protocol and bNumConfigurations,
    the configuration's bNumInterfaces, and a bConfigurationValue of 0 or the configuration's own.
    A reply that doesn't match ends the session (END 6, rule 9), and so does a wrong request from
-   the driver (END 9).
+   the driver (END 9). Its speed must be low, full or high (USB/IP's 1, 2 or 3): a faster device
+   ends the session (END 6, rule 10), since Windows reads more descriptors from a USB 3 device
+   (the BOS descriptor, below). Starwire checks the speed too, before it sends SHARE.
 2. **The transfers.** After that, the driver sends CMD_SUBMIT and CMD_UNLINK, Starwire RET_SUBMIT
    and RET_UNLINK. The relay works out each message's length from its header, and remembers each
    transfer the driver asked for, since a RET_SUBMIT's data length depends on that transfer's
@@ -342,51 +348,141 @@ USB/IP protocol document):
    interface) must get back the start of SHARE's report descriptor for that interface, or no data
    if SHARE gave none. Anything else ends the session (END 6, rule 9) before the reply reaches
    the driver.
-4. **Not checked in version 1:** string descriptors, BOS and device qualifier descriptors,
-   other-speed configurations, class and vendor requests (Microsoft OS descriptors among them),
-   SET_CONFIGURATION, and every transfer that isn't one of the descriptor requests above. Windows
-   reads some of these, so a hostile device can still reach the code that reads them.
+4. **What the relay answers itself.** These requests on endpoint 0 never reach the device. The
+   relay answers each one with a stall, as a device without them would: a RET_SUBMIT with status
+   -32 (EPIPE) and no data, for the same seqnum, sent to the driver between two whole messages
+   from Starwire. A CMD_UNLINK for one of them gets RET_UNLINK with status 0 from the relay too.
+   - GET_DESCRIPTOR for string descriptor 0xEE, where Windows looks for Microsoft OS 1.0
+     descriptors.
+   - GET_DESCRIPTOR for the BOS descriptor (type 0x0F), which Windows reads from a device with a
+     bcdUSB of 0x0201 or more, and which can hold Microsoft OS 2.0 descriptors.
+   - GET_DESCRIPTOR for an other-speed configuration (type 0x07).
+   - Every vendor request (bits 5 and 6 of bmRequestType are 2), and every request of the
+     reserved type 3.
+
+   Microsoft OS descriptors let a device give Windows a compatible ID, and so a driver, that its
+   class codes don't: the compatible ID `RNDIS` with `5162001` loads Windows' own RNDIS network
+   driver (`rndiscmp.inf` lists `USB\MS_COMP_RNDIS&MS_SUBCOMP_5162001`). Without them, Windows
+   goes by the class codes the device rules checked. Whether Windows still sets up a device with a
+   bcdUSB of 0x0201 or more whose BOS request stalls hasn't been tried. A device that needs vendor
+   requests for some of its features (some headsets' extra controls) loses those features in
+   version 1.
+5. **Not checked in version 1:** other string descriptors, the device qualifier, class requests,
+   SET_CONFIGURATION and SET_INTERFACE, and every transfer on the other endpoints. Windows reads
+   some of these, and the class drivers that load read whatever the device sends, so a hostile
+   device can still reach the code that reads them.
 
 ### The device rules, version 1
 
-Starwire applies them before it sends SHARE, and the helper applies them again to SHARE. Both use
-this table.
+Starwire applies them before it sends SHARE, and the helper applies them again to SHARE. Both
+read the descriptors exactly as below, so they reach the same decision, and both are tested
+against the same cases (`swut-v1-policy.txt`, see "Test vectors"). The rules:
 
-The device as a whole:
-
-| Check | Rule |
+| Rule | Refused because it's |
 |---|---|
-| bNumConfigurations isn't 1 | 6, more than one configuration |
-| descriptors that don't read: lengths that don't add up, a HID interface with no report descriptor in SHARE, a report descriptor with no top-level application collection | 7, can't be read |
-| bDeviceClass 0x09 | 1, a hub |
+| 1 | a hub |
+| 2 | storage: mass storage, or still image (cameras, phones) |
+| 3 | a network adapter, modem or radio |
+| 4 | vendor-specific, and its vendor and product IDs aren't on the list below |
+| 5 | a keyboard or mouse you didn't confirm (the helper only) |
+| 6 | a device with more than one configuration |
+| 7 | descriptors that don't read, or don't fit together |
+| 8 | a kind of device Starwire doesn't share |
+| 9 | sending Windows something SHARE didn't describe (the relay) |
+| 10 | faster than high speed, so USB 3 (the relay, and Starwire before SHARE) |
 
-Then every interface and alternate setting in the configuration:
+The checks run in the order below. The first one that refuses names the rule. An "ask" doesn't
+stop them.
 
-| Interface class | Decision |
+**1. Reading the descriptors.** Rule 7 if any of these fails:
+
+- The device descriptor has a bLength of 18 and type 1.
+- The configuration descriptor is read descriptor by descriptor from its start. Each one has a
+  bLength of at least 2 and ends inside wTotalLength, and the last one ends exactly there. The
+  first is the configuration itself (bLength 9, type 2). No device or configuration descriptor
+  comes after it.
+- An interface descriptor (type 4) is 9 bytes. An endpoint descriptor (type 5) is 7 bytes, or 9
+  in an audio interface. An interface association descriptor (IAD, type 0x0B) is 8 bytes. Other
+  descriptors, class-specific ones among them, are only checked for length.
+- Each pair of interface number and alternate setting comes once, and bNumInterfaces is the number
+  of different interface numbers. Between an interface descriptor and the next interface
+  descriptor or IAD there are exactly bNumEndpoints endpoint descriptors. None is for endpoint 0,
+  and none comes twice in one alternate setting.
+- Each IAD names one or more interfaces that are there (bFirstInterface, bInterfaceCount), and no
+  interface is named by two IADs.
+- Every alternate setting of a HID interface (class 0x03) has a HID descriptor (type 0x21), whose
+  first class descriptor is the report descriptor (type 0x22). SHARE has that interface's report
+  descriptor, exactly that long. SHARE has no report descriptor for an interface that isn't HID or
+  isn't there.
+
+**2. One configuration.** bNumConfigurations is 1, or rule 6.
+
+**3. The device's own class codes.** bDeviceClass, bDeviceSubClass and bDeviceProtocol must be
+00/00/00 (each interface gives its class) or EF/02/01 (some interfaces are grouped by IADs). For
+any other codes, Windows takes the compatible IDs, and so the driver, for the whole device from
+them. So other codes are refused with the rule the class table below gives that class (a hub 1,
+storage 2, a network adapter 3, vendor-specific 4), or rule 8 for any other class, audio and HID
+included. A device on the vendor list may also have class 0xFF here.
+
+**4. Each IAD, in order.** Windows gives the function an IAD groups its compatible IDs from the
+IAD, so its function class goes through the class table as an interface's would. Then it must be
+the class of every interface it names, or rule 7.
+
+**5. Each interface and alternate setting, in order.** Its class gives a decision from this table,
+and then its endpoints must fit that class, or rule 7:
+
+| Interface class | Decision | Endpoints |
+|---|---|---|
+| 0x01 audio, subclass 1 (control) | allowed | at most one, interrupt IN |
+| 0x01 audio, subclass 2 (streaming) | allowed | isochronous only |
+| 0x01 audio, subclass 3 (MIDI) | allowed | bulk only |
+| 0x03 HID | by its report descriptor (step 6). Subclass 1 with protocol 1 or 2 (a boot keyboard or mouse) asks, whatever the report descriptor says | interrupt only, at most one IN and one OUT |
+| 0xFF vendor-specific | allowed only if the device's vendor and product IDs are on the list below; otherwise rule 4 | as the list says |
+| 0x08 mass storage, 0x06 still image | rule 2 | |
+| 0x09 hub | rule 1 | |
+| 0x02 communications, 0x0A CDC data, 0xE0 wireless controller (Bluetooth, RNDIS), 0xEF with subclass 0x04 (RNDIS) | rule 3 | |
+| anything else: audio with another subclass, video, 0xFE (firmware update) | rule 8 | |
+
+An IAD's audio function (class 0x01) may have any subclass, since an IAD's function subclass for
+audio is 0.
+
+**6. Each HID report descriptor, in the order of its interface.** It's read item by item as HID
+1.11 section 6.2.2 describes, with these limits so that every parser finds the same top-level
+collections with the same usages. Rule 7 if any fails:
+
+- A short item's data is 0, 1, 2 or 4 bytes (a size of 3 means 4), little-endian, and no item
+  runs past the end. Long items (prefix 0xFE) are refused.
+- Only the tags HID 1.11 defines, and not all of them. Main: Input, Output, Feature, Collection
+  and End Collection. Global: Usage Page, Logical and Physical Minimum and Maximum, Unit Exponent,
+  Unit, Report Size, Report ID and Report Count. Local: Usage, Usage Minimum and Maximum, and the
+  Designator and String Index, Minimum and Maximum. Push, Pop and Delimiter are refused, since a
+  parser that gets them wrong reads another page or usage.
+- Collections nest at most 16 deep. Each one has its End Collection, and no End Collection comes
+  without one. Input, Output and Feature items come only inside a collection.
+- A collection that isn't inside another is a top-level collection. It must be an Application
+  collection (data 1). Exactly one Usage item comes before it, after the last main item, and no
+  Usage Minimum or Maximum.
+- That Usage's page: when its data is 4 bytes (an extended usage), its upper 16 bits are the page
+  and the lower 16 the usage, whatever Usage Page is in effect. Otherwise it's the Usage Page in
+  effect, and no Usage Page item may come between the Usage and the Collection, since parsers
+  differ on which page applies then. A Usage Page above 0xFFFF is refused.
+- There's at least one top-level collection.
+
+Windows makes one HID device for each top-level collection and picks its driver by that
+collection's usage, so only the top-level collections decide:
+
+| Page and usage | Decision |
 |---|---|
-| 0x01 audio | allowed |
-| 0x03 HID | by its report descriptor, below |
-| 0xFF vendor-specific | allowed only if the device's vendor and product IDs are on the list below; otherwise rule 4 |
-| 0x08 mass storage, 0x06 still image (cameras, phones) | rule 2, storage |
-| 0x09 hub | rule 1, a hub |
-| 0x02 communications, 0x0A CDC data, 0xE0 wireless controller (Bluetooth, RNDIS), 0xEF with subclass 0x04 (RNDIS) | rule 3, a network adapter, modem or radio |
-| anything else, 0xFE (firmware update) included | rule 8, a kind of device Starwire doesn't share |
-
-A HID interface is decided by the top-level application collections in its report descriptor:
-
-| Usage | Decision |
-|---|---|
-| Generic Desktop (page 0x01) Joystick 0x04, Game Pad 0x05 or Multi-axis Controller 0x08; anything on the Simulation Controls (0x02) or Game Controls (0x05) pages | a pad: allowed |
-| Generic Desktop Pointer 0x01, Mouse 0x02, Keyboard 0x06, Keypad 0x07 or System Control 0x80; anything on the Digitizers page (0x0D) | a keyboard or mouse: ask |
-| anything on the Consumer (0x0C) or Telephony (0x0B) pages | allowed on a device that also has an audio interface (a headset's buttons); otherwise ask |
+| Generic Desktop (0x01) Joystick 0x04, Game Pad 0x05 or Multi-axis Controller 0x08; any usage on the Simulation Controls (0x02) or Game Controls (0x05) pages | a pad: allowed |
+| Generic Desktop Pointer 0x01, Mouse 0x02, Keyboard 0x06, Keypad 0x07 or System Control 0x80; any usage on the Digitizers page (0x0D) | a keyboard or mouse: ask |
+| any usage on the Consumer (0x0C) or Telephony (0x0B) pages | allowed on a device that also has an audio interface (a headset's buttons); otherwise ask |
 | vendor-defined pages, 0xFF00 to 0xFFFF | allowed |
 | anything else | rule 8 |
 
-The device gets the strictest decision of all its parts: refused if anything is refused, else ask
-if anything asks, else allowed. "Ask" means Starwire asks you every time and sets SHARE's flag
-only after a yes. The helper refuses an "ask" device without the flag (rule 5, a keyboard or
-mouse that wasn't confirmed). That protects against a mistake, not against a stolen phone, which
-can say yes itself.
+**7. The decision.** The device gets the strictest decision of all its parts: refused if anything
+is refused, else ask if anything asks, else allowed. "Ask" means Starwire asks you every time and
+sets SHARE's flag only after a yes. The helper refuses an "ask" device without the flag (rule 5).
+That protects against a mistake, not against a stolen phone, which can say yes itself.
 
 The vendor list is empty in version 1, so every vendor-specific interface is refused, Xbox pads by
 cable among them (Starwire's own Xbox driver still handles those on the phone). A device goes on
@@ -394,9 +490,19 @@ the list by its vendor and product IDs, after a test with that device and a revi
 vendor without its product IDs would let a device with another product's ID reach that product's
 driver.
 
+**What the rules can't see.** They look at the class codes and usages Windows picks its class
+drivers by, and the relay makes sure those are what Windows gets. But Windows matches a device's
+vendor and product ID before its class codes, and a device can lie about its IDs. On a Windows 11
+PC checked on 26 Oct 2026, Windows' own storage driver (`usbstor.inf`) lists 67 devices by vendor
+and product ID, so a device that says it's one of them gets the storage driver, whatever its
+class codes say. The same goes for any driver another program installed for a device's IDs. So
+storage and network adapters are refused by what they say they are, not by what they are. A
+later version could ask Windows, before attaching, whether any installed driver is tied to the
+device's IDs. That hasn't been tried.
+
 Changing the rules doesn't change the bytes, so it needs no new version. Both sides change
-together, and SHARE_ACK and END name the rule, so Starwire can explain a refusal its own copy of
-the rules didn't expect.
+together, with the policy cases, and SHARE_ACK and END name the rule, so Starwire can explain a
+refusal its own copy of the rules didn't expect.
 
 ## Attacks, and what stops them
 
@@ -437,8 +543,10 @@ why Starwire refuses devices with a firmware update interface. Everything else a
 a PC with the pairing can ask it to do.
 
 **A hostile device** plugged into the phone: see "What it doesn't protect against". The relay's
-checks make sure the descriptors Windows gets are the ones the rules looked at. They don't cover
-every part of a device.
+checks make sure the class codes and usages Windows picks its class drivers by are the ones the
+rules looked at, and the relay keeps back the Microsoft OS descriptors and vendor requests that
+would let a device pick another driver. They can't stop Windows picking a driver by vendor and
+product ID ("What the rules can't see"), and they don't cover every part of a device.
 
 ## Versioning
 
@@ -493,3 +601,20 @@ offered versions 1 to 2, and a BIND_ACK for the other BIND.
 `SwutCodecTest` checks every line in the app (`./gradlew testNonRootDebugUnitTest`). The helper's
 tests are to check the same file. A change that makes either side disagree with the file is a
 change to the protocol.
+
+### The device rules' cases
+
+`app/src/test/resources/swut-v1-policy.txt` and `windows/tests/vectors/swut-v1-policy.txt` are
+the same file too (SHA-256 `1ACFA0A186B4BF0F68E90317897CDAE9AFC83D38BECE590B55003DCB793599B4`,
+LF line endings, never changed by Git). Each case is two lines: `<case>.share=` a whole SHARE
+frame in hex, and `<case>.want=` the decision the device rules reach for it: `allow`, `ask`, or
+`refuse` and the rule. `.github/tools/vectors/make-swut-v1-policy.sh` wrote it from descriptors
+written out by hand, each case changing one thing in the same test pad (its `pad` case is the
+vectors' `frame.share`, byte for byte). The cases cover each class code check, IADs, endpoints,
+the ways descriptors can fail to read, and the report descriptors that parsers can read
+differently: an extended usage, a Usage Page after the Usage, two Usages, Delimiter, Push and
+Pop, long items and nesting.
+
+`SwutPolicyCasesTest` checks that both copies are the same, that every SHARE in it is well formed,
+and that every rule a SHARE can break has a case. Nothing checks the decisions yet: Starwire's
+device rules and the helper's are each to reach every one, in their own tests.
