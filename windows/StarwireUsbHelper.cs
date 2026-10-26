@@ -30,7 +30,8 @@
 // its device goes. Vibepollo attaches its virtual DualSense through the same driver, and other
 // programs can too. So the helper keeps a list of what it attached (address, TCP port, bus ID and
 // a serial number it makes up for each attach), and before a detach it finds the port that holds
-// exactly that. It never sends port 0 or below, which the driver takes as "every device". This
+// exactly that. It never sends port 0 or below, which the driver takes as "every device". Before
+// it stops the driver's reconnect attempts, it waits for the detaches the driver has queued. This
 // follows Vibepollo (src/platform/windows/dualsense_usbip_transport.cpp, GPL-3.0, by Nonary).
 //
 // There's no version command in the driver, so the helper reads the version Windows keeps for the
@@ -277,7 +278,11 @@ static class UsbipAbi
     public const int ErrorUnexpected = unchecked((int) 0xE1020005);
 
     public const int ErrorAccessDenied = 5;
+    public const int ErrorInvalidParameter = 87;
     public const int ErrorInsufficientBuffer = 122;
+
+    // A port the driver can't have: it has at most 254 for USB 2 and 254 for USB 3 (vhci.cpp)
+    public const int NoSuchPort = int.MaxValue;
 
     public static byte[] ListRequest()
     {
@@ -829,6 +834,25 @@ static class UsbipCommands
         int error = driver.Control(UsbipAbi.PlugoutHardware, UsbipAbi.PlugoutRequest(port), null, out returned);
         problem = error == 0 ? null : UsbipErrors.Explain(error, null);
         return error == 0;
+    }
+
+    // PLUGOUT_HARDWARE for a port that can't exist, as a wait. The driver runs detaches one at a
+    // time, in order, and refuses this one without touching any device once those queued before
+    // it are done. That matters for a device whose connection just dropped: the driver detaches it
+    // through that queue, freeing its port first and only then starting its reconnect attempts,
+    // so a stop sent in between finds none to stop. Vibepollo waits the same way before its stop
+    // (detach_barrier in dualsense_usbip_transport.cpp). True when the driver refused it as expected.
+    public static bool WaitForQueuedDetaches(IVhciDriver driver, out string problem)
+    {
+        int returned;
+        int error = driver.Control(UsbipAbi.PlugoutHardware, UsbipAbi.PlugoutRequest(UsbipAbi.NoSuchPort), null, out returned);
+        if (error == UsbipAbi.ErrorInvalidParameter) {
+            problem = null;
+            return true;
+        }
+        problem = error == 0 ? "the driver says it detached port " + UsbipAbi.NoSuchPort + ", which can't exist"
+            : UsbipErrors.Explain(error, null);
+        return false;
     }
 
     // STOP_ATTACH_ATTEMPTS for one exact location: the driver keeps trying to reconnect a device
@@ -1383,7 +1407,12 @@ sealed class UsbHelper
                     : "It isn't attached any more. Port " + o.Port + " now holds another program's device ("
                         + other.Describe() + "), so the helper leaves it alone.");
             }
-            // If its connection dropped, the driver keeps trying to reconnect it: stop that
+            // If its connection dropped, the driver keeps trying to reconnect it: stop that, once
+            // any detach the driver has queued is done
+            if (!UsbipCommands.WaitForQueuedDetaches(driver, out problem)) {
+                Note("The driver didn't answer the wait for its queued detaches as expected (" + problem
+                    + "). Stopping its attempts to reconnect anyway.");
+            }
             int stopped = UsbipCommands.StopAttempts(driver, o.Host, o.Service, o.BusId, out problem);
             if (stopped > 0) {
                 Note("Stopped " + stopped + (stopped == 1 ? " attempt" : " attempts") + " by the driver to reconnect it.");

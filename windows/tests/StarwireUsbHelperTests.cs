@@ -21,6 +21,8 @@ static class StarwireUsbHelperTests
     const string Laptop = "192.168.1.50";
     const string Vibepollo = "127.0.0.1";
     const string VibepolloSerial = "VP0123456789AB0";
+    // The port the helper detaches as a wait for the driver's queued detaches
+    const int NoSuchPort = int.MaxValue;
 
     static int passed, failed;
     static string temp;
@@ -60,6 +62,7 @@ static class StarwireUsbHelperTests
         BadRequests();
         DetachOwnOnly();
         PortReusedByAnotherProcess();
+        DropDuringDetach();
         NeverEveryDevice();
         OwnedList();
         ListGrows();
@@ -89,7 +92,9 @@ static class StarwireUsbHelperTests
     }
 
     // What the driver does with each command, from vhci_ioctl.cpp at 0.9.8.1: the same size checks
-    // and errors, port 0 or below on PLUGOUT detaches everything, and ports are reused lowest first
+    // and errors, port 0 or below on PLUGOUT detaches everything, and ports are reused lowest first.
+    // Attach and detach go through one queue, in order (a detach the driver queued itself runs
+    // before them); the list and the stop don't wait for it.
     sealed class FakeVhci : IVhciDriver
     {
         public DriverIdentity Id = KnownIdentity();
@@ -97,6 +102,11 @@ static class StarwireUsbHelperTests
         public readonly List<Call> Calls = new List<Call>();
         public readonly Dictionary<string, Server> Servers = new Dictionary<string, Server>();
         public readonly Dictionary<string, int> PendingAttempts = new Dictionary<string, int>();
+        // Locations whose detach after a dropped connection has freed the port, but hasn't yet
+        // started the reconnect attempts
+        public readonly List<string> HalfDetached = new List<string>();
+        // Runs before each list is answered
+        public Action OnList;
         public int BadListLength = -1;
         public bool DetachedAll;
         public bool StoppedAll;
@@ -142,6 +152,26 @@ static class StarwireUsbHelperTests
             PendingAttempts[key] = n + 1;
         }
 
+        // The same, caught halfway: device::detach has freed the port and not yet started the
+        // attempts (device.cpp), which it does when its queue next moves
+        public void DropHalfway(int port)
+        {
+            ImportedDevice d = Ports[port - 1];
+            Ports[port - 1] = null;
+            HalfDetached.Add(d.Host + "|" + d.Service + "|" + d.BusId);
+        }
+
+        // The driver's own queued detaches finish
+        public void Settle()
+        {
+            foreach (string key in HalfDetached) {
+                int n;
+                PendingAttempts.TryGetValue(key, out n);
+                PendingAttempts[key] = n + 1;
+            }
+            HalfDetached.Clear();
+        }
+
         public int Count(uint code)
         {
             int n = 0;
@@ -153,15 +183,28 @@ static class StarwireUsbHelperTests
             return n;
         }
 
+        // The ports the helper asked to detach, leaving out its waits (a port that can't exist)
         public List<int> PlugoutPorts()
         {
             List<int> ports = new List<int>();
             foreach (Call c in Calls) {
-                if (c.Code == UsbipAbi.PlugoutHardware) {
+                if (c.Code == UsbipAbi.PlugoutHardware && c.Port != NoSuchPort) {
                     ports.Add(c.Port);
                 }
             }
             return ports;
+        }
+
+        // Where in the calls each wait and each stop came
+        public List<int> Positions(uint code, int port)
+        {
+            List<int> at = new List<int>();
+            for (int i = 0; i < Calls.Count; i++) {
+                if (Calls[i].Code == code && (code != UsbipAbi.PlugoutHardware || Calls[i].Port == port)) {
+                    at.Add(i);
+                }
+            }
+            return at;
         }
 
         public int Changes()
@@ -188,12 +231,17 @@ static class StarwireUsbHelperTests
             call.Input = input == null ? null : (byte[]) input.Clone();
             Calls.Add(call);
             if (code == UsbipAbi.GetImportedDevices) {
+                if (OnList != null) {
+                    OnList();
+                }
                 return List(input, output, out returned);
             }
             if (code == UsbipAbi.PluginHardwareOnce || code == UsbipAbi.PluginHardware) {
+                Settle();
                 return Plugin(input, output, out returned);
             }
             if (code == UsbipAbi.PlugoutHardware) {
+                Settle();
                 return Plugout(input);
             }
             if (code == UsbipAbi.StopAttachAttempts) {
@@ -813,6 +861,37 @@ static class StarwireUsbHelperTests
         code = rig.Helper().DebugDetach();
         Check("same device, an SW serial the helper didn't make: not detached", code == StarwireUsbHelper.ExitOk
             && rig.Driver.PlugoutPorts().Count == 0 && rig.Driver.Ports[1] != null && rig.Said("Port 2 now holds another program's device"));
+    }
+
+    static void DropDuringDetach()
+    {
+        // The laptop's connection drops just as the detach lists the devices. The driver has freed
+        // the port but not yet started its reconnect attempts, so the list shows nothing and a
+        // stop sent straight away would find no attempts to stop.
+        Rig rig = LaptopRig("drop-race");
+        rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        int lists = 0;
+        rig.Driver.OnList = () => {
+            // The first list checks the driver; the second is the detach's own
+            if (++lists == 2) {
+                rig.Driver.DropHalfway(2);
+            }
+        };
+        int code = rig.Helper().DebugDetach();
+        rig.Driver.OnList = null;
+        // Whatever the driver still had queued runs now
+        rig.Driver.Settle();
+        Check("drop during a detach: its reconnect attempts are stopped anyway", code == StarwireUsbHelper.ExitOk
+            && rig.Said("Stopped 1 attempt") && rig.Driver.PendingAttempts.Count == 0);
+        List<int> waits = rig.Driver.Positions(UsbipAbi.PlugoutHardware, NoSuchPort);
+        List<int> stops = rig.Driver.Positions(UsbipAbi.StopAttachAttempts, 0);
+        Check("drop during a detach: it waits for the driver's queued detaches, then stops",
+            waits.Count == 1 && stops.Count == 1 && waits[0] < stops[0]);
+        byte[] wait = rig.Driver.LastInput(UsbipAbi.PlugoutHardware);
+        Check("drop during a detach: the wait is a detach of port 0x7FFFFFFF, never 0 or below",
+            Same(wait, new byte[] { 8, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x7F }) && !rig.Driver.DetachedAll);
+        Check("drop during a detach: nothing else detached, the list is gone", rig.Driver.PlugoutPorts().Count == 0
+            && rig.Driver.Ports[0] != null && !File.Exists(rig.Owned.FilePath));
     }
 
     static void NeverEveryDevice()
