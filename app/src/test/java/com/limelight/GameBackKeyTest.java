@@ -9,6 +9,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.view.InputDevice;
@@ -32,6 +33,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 import org.robolectric.util.ReflectionHelpers;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -41,7 +43,8 @@ import java.util.List;
  * menu and then finishes before anything connects, so no stream starts. Each test sets up the
  * rest of the input handling as onCreate would, with a stand-in for the PC that writes down what
  * it gets, and forgets that finish, so a finish from Back shows. Keys go in through
- * Game.dispatchKeyEvent, as Android hands them over.
+ * Game.dispatchKeyEvent, as Android hands them over. The clock is Robolectric's, so holding a
+ * key takes no real time.
  */
 @RunWith(RobolectricTestRunner.class)
 // MoonBridge loads the native streaming library in its static block. Instrumenting it lets
@@ -51,6 +54,7 @@ public class GameBackKeyTest {
     private static final String BACK_OPENS_MENU = "checkbox_back_opens_menu";
     // Keys that come with no input device (device ID 0)
     private static final int NO_DEVICE = 0;
+    private static final int REMOTE_SOURCES = InputDevice.SOURCE_KEYBOARD | InputDevice.SOURCE_DPAD;
 
     private final Context context = RuntimeEnvironment.getApplication();
     private final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
@@ -130,6 +134,21 @@ public class GameBackKeyTest {
                 KeyEvent.FLAG_FROM_SYSTEM | KeyEvent.FLAG_VIRTUAL_HARD_KEY);
     }
 
+    // A TV remote is a keyboard with a D-pad but not a full keyboard, so ControllerHandler takes
+    // it as a controller, and its Back as a remote's Back. Robolectric can't give a remote the
+    // vibrators, lights and sensors ControllerHandler looks at, so this Back comes with no device.
+    // ControllerHandler takes such a Back as a remote's too, the same way.
+    private void pressRemoteBack() {
+        assertRemoteBack();
+        press(KeyEvent.KEYCODE_BACK, NO_DEVICE, REMOTE_SOURCES, 0);
+    }
+
+    private void assertRemoteBack() {
+        Object noDeviceContext = ReflectionHelpers.getField(controllers, "defaultContext");
+        assertTrue("a Back with no device isn't taken as a remote's",
+                (Boolean) ReflectionHelpers.getField(noDeviceContext, "ignoreBack"));
+    }
+
     private void turnBackOpensMenuOff() {
         prefs.edit().putBoolean(BACK_OPENS_MENU, false).commit();
     }
@@ -175,6 +194,44 @@ public class GameBackKeyTest {
         pressSystemBack();
         assertTrue("Back didn't end the stream", game.isFinishing());
         assertEquals("Back opened the menu", View.GONE, menu.getVisibility());
+    }
+
+    @Test
+    public void aRemotesBackOpensTheMenu() {
+        openStreamScreen();
+        pressRemoteBack();
+        assertEquals("the remote's Back didn't open the menu", View.VISIBLE, menu.getVisibility());
+        assertFalse("the remote's Back ended the stream", game.isFinishing());
+
+        // The remote's Back closes it again
+        pressRemoteBack();
+        assertEquals("the remote's second Back didn't close the menu", View.GONE, menu.getVisibility());
+        assertFalse(game.isFinishing());
+    }
+
+    @Test
+    public void withTheSettingOffARemotesBackEndsTheStream() {
+        turnBackOpensMenuOff();
+        openStreamScreen();
+        pressRemoteBack();
+        assertTrue("the remote's Back didn't end the stream", game.isFinishing());
+        assertEquals(View.GONE, menu.getVisibility());
+    }
+
+    @Test
+    public void holdingARemotesBackStillOpensTheMenuOnce() {
+        openStreamScreen();
+        assertRemoteBack();
+        long downTime = SystemClock.uptimeMillis();
+        key(KeyEvent.ACTION_DOWN, downTime, KeyEvent.KEYCODE_BACK, NO_DEVICE, REMOTE_SOURCES, 0);
+        PreferenceConfiguration prefConfig = ReflectionHelpers.getField(game, "prefConfig");
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(prefConfig.overlayHoldDurationMs));
+        assertEquals("holding Back didn't open the menu", View.VISIBLE, menu.getVisibility());
+
+        // Letting go leaves it open
+        key(KeyEvent.ACTION_UP, downTime, KeyEvent.KEYCODE_BACK, NO_DEVICE, REMOTE_SOURCES, 0);
+        assertEquals("letting go of Back closed the menu", View.VISIBLE, menu.getVisibility());
+        assertFalse(game.isFinishing());
     }
 
     @Test

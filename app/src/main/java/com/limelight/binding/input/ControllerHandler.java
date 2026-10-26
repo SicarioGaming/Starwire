@@ -2496,7 +2496,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     /**
      * Cancel the overlay menu hold detection and notify listener.
-     * If triggered by remote back button, finish the activity.
+     * If triggered by remote back button, open the menu or finish the activity.
      */
     private void cancelOverlayMenuHoldDetection() {
         if (overlayMenuOpenRunnable != null) {
@@ -2514,9 +2514,15 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             overlayMenuListener.onOverlayMenuCancel();
         }
 
-        // If this was a remote back button short press, exit the activity
+        // If this was a remote back button short press, open the menu with "Back opens the
+        // menu" on, as the system's Back does, or else exit the activity
         if (wasActive && wasRemoteBack) {
-            activityContext.finish();
+            if (prefConfig.backOpensMenu && overlayMenuListener != null) {
+                overlayMenuListener.onOverlayMenuOpen();
+            }
+            else {
+                activityContext.finish();
+            }
         }
     }
 

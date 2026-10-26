@@ -416,7 +416,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Floating menu button (tap to open, drag to move) | Ported from Artemis (Yukino Song / ClassicOldSong), via Artemide |
 | A smaller floating button that stays see-through until you touch it, and closes the menu too | New in Starwire, on the Artemis button |
 | The floating button stays where you dragged it, with a spot for landscape and one for portrait | New in Starwire |
-| Coming in 0.3.0: Back opens the menu instead of ending the stream, and Back again closes it. It's on by default, with a switch in Settings → In-stream menu. Tested in JVM tests, not yet tried on a phone | Idea from Artemis (Yukino Song / ClassicOldSong), via Artemide |
+| Coming in 0.3.0: Back opens the menu instead of ending the stream, and Back again closes it. It's on by default, with a switch in Settings → In-stream menu. A short press of a TV remote's Back opens the menu too. Tested in JVM tests, not yet tried on a phone or a TV | Idea from Artemis (Yukino Song / ClassicOldSong), via Artemide. The TV remote part is new in Starwire, on Moonlight X's remote handling |
 | On/off switches on the items that toggle something, and the menu stays open when you tap them | New in Starwire |
 | The menu header shows the game's cover art, or a Starwire tile for Desktop and games without art | New in Starwire |
 | Shortcuts page: Esc, F11, Alt+F4, Alt+Enter, Ctrl+V, Win, Win+D, Win+G, Ctrl+Alt+Tab, Shift+Tab, Win+Shift+Left, Ctrl+Alt+Shift+F1/F12, Win+Alt+B | Ported from Axixi2233's Moonlight fork (axi), via Artemis and Artemide |
