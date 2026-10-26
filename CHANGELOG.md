@@ -41,10 +41,11 @@ steps and the checksums for each version.
   tried in a stream.
 - **Multi-touch mode sent the PC mouse clicks instead of touches.** It worked just like direct
   touch, and had since 0.1.0. Now each finger goes to the PC as a touch of its own, two at a
-  time. If the PC can't take touches, the mode still works like direct touch. The left edge swipe
-  and the three-finger tap for the stream menu work in this mode too. As in the other modes, a
-  third finger lets go of what the first two were doing on the PC, so touches with three or more
-  fingers don't reach it. Checked by tests, not yet tried in a stream.
+  time. If the PC can't take touches, the mode still works like direct touch. The three-finger
+  tap for the stream menu works in this mode too, and so does the left edge swipe once it's
+  turned on. Off, as it is by default, the swipe reaches the PC as a touch. As in the other
+  modes, a third finger lets go of what the first two were doing on the PC, so touches with three
+  or more fingers don't reach it. Checked by tests, not yet tried in a stream.
 
 ## [0.2.1] - 2026-10-23
 
