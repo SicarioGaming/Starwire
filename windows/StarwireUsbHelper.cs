@@ -15,7 +15,8 @@
 //                                      read-only command
 //   StarwireUsbHelper.exe --debug-attach <ip> <bus-id> [--port 3240] [--low-latency]
 //                                      attaches the device that the PC at that address shares
-//                                      with usbipd under that bus ID, and prints each step.
+//                                      with usbipd under that bus ID, and prints each step. Only
+//                                      for a DualSense: anything else is detached straight away.
 //                                      --low-latency asks the driver for its low-latency receive
 //                                      mode instead of its default, zero-copy
 //   StarwireUsbHelper.exe --debug-detach
@@ -440,6 +441,12 @@ sealed class ImportedDevice
             s += ", likely Vibepollo's virtual DualSense";
         }
         return s;
+    }
+
+    // What the other PC said it is, which is all the driver knows
+    public bool IsDualSense()
+    {
+        return KnownName(Vendor, Product) != null;
     }
 
     public static string KnownName(int vendor, int product)
@@ -1413,7 +1420,11 @@ sealed class UsbHelper
             if (!d.SameLocation(host, service, busId)) {
                 continue;
             }
-            if (owned.Find(d) != null) {
+            OwnedDevice already = owned.Find(d);
+            if (already != null && !d.IsDualSense()) {
+                return DetachUnlessDualSense(driver, already, devices, d);
+            }
+            if (already != null) {
                 Step("The helper already attached it, on port " + d.Port + ". Nothing to do.");
                 return StarwireUsbHelper.ExitOk;
             }
@@ -1455,20 +1466,45 @@ sealed class UsbHelper
         }
         Step("Attached on port " + port + ".");
         devices = UsbipCommands.List(driver, out problem);
+        if (devices == null) {
+            Note("Couldn't read the driver's list to check what it attached (" + problem + "). Run --debug-detach now to be safe.");
+            return StarwireUsbHelper.ExitAttach;
+        }
         ImportedDevice now = null;
-        if (devices != null) {
-            foreach (ImportedDevice d in devices) {
-                if (mine.Matches(d)) {
-                    now = d;
-                }
+        foreach (ImportedDevice d in devices) {
+            if (mine.Matches(d)) {
+                now = d;
             }
         }
-        if (now != null) {
-            Note("It's " + now.Describe() + ", " + ImportedDevice.SpeedName(now.Speed) + ".");
+        if (now == null || !now.IsDualSense()) {
+            return DetachUnlessDualSense(driver, mine, devices, now);
         }
+        Note("It's " + now.Describe() + ", " + ImportedDevice.SpeedName(now.Speed) + ".");
         Note("Windows sets it up next: it should show up in Device Manager within a few seconds.");
         Note("To give it back: StarwireUsbHelper.exe --debug-detach");
         return StarwireUsbHelper.ExitOk;
+    }
+
+    // The debug command is only for a DualSense, so anything else it attached is detached at once,
+    // and so is a device whose connection dropped straight away (the driver would keep
+    // reconnecting it). The vendor and product are what the other PC told the driver: this catches
+    // a wrong bus ID or address, not a computer set on lying, and Windows may already have started
+    // setting the device up.
+    int DetachUnlessDualSense(IVhciDriver driver, OwnedDevice mine, List<ImportedDevice> devices, ImportedDevice now)
+    {
+        Step(now == null
+            ? "The driver's list doesn't show it any more, so its connection may have dropped already. The helper "
+                + "detaches it, so the driver doesn't keep reconnecting it."
+            : "It says it's USB device " + now.Vendor.ToString("x4") + ":" + now.Product.ToString("x4") + ", not a DualSense. "
+                + "This debug command is only for a DualSense, so the helper detaches it now.");
+        DetachOne(driver, mine, devices);
+        List<OwnedDevice> these = new List<OwnedDevice>();
+        these.Add(mine);
+        int left = ForgetGone(driver, these);
+        if (left != 0) {
+            Step("It may still be attached. Run --debug-detach.");
+        }
+        return StarwireUsbHelper.ExitAttach;
     }
 
     public int DebugDetach()
@@ -1500,73 +1536,97 @@ sealed class UsbHelper
             Step("The helper hasn't attached anything, so there's nothing to detach.");
             return StarwireUsbHelper.ExitOk;
         }
-        foreach (OwnedDevice o in owned.Devices) {
-            Step("Detaching " + o.Describe() + ".");
-            bool found = false;
-            foreach (ImportedDevice d in devices) {
-                if (!o.Matches(d)) {
-                    continue;
-                }
-                found = true;
-                if (UsbipCommands.Detach(driver, d.Port, out problem)) {
-                    Note("Detached port " + d.Port + ".");
-                }
-                else {
-                    Note("Couldn't detach port " + d.Port + ": " + problem);
-                }
-            }
-            if (!found) {
-                ImportedDevice other = null;
-                foreach (ImportedDevice d in devices) {
-                    if (o.Port > 0 && d.Port == o.Port) {
-                        other = d;
-                    }
-                }
-                Note(other == null
-                    ? "It isn't attached any more."
-                    : "It isn't attached any more. Port " + o.Port + " now holds another program's device ("
-                        + other.Describe() + "), so the helper leaves it alone.");
-            }
-            // If its connection dropped, the driver keeps trying to reconnect it: stop that, once
-            // any detach the driver has queued is done
-            if (!UsbipCommands.WaitForQueuedDetaches(driver, out problem)) {
-                Note("The driver didn't answer the wait for its queued detaches as expected (" + problem
-                    + "). Stopping its attempts to reconnect anyway.");
-            }
-            int stopped = UsbipCommands.StopAttempts(driver, o.Host, o.Service, o.BusId, out problem);
-            if (stopped > 0) {
-                Note("Stopped " + stopped + (stopped == 1 ? " attempt" : " attempts") + " by the driver to reconnect it.");
-            }
-            else if (stopped < 0) {
-                Note("Couldn't stop the driver's attempts to reconnect it: " + problem);
-            }
+        List<OwnedDevice> all = new List<OwnedDevice>(owned.Devices);
+        foreach (OwnedDevice o in all) {
+            DetachOne(driver, o, devices);
         }
-
-        // Only what's really gone leaves the list
-        List<ImportedDevice> after = UsbipCommands.List(driver, out problem);
-        if (after == null) {
-            Step("Couldn't check what's left, so the helper keeps its list: " + problem);
+        int left = ForgetGone(driver, all);
+        if (left < 0) {
             return StarwireUsbHelper.ExitDetach;
         }
-        List<OwnedDevice> left = new List<OwnedDevice>();
-        foreach (OwnedDevice o in owned.Devices) {
-            foreach (ImportedDevice d in after) {
-                if (o.Matches(d) && !left.Contains(o)) {
-                    left.Add(o);
-                }
-            }
-        }
-        owned.Devices.Clear();
-        owned.Devices.AddRange(left);
-        if (!owned.Save(out problem)) {
-            Note("Couldn't update the list of attached devices: " + problem);
-        }
-        if (left.Count > 0) {
-            Step(left.Count + (left.Count == 1 ? " device is" : " devices are") + " still attached. Run --debug-detach again.");
+        if (left > 0) {
+            Step(left + (left == 1 ? " device is" : " devices are") + " still attached. Run --debug-detach again.");
             return StarwireUsbHelper.ExitDetach;
         }
         Step("Done: the helper has nothing attached now.");
         return StarwireUsbHelper.ExitOk;
+    }
+
+    // Detaches one of the helper's devices if the driver holds it, then stops the driver
+    // reconnecting it
+    void DetachOne(IVhciDriver driver, OwnedDevice o, List<ImportedDevice> devices)
+    {
+        Step("Detaching " + o.Describe() + ".");
+        string problem;
+        bool found = false;
+        foreach (ImportedDevice d in devices) {
+            if (!o.Matches(d)) {
+                continue;
+            }
+            found = true;
+            if (UsbipCommands.Detach(driver, d.Port, out problem)) {
+                Note("Detached port " + d.Port + ".");
+            }
+            else {
+                Note("Couldn't detach port " + d.Port + ": " + problem);
+            }
+        }
+        if (!found) {
+            ImportedDevice other = null;
+            foreach (ImportedDevice d in devices) {
+                if (o.Port > 0 && d.Port == o.Port) {
+                    other = d;
+                }
+            }
+            Note(other == null
+                ? "It isn't attached any more."
+                : "It isn't attached any more. Port " + o.Port + " now holds another program's device ("
+                    + other.Describe() + "), so the helper leaves it alone.");
+        }
+        // If its connection dropped, the driver keeps trying to reconnect it: stop that, once
+        // any detach the driver has queued is done
+        if (!UsbipCommands.WaitForQueuedDetaches(driver, out problem)) {
+            Note("The driver didn't answer the wait for its queued detaches as expected (" + problem
+                + "). Stopping its attempts to reconnect anyway.");
+        }
+        int stopped = UsbipCommands.StopAttempts(driver, o.Host, o.Service, o.BusId, out problem);
+        if (stopped > 0) {
+            Note("Stopped " + stopped + (stopped == 1 ? " attempt" : " attempts") + " by the driver to reconnect it.");
+        }
+        else if (stopped < 0) {
+            Note("Couldn't stop the driver's attempts to reconnect it: " + problem);
+        }
+    }
+
+    // Only what's really gone leaves the list: takes off it those of these devices the driver no
+    // longer holds. How many of them are still attached, or -1 if the helper couldn't check.
+    int ForgetGone(IVhciDriver driver, List<OwnedDevice> these)
+    {
+        string problem;
+        List<ImportedDevice> after = UsbipCommands.List(driver, out problem);
+        if (after == null) {
+            Step("Couldn't check what's left, so the helper keeps its list: " + problem);
+            return -1;
+        }
+        int left = 0;
+        foreach (OwnedDevice o in these) {
+            bool still = false;
+            foreach (ImportedDevice d in after) {
+                if (o.Matches(d)) {
+                    still = true;
+                }
+            }
+            if (still) {
+                left++;
+            }
+            else {
+                owned.Devices.Remove(o);
+            }
+        }
+        if (!owned.Save(out problem)) {
+            Note("Couldn't update the list of attached devices: " + problem);
+        }
+        return left;
     }
 
     IVhciDriver Open()

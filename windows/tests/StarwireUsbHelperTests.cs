@@ -62,6 +62,7 @@ static class StarwireUsbHelperTests
         Probe();
         Attach();
         AttachFailures();
+        OnlyADualSense();
         BadRequests();
         DetachOwnOnly();
         PortReusedByAnotherProcess();
@@ -778,6 +779,51 @@ static class StarwireUsbHelperTests
         rig.Driver.AddServer(Laptop, "3241").Devices["2-3"] = new int[] { 0x054c, 0x0ce6, 2 };
         code = rig.Helper().DebugAttach(Laptop, "2-3", 3241, false);
         Check("attach on another TCP port", code == StarwireUsbHelper.ExitOk && rig.Driver.Ports[1].Service == "3241");
+    }
+
+    static void OnlyADualSense()
+    {
+        // The laptop also shares a keyboard, as bus ID 2-4, and that's the one asked for
+        Rig rig = LaptopRig("keyboard");
+        rig.Driver.Servers[Laptop + "|3240"].Devices["2-4"] = new int[] { 0x046d, 0xc31c, 2 };
+        int code = rig.Helper().DebugAttach(Laptop, "2-4", 3240, false);
+        Check("not a DualSense: says what it says it is, and fails", code == StarwireUsbHelper.ExitAttach
+            && rig.Said("It says it's USB device 046d:c31c, not a DualSense"));
+        Check("not a DualSense: detached at once, on its own port only", Same(rig.Driver.PlugoutPorts(), 2)
+            && rig.Driver.Ports[1] == null && rig.Driver.Ports[0] != null && rig.Driver.Ports[0].Serial == VibepolloSerial);
+        Check("not a DualSense: the driver's reconnects for it are stopped too, and the list is gone",
+            rig.Driver.Positions(UsbipAbi.StopAttachAttempts, 0).Count == 1 && !File.Exists(rig.Owned.FilePath));
+
+        rig = LaptopRig("edge");
+        rig.Driver.Servers[Laptop + "|3240"].Devices["2-3"] = new int[] { 0x054c, 0x0df2, 3 };
+        code = rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        Check("a DualSense Edge stays attached", code == StarwireUsbHelper.ExitOk && rig.Driver.Ports[1] != null
+            && rig.Said("Sony DualSense Edge") && rig.Driver.PlugoutPorts().Count == 0);
+
+        // The driver reconnected the helper's pad and the other PC now says it's something else
+        rig = LaptopRig("changed");
+        rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        rig.Driver.Ports[1].Vendor = 0x046d;
+        rig.Driver.Ports[1].Product = 0xc31c;
+        code = rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        Check("already attached, now not a DualSense: detached", code == StarwireUsbHelper.ExitAttach
+            && Same(rig.Driver.PlugoutPorts(), 2) && rig.Driver.Ports[1] == null && !File.Exists(rig.Owned.FilePath));
+
+        // Its connection drops straight after the attach: the driver would keep reconnecting it
+        rig = LaptopRig("dropped-at-once");
+        int lists = 0;
+        rig.Driver.OnList = () => {
+            // Checking the driver, then before the attach, then after it
+            if (++lists == 3) {
+                rig.Driver.DropHalfway(2);
+            }
+        };
+        code = rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        rig.Driver.OnList = null;
+        rig.Driver.Settle();
+        Check("dropped straight after the attach: says so, stops the reconnects, clears the list", code == StarwireUsbHelper.ExitAttach
+            && rig.Said("doesn't show it any more") && rig.Said("Stopped 1 attempt") && rig.Driver.PendingAttempts.Count == 0
+            && rig.Driver.PlugoutPorts().Count == 0 && !File.Exists(rig.Owned.FilePath));
     }
 
     static void BadRequests()
