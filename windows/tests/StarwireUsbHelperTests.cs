@@ -1,17 +1,20 @@
 // Tests for StarwireUsbHelper.cs, the USB helper's driver side (GPL-3.0, part of Starwire): the
 // driver's command layouts, the version check, attach, and detaching only the helper's own
 // devices, against a fake driver that answers the way usbip-win2 0.9.8.1's driver does
-// (drivers/ude/vhci_ioctl.cpp). Deterministic: no driver, no network, no waiting, fixed random
-// bytes. Its files go in a folder in TEMP.
+// (drivers/ude/vhci_ioctl.cpp). Deterministic: no driver, no network, no timed waits, fixed
+// random bytes. Its files go in a folder in TEMP named after the test's process, and its driver
+// lock is named the same way, so two runs at once don't meet.
 // run-usb-helper-tests.ps1 builds it with the C# compiler that comes with Windows and runs it.
 //
 //   StarwireUsbHelperTests.exe     runs every test; exits with 1 if any fails
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Threading;
 
 static class StarwireUsbHelperTests
 {
@@ -21,6 +24,7 @@ static class StarwireUsbHelperTests
 
     static int passed, failed;
     static string temp;
+    static string lockName;
 
     static void Check(string what, bool ok)
     {
@@ -36,7 +40,9 @@ static class StarwireUsbHelperTests
 
     static int Main(string[] args)
     {
-        temp = Path.Combine(Path.GetTempPath(), "StarwireUsbHelperTests");
+        int pid = Process.GetCurrentProcess().Id;
+        temp = Path.Combine(Path.GetTempPath(), "StarwireUsbHelperTests-" + pid);
+        lockName = @"Local\StarwireUsbHelperTests." + pid;
         if (Directory.Exists(temp)) {
             Directory.Delete(temp, true);
         }
@@ -57,6 +63,9 @@ static class StarwireUsbHelperTests
         NeverEveryDevice();
         OwnedList();
         ListGrows();
+        CrashSafety();
+        ShortReplies();
+        DriverLock();
 
         Directory.Delete(temp, true);
         Console.WriteLine();
@@ -365,8 +374,17 @@ static class StarwireUsbHelperTests
         // A run of the helper, like starting the exe again: same driver, same list file
         public UsbHelper Helper()
         {
+            return Helper(Driver);
+        }
+
+        // The same, through a wrapper around the fake driver
+        public UsbHelper Helper(IVhciDriver through)
+        {
             Lines.Clear();
-            return new UsbHelper(Open, Owned, b => Seeded.NextBytes(b), @"Local\StarwireUsbHelperTests", Lines.Add);
+            return new UsbHelper((out string problem) => {
+                IVhciDriver d = Open(out problem);
+                return d == null ? null : through;
+            }, Owned, b => Seeded.NextBytes(b), lockName, Lines.Add);
         }
 
         IVhciDriver Open(out string problem)
@@ -524,6 +542,13 @@ static class StarwireUsbHelperTests
         string serial = Requests.NewSerial(b => new Random(1).NextBytes(b));
         Check("serial: 15 characters, which the driver allows", serial.Length == 15 && Requests.IsSerial(serial));
         Check("serial: not one of Vibepollo's", !Requests.IsSerial(VibepolloSerial));
+
+        // An entry without one of the helper's serials never matches, even where everything else does
+        FakeVhci fake = new FakeVhci();
+        fake.Place(1, Vibepollo, "50123", "1-1", VibepolloSerial);
+        fake.Place(2, Laptop, "3240", "2-3", "");
+        Check("match: an entry with Vibepollo's serial isn't the helper's", !new OwnedDevice(1, Vibepollo, "50123", "1-1", VibepolloSerial).Matches(fake.Ports[0]));
+        Check("match: an entry with no serial isn't the helper's", !new OwnedDevice(2, Laptop, "3240", "2-3", "").Matches(fake.Ports[1]));
     }
 
     static void VersionCheck()
@@ -569,6 +594,13 @@ static class StarwireUsbHelperTests
         int code = rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
         Check("odd list answer: attach refused", code == StarwireUsbHelper.ExitDriver && rig.Said("doesn't fit"));
         Check("odd list answer: only the list was sent", rig.Driver.Changes() == 0);
+
+        // Ports start at 1: a device listed on port 0 means the layout isn't what the helper thinks
+        rig = LaptopRig("port-zero");
+        rig.Driver.Ports[0].Port = 0;
+        code = rig.Helper().DebugDetach();
+        Check("a device listed on port 0: the driver isn't used", code == StarwireUsbHelper.ExitDriver
+            && rig.Said("ports start at 1") && rig.Driver.Changes() == 0);
     }
 
     static void Probe()
@@ -714,10 +746,7 @@ static class StarwireUsbHelperTests
         // A detach the driver refuses keeps the device on the list
         rig = LaptopRig("stuck");
         rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
-        StuckVhci stuck = new StuckVhci(rig.Driver);
-        UsbHelper helper = new UsbHelper((out string p) => { p = null; return stuck; }, rig.Owned, b => { }, @"Local\StarwireUsbHelperTests", rig.Lines.Add);
-        rig.Lines.Clear();
-        code = helper.DebugDetach();
+        code = rig.Helper(new StuckVhci(rig.Driver)).DebugDetach();
         Check("refused detach: says so and keeps the device on the list", code == StarwireUsbHelper.ExitDetach
             && rig.Said("Couldn't detach port 2") && rig.FileText().Contains("\t2-3\t"));
     }
@@ -853,6 +882,186 @@ static class StarwireUsbHelperTests
         List<ImportedDevice> devices = UsbipCommands.List(fake, out problem);
         Check("list of 6: asks again with room for 8", devices != null && devices.Count == 6 && fake.Count(UsbipAbi.GetImportedDevices) == 2);
         Check("list of 6: in port order", devices != null && devices[0].Port == 1 && devices[5].Port == 6 && devices[5].Service == "50006");
+    }
+
+    // The fake driver with one thing gone wrong, for the paths that keep the helper safe when a
+    // run stops halfway or the driver's answer is odd
+    sealed class OddVhci : IVhciDriver
+    {
+        readonly FakeVhci inner;
+        // The helper's process is killed just after the driver attached the device
+        public bool KilledAfterAttach;
+        // How many bytes the driver says it wrote back to an attach or a stop (-1: the real number)
+        public int AttachReplyLength = -1;
+        public int StopReplyLength = -1;
+        // Every list fails once a detach has worked
+        public bool ListFailsAfterDetach;
+        bool detached;
+
+        public OddVhci(FakeVhci inner)
+        {
+            this.inner = inner;
+        }
+
+        public DriverIdentity Identity { get { return inner.Identity; } }
+
+        public int Control(uint code, byte[] input, byte[] output, out int returned)
+        {
+            if (code == UsbipAbi.GetImportedDevices && ListFailsAfterDetach && detached) {
+                returned = 0;
+                return 31; // ERROR_GEN_FAILURE
+            }
+            int error = inner.Control(code, input, output, out returned);
+            if (code == UsbipAbi.PlugoutHardware && error == 0) {
+                detached = true;
+            }
+            if (code == UsbipAbi.PluginHardwareOnce) {
+                if (KilledAfterAttach) {
+                    throw new ProcessKilled();
+                }
+                if (AttachReplyLength >= 0) {
+                    returned = AttachReplyLength;
+                }
+            }
+            if (code == UsbipAbi.StopAttachAttempts && StopReplyLength >= 0) {
+                returned = StopReplyLength;
+            }
+            return error;
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
+    sealed class ProcessKilled : Exception
+    {
+    }
+
+    static void CrashSafety()
+    {
+        // Killed after the driver attached it and before the helper could note the port
+        Rig rig = LaptopRig("killed");
+        OddVhci odd = new OddVhci(rig.Driver);
+        odd.KilledAfterAttach = true;
+        bool killed = false;
+        try {
+            rig.Helper(odd).DebugAttach(Laptop, "2-3", 3240, false);
+        }
+        catch (ProcessKilled) {
+            killed = true;
+        }
+        string serial = Requests.NewSerial(b => new Random(7).NextBytes(b));
+        Check("killed after the attach: the device is on port 2", killed && rig.Driver.Ports[1] != null
+            && rig.Driver.Ports[1].Serial == serial);
+        Check("killed after the attach: it was on the list before the driver saw it, port not known yet",
+            rig.FileText().Contains("\r\n0\t" + Laptop + "\t3240\t2-3\t" + serial + "\r\n"));
+        int code = rig.Helper().DebugDetach();
+        Check("killed after the attach: the next detach finds it by its serial, on port 2 only",
+            code == StarwireUsbHelper.ExitOk && Same(rig.Driver.PlugoutPorts(), 2) && rig.Driver.Ports[1] == null);
+        Check("killed after the attach: Vibepollo's device stays and the list is gone", rig.Driver.Ports[0] != null
+            && rig.Driver.Ports[0].Serial == VibepolloSerial && !File.Exists(rig.Owned.FilePath));
+    }
+
+    static void ShortReplies()
+    {
+        // The driver attached it, but says it wrote back too few bytes to hold the port
+        Rig rig = LaptopRig("short-attach");
+        OddVhci odd = new OddVhci(rig.Driver);
+        odd.AttachReplyLength = 4;
+        int code = rig.Helper(odd).DebugAttach(Laptop, "2-3", 3240, false);
+        Check("short attach answer: not taken as a port", code == StarwireUsbHelper.ExitAttach
+            && rig.Said("didn't say which port") && !rig.Said("Attached on port"));
+        Check("short attach answer: kept on the list in case it attached", rig.FileText().Contains("\r\n0\t" + Laptop + "\t3240\t2-3\tSW"));
+        code = rig.Helper().DebugDetach();
+        Check("short attach answer: the next detach removes it, and only it", code == StarwireUsbHelper.ExitOk
+            && Same(rig.Driver.PlugoutPorts(), 2) && rig.Driver.Ports[0] != null && !File.Exists(rig.Owned.FilePath));
+
+        // The stop's answer is too short to hold its count
+        rig = LaptopRig("short-stop");
+        rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        rig.Driver.Drop(2);
+        odd = new OddVhci(rig.Driver);
+        odd.StopReplyLength = 8;
+        rig.Helper(odd).DebugDetach();
+        Check("short stop answer: says it couldn't stop the attempts, doesn't make up a count",
+            rig.Said("Couldn't stop the driver's attempts") && !rig.Said("Stopped 1 attempt"));
+
+        // The list fails after the detach: what's left can't be checked, so the list stays
+        rig = LaptopRig("after-list");
+        rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        odd = new OddVhci(rig.Driver);
+        odd.ListFailsAfterDetach = true;
+        code = rig.Helper(odd).DebugDetach();
+        Check("list fails after the detach: the helper keeps its list", code == StarwireUsbHelper.ExitDetach
+            && rig.Said("keeps its list") && rig.FileText().Contains("\t2-3\tSW"));
+        code = rig.Helper().DebugDetach();
+        Check("list fails after the detach: the next detach clears it without detaching again", code == StarwireUsbHelper.ExitOk
+            && Same(rig.Driver.PlugoutPorts(), 2) && !File.Exists(rig.Owned.FilePath));
+    }
+
+    // Runs work while another thread, standing in for another copy of the helper, holds the lock
+    static int WhileAnotherCopyHoldsTheLock(Func<int> work)
+    {
+        using (ManualResetEvent held = new ManualResetEvent(false))
+        using (ManualResetEvent release = new ManualResetEvent(false)) {
+            Thread other = new Thread(() => {
+                using (Mutex m = new Mutex(false, lockName)) {
+                    m.WaitOne();
+                    held.Set();
+                    release.WaitOne();
+                    m.ReleaseMutex();
+                }
+            });
+            other.Start();
+            held.WaitOne();
+            try {
+                return work();
+            }
+            finally {
+                release.Set();
+                other.Join();
+            }
+        }
+    }
+
+    static void DriverLock()
+    {
+        Rig rig = LaptopRig("lock");
+        int code = WhileAnotherCopyHoldsTheLock(() => {
+            UsbHelper h = rig.Helper();
+            h.LockWaitMs = 0;
+            return h.DebugAttach(Laptop, "2-3", 3240, false);
+        });
+        Check("lock held by another copy: attach gives up, says why, sends no attach", code == StarwireUsbHelper.ExitDriver
+            && rig.Said("Another copy of the helper is busy") && rig.Driver.Count(UsbipAbi.PluginHardwareOnce) == 0
+            && !File.Exists(rig.Owned.FilePath));
+
+        code = rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        Check("lock free again: attach works", code == StarwireUsbHelper.ExitOk && rig.Driver.Ports[1] != null);
+        code = WhileAnotherCopyHoldsTheLock(() => {
+            UsbHelper h = rig.Helper();
+            h.LockWaitMs = 0;
+            return h.DebugDetach();
+        });
+        Check("lock held by another copy: detach gives up and sends no detach", code == StarwireUsbHelper.ExitDriver
+            && rig.Driver.PlugoutPorts().Count == 0 && rig.Driver.Ports[1] != null && rig.FileText().Contains("\t2-3\tSW"));
+
+        // A copy that died holding the lock doesn't block the next one. The lock stays open here,
+        // so the helper meets it abandoned rather than making a new one.
+        Mutex left = null;
+        Thread dead = new Thread(() => {
+            left = new Mutex(false, lockName);
+            left.WaitOne();
+        });
+        dead.Start();
+        dead.Join();
+        UsbHelper after = rig.Helper();
+        after.LockWaitMs = 0;
+        code = after.DebugDetach();
+        left.Dispose();
+        Check("lock left by a copy that died: the next detach goes ahead", code == StarwireUsbHelper.ExitOk
+            && Same(rig.Driver.PlugoutPorts(), 2));
     }
 
     // ---------------------------------------------------------------- helpers

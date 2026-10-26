@@ -1189,6 +1189,8 @@ sealed class UsbHelper
 
     // The driver's version, once a check has passed
     public KnownDriver Driver;
+    // How long to wait for another copy of the helper to finish with the driver
+    public int LockWaitMs = 10000;
 
     public UsbHelper(Opener open, OwnedDevices owned, Action<byte[]> random, string mutexName, Action<string> say)
     {
@@ -1493,7 +1495,7 @@ sealed class UsbHelper
             bool held = false;
             try {
                 try {
-                    held = m.WaitOne(10000);
+                    held = m.WaitOne(LockWaitMs);
                 }
                 catch (AbandonedMutexException) {
                     held = true;
