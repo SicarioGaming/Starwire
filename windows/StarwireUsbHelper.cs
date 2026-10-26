@@ -1728,55 +1728,93 @@ sealed class UsbHelper
 }
 
 // ---------------------------------------------------------------- the icon
-// For now: the driver's state, a way to detach the helper's devices, and Quit. Sharing a device
-// from the phone comes with the tunnel.
-sealed class UsbTray
+// Runs the icon's driver work away from the icon's thread, one job at a time, and hands the answer
+// back to that thread. A detach can wait up to 10 s for another copy's driver lock, and then for
+// the driver, and the menu shouldn't freeze meanwhile. The tests give it their own ways to run
+// and to hand back.
+sealed class OneJobAtATime
 {
-    readonly NotifyIcon icon = new NotifyIcon();
-    readonly ToolStripMenuItem status = new ToolStripMenuItem();
-    readonly OwnedDevices owned;
-    readonly Action<byte[]> random;
+    readonly Action<Action> runAway;
+    readonly Action<Action> handBack;
+    // Only read and written on the icon's thread
+    bool busy;
 
-    public UsbTray(OwnedDevices owned, Action<byte[]> random)
+    public OneJobAtATime(Action<Action> runAway, Action<Action> handBack)
     {
-        this.owned = owned;
-        this.random = random;
-        status.Enabled = false;
-        ContextMenuStrip menu = new ContextMenuStrip();
-        menu.Items.Add(status);
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Detach the devices the helper attached", null, delegate { Detach(); });
-        menu.Items.Add("Check the driver again", null, delegate { Refresh(); });
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Quit", null, delegate { icon.Visible = false; Environment.Exit(0); });
-        icon.ContextMenuStrip = menu;
-        icon.Icon = LoadIcon();
-        Refresh();
-        icon.Visible = true;
+        this.runAway = runAway;
+        this.handBack = handBack;
     }
 
-    void Refresh()
+    public bool Busy { get { return busy; } }
+
+    // Starts work and later calls done with its answer, or with what it threw. False, and
+    // nothing started, while another job runs.
+    public bool Start<T>(Func<T> work, Action<T, Exception> done)
+    {
+        if (busy) {
+            return false;
+        }
+        busy = true;
+        try {
+            runAway(delegate {
+                T answer = default(T);
+                Exception error = null;
+                try {
+                    answer = work();
+                }
+                catch (Exception e) {
+                    error = e;
+                }
+                handBack(delegate {
+                    busy = false;
+                    done(answer, error);
+                });
+            });
+        }
+        catch {
+            busy = false;
+            throw;
+        }
+        return true;
+    }
+}
+
+// What the icon shows after a job: the line for its menu and tooltip, and for a detach the
+// balloon's text and whether it worked
+sealed class TrayAnswer
+{
+    public string Status;
+    public string Balloon;
+    public bool Ok;
+}
+
+// The icon's two jobs, without the icon, so the tests can run them on the fake driver
+static class TrayWork
+{
+    public delegate UsbHelper HelperFor(Action<string> say);
+
+    public static TrayAnswer CheckDriver(HelperFor helperFor)
     {
         List<string> lines = new List<string>();
-        UsbHelper helper = new UsbHelper(Win32Vhci.Open, owned, random, StarwireUsbHelper.DriverMutex, lines.Add);
+        UsbHelper helper = helperFor(lines.Add);
         int code = helper.Probe();
-        string text = code == StarwireUsbHelper.ExitOk
-            ? "USB/IP driver ready (" + helper.Driver.Name + ")"
-            : "USB/IP driver: " + Last(lines);
-        status.Text = text;
-        icon.Text = text.Length > 63 ? text.Substring(0, 60) + "..." : text;
+        TrayAnswer a = new TrayAnswer();
+        a.Ok = code == StarwireUsbHelper.ExitOk;
+        a.Status = a.Ok ? "USB/IP driver ready (" + helper.Driver.Name + ")" : "USB/IP driver: " + Last(lines);
+        return a;
     }
 
-    void Detach()
+    public static TrayAnswer Detach(HelperFor helperFor)
     {
         List<string> lines = new List<string>();
-        int code = new UsbHelper(Win32Vhci.Open, owned, random, StarwireUsbHelper.DriverMutex, lines.Add).DebugDetach();
-        icon.ShowBalloonTip(6000, "Starwire USB", Last(lines),
-            code == StarwireUsbHelper.ExitOk ? ToolTipIcon.Info : ToolTipIcon.Warning);
-        Refresh();
+        int code = helperFor(lines.Add).DebugDetach();
+        TrayAnswer a = CheckDriver(helperFor);
+        a.Balloon = Last(lines);
+        a.Ok = code == StarwireUsbHelper.ExitOk;
+        return a;
     }
 
-    static string Last(List<string> lines)
+    public static string Last(List<string> lines)
     {
         if (lines.Count == 0) {
             return "no answer";
@@ -1785,6 +1823,89 @@ sealed class UsbTray
         int dot = s.IndexOf(". ");
         // Drop the step number
         return dot > 0 && dot < 4 ? s.Substring(dot + 2) : s;
+    }
+}
+
+// For now: the driver's state, a way to detach the helper's devices, and Quit. Sharing a device
+// from the phone comes with the tunnel.
+sealed class UsbTray
+{
+    readonly NotifyIcon icon = new NotifyIcon();
+    readonly ToolStripMenuItem status = new ToolStripMenuItem();
+    readonly ToolStripMenuItem detach;
+    readonly ToolStripMenuItem check;
+    readonly OwnedDevices owned;
+    readonly Action<byte[]> random;
+    readonly OneJobAtATime jobs;
+
+    public UsbTray(OwnedDevices owned, Action<byte[]> random)
+    {
+        this.owned = owned;
+        this.random = random;
+        // Made on the icon's thread, so what it posts runs there once Application.Run starts
+        SynchronizationContext ui = new WindowsFormsSynchronizationContext();
+        jobs = new OneJobAtATime(
+            job => ThreadPool.QueueUserWorkItem(delegate { job(); }),
+            job => ui.Post(delegate { job(); }, null));
+        status.Enabled = false;
+        ContextMenuStrip menu = new ContextMenuStrip();
+        menu.Items.Add(status);
+        menu.Items.Add(new ToolStripSeparator());
+        detach = new ToolStripMenuItem("Detach the devices the helper attached", null, delegate { Detach(); });
+        check = new ToolStripMenuItem("Check the driver again", null, delegate { Refresh(); });
+        menu.Items.Add(detach);
+        menu.Items.Add(check);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Quit", null, delegate { icon.Visible = false; Environment.Exit(0); });
+        icon.ContextMenuStrip = menu;
+        icon.Icon = LoadIcon();
+        icon.Visible = true;
+        Refresh();
+    }
+
+    UsbHelper HelperFor(Action<string> say)
+    {
+        return new UsbHelper(Win32Vhci.Open, owned, random, StarwireUsbHelper.DriverMutex, say);
+    }
+
+    void Refresh()
+    {
+        Run("Checking the USB/IP driver...", () => TrayWork.CheckDriver(HelperFor), null);
+    }
+
+    void Detach()
+    {
+        Run("Detaching the helper's devices...", () => TrayWork.Detach(HelperFor), delegate(TrayAnswer a) {
+            icon.ShowBalloonTip(6000, "Starwire USB", a.Balloon, a.Ok ? ToolTipIcon.Info : ToolTipIcon.Warning);
+        });
+    }
+
+    void Run(string working, Func<TrayAnswer> work, Action<TrayAnswer> then)
+    {
+        bool started = jobs.Start(work, delegate(TrayAnswer a, Exception error) {
+            detach.Enabled = true;
+            check.Enabled = true;
+            if (error != null) {
+                a = new TrayAnswer();
+                a.Status = "USB/IP driver: the helper hit an error (" + error.Message + ")";
+                a.Balloon = a.Status;
+            }
+            Show(a.Status);
+            if (then != null) {
+                then(a);
+            }
+        });
+        if (started) {
+            detach.Enabled = false;
+            check.Enabled = false;
+            Show(working);
+        }
+    }
+
+    void Show(string text)
+    {
+        status.Text = text;
+        icon.Text = text.Length > 63 ? text.Substring(0, 60) + "..." : text;
     }
 
     static Icon LoadIcon()

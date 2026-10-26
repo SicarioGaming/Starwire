@@ -74,6 +74,7 @@ static class StarwireUsbHelperTests
         CrashSafety();
         ShortReplies();
         DriverLock();
+        TrayJobs();
 
         Directory.Delete(temp, true);
         Console.WriteLine();
@@ -433,6 +434,12 @@ static class StarwireUsbHelperTests
         public UsbHelper Helper()
         {
             return Helper(Driver);
+        }
+
+        // The same, saying its lines somewhere else
+        public UsbHelper HelperSaying(Action<string> say)
+        {
+            return new UsbHelper(Open, Owned, b => Seeded.NextBytes(b), lockName, say);
         }
 
         // The same, through a wrapper around the fake driver
@@ -1275,6 +1282,46 @@ static class StarwireUsbHelperTests
         left.Dispose();
         Check("lock left by a copy that died: the next detach goes ahead", code == StarwireUsbHelper.ExitOk
             && Same(rig.Driver.PlugoutPorts(), 2));
+    }
+
+    static void TrayJobs()
+    {
+        // The icon's jobs run away from its thread, one at a time, and answer on its thread
+        List<Action> away = new List<Action>();
+        List<Action> back = new List<Action>();
+        OneJobAtATime jobs = new OneJobAtATime(away.Add, back.Add);
+        int ran = 0;
+        string got = null;
+        Exception threw = null;
+        bool first = jobs.Start(() => { ran++; return "done"; }, (a, e) => { got = a; threw = e; });
+        bool second = jobs.Start(() => { ran++; return "again"; }, (a, e) => { got = a; });
+        Check("tray: a job doesn't run on the icon's thread", first && ran == 0 && away.Count == 1 && jobs.Busy);
+        Check("tray: a second job while one runs isn't started", !second && away.Count == 1);
+        away[0]();
+        Check("tray: the answer waits for the icon's thread", ran == 1 && got == null && back.Count == 1 && jobs.Busy);
+        back[0]();
+        Check("tray: then it's shown, and the next job can start", got == "done" && threw == null && !jobs.Busy);
+        away.Clear();
+        back.Clear();
+        jobs.Start<string>(() => { throw new InvalidOperationException("driver went away"); }, (a, e) => { threw = e; });
+        away[0]();
+        back[0]();
+        Check("tray: a job that throws hands back the error and frees the runner", threw != null
+            && threw.Message == "driver went away" && !jobs.Busy);
+
+        // The jobs themselves, on the fake driver
+        Rig rig = LaptopRig("tray");
+        TrayAnswer answer = TrayWork.CheckDriver(say => rig.HelperSaying(say));
+        Check("tray: the driver is ready", answer.Ok && answer.Status == "USB/IP driver ready (usbip-win2 0.9.8.1)");
+        rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        answer = TrayWork.Detach(say => rig.HelperSaying(say));
+        Check("tray: detach detaches only the helper's port and says it's done", answer.Ok
+            && answer.Balloon == "Done: the helper has nothing attached now." && Same(rig.Driver.PlugoutPorts(), 2)
+            && answer.Status == "USB/IP driver ready (usbip-win2 0.9.8.1)");
+        rig.Driver.Id.Version = "12.1.31.0";
+        answer = TrayWork.CheckDriver(say => rig.HelperSaying(say));
+        Check("tray: another driver version shows why", !answer.Ok && answer.Status.StartsWith("USB/IP driver: ")
+            && answer.Status.Contains("won't use this one"));
     }
 
     // ---------------------------------------------------------------- helpers
