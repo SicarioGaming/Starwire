@@ -3594,17 +3594,31 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     // Bitrate picker choices, in Mbps
     private static final int[] BITRATE_CHOICES_MBPS = {5, 10, 20, 30, 50, 80, 100, 150, 200, 300, 500};
 
-    // The stream's bitrate now, in kbps; changed mid-stream through the menu
-    private int currentBitrateKbps;
+    // Changes the bitrate mid-stream through the menu; made the first time the picker opens
+    private BitrateChanger bitrateChanger;
 
     /**
      * Change the bitrate without reconnecting (Moonlight V+ feature, Vibepollo's /bitrate). The
      * host may clamp the choice to its own maximum, so the applied value is shown.
      */
     private void showBitratePicker() {
-        if (currentBitrateKbps == 0) {
-            currentBitrateKbps = prefConfig.bitrate;
+        if (bitrateChanger == null) {
+            bitrateChanger = new BitrateChanger(prefConfig.bitrate,
+                    kbps -> createHostHttp().setStreamBitrate(kbps),
+                    task -> new Thread(task).start(),
+                    new BitrateChanger.Listener() {
+                        @Override
+                        public void onChanged(int appliedKbps) {
+                            showToastOnUiThread(getString(R.string.bitrate_changed, appliedKbps / 1000));
+                        }
+
+                        @Override
+                        public void onFailed(Exception e) {
+                            showToastOnUiThread(getString(R.string.bitrate_failed, e.getMessage()));
+                        }
+                    });
         }
+        int currentBitrateKbps = bitrateChanger.getCurrentKbps();
 
         String[] labels = new String[BITRATE_CHOICES_MBPS.length];
         int checked = -1;
@@ -3619,16 +3633,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 .setTitle(getString(R.string.bitrate_dialog_title, currentBitrateKbps / 1000))
                 .setSingleChoiceItems(labels, checked, (dialog, which) -> {
                     dialog.dismiss();
-                    int requestedKbps = BITRATE_CHOICES_MBPS[which] * 1000;
-                    new Thread(() -> {
-                        try {
-                            int applied = createHostHttp().setStreamBitrate(requestedKbps);
-                            currentBitrateKbps = applied;
-                            showToastOnUiThread(getString(R.string.bitrate_changed, applied / 1000));
-                        } catch (Exception e) {
-                            showToastOnUiThread(getString(R.string.bitrate_failed, e.getMessage()));
-                        }
-                    }).start();
+                    bitrateChanger.request(BITRATE_CHOICES_MBPS[which] * 1000);
                 })
                 .show();
     }
