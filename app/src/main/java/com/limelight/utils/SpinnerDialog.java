@@ -69,7 +69,8 @@ public class SpinnerDialog implements Runnable,OnCancelListener {
     public void run() {
 
         // If we're dying, don't bother doing anything. Destroyed counts too: Android can destroy
-        // an activity without finishing it, and its window token goes with it (see Dialog).
+        // an activity without finishing it, and a dialog shown or closed then belongs to a
+        // screen that's gone (see Dialog).
         if (activity.isFinishing() || activity.isDestroyed()) {
             return;
         }

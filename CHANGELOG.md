@@ -16,13 +16,13 @@ steps and the checksums for each version.
 ### Fixed
 
 - Starwire no longer tries to show an error or a "please wait" box on a screen Android has
-  already closed, which could crash the app. That could happen when a connection error or the
-  host's answer came in late. The idea is from Moonlight V+ (qiin2333).
+  already closed. That could happen when a connection error or the host's answer came in late.
+  This is tested on a computer, not yet on a phone. The idea is from Moonlight V+ (qiin2333).
 - If you change the bitrate mid-stream again while the last change is still on its way, your
   latest choice now wins. Before, the older change could reach the host last, or its answer
   could come back last, and the stream or the menu ended up on the older choice. The changes now
-  go to the host one at a time, and only the latest is shown. The idea is from Moonlight V+
-  (qiin2333).
+  go to the host one at a time, and only the latest is shown. This is tested with a stand-in
+  host, not yet with a real PC. The idea is from Moonlight V+ (qiin2333).
 
 ## [0.2.1] - 2026-10-23
 

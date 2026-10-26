@@ -19,9 +19,10 @@ import org.robolectric.shadows.ShadowDialog;
 /**
  * Error and progress dialogs are often posted from a network thread, so they can reach the UI
  * thread after their screen is gone. Android can destroy a screen without finishing it, when it
- * recreates it or reclaims it in the background. isFinishing() is still false then, but the
- * window token is gone, and showing a dialog on it throws WindowManager's BadTokenException.
- * Robolectric doesn't check tokens, so these tests check the dialog isn't shown at all.
+ * recreates it or reclaims it in the background. isFinishing() is still false then, and a dialog
+ * shown for it would belong to a screen that's gone. What a phone does with one hasn't been
+ * tried: Robolectric doesn't model the window manager, so these tests check the dialog isn't
+ * shown at all.
  */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 36)
