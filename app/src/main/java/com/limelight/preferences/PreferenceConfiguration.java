@@ -190,7 +190,9 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_GAMEPAD_MOTION_FALLBACK = false;
     private static final String DEFAULT_OVERLAY_TRIGGER_BUTTON = "select";
     private static final String DEFAULT_OVERLAY_HOLD_DURATION = "1500";
-    private static final String DEFAULT_LEFT_EDGE_SWIPE_ACTION = "brightness";
+    // Off, unlike Moonlight X: a slow drag from near the edge opened the brightness slider, and
+    // the stream menu has a Brightness tile
+    private static final String DEFAULT_LEFT_EDGE_SWIPE_ACTION = "off";
     private static final boolean DEFAULT_ENABLE_FLOATING_BUTTON = true;
     private static final int DEFAULT_TOUCH_SENSITIVITY = 100;
     private static final boolean DEFAULT_AUTO_RESUME_STREAM = false;

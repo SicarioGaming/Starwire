@@ -37,10 +37,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The brightness slider on the stream screen, from Moonlight X. A swipe in from the left edge
- * opens it (or the stream menu, or nothing, as the Left edge swipe action setting says), while a
- * tap at the edge goes to the game like any other. The stream menu opens it for a controller,
- * and it hides a couple of seconds after it was last changed.
+ * The brightness slider on the stream screen, from Moonlight X. The stream menu's Brightness tile
+ * opens it, for a controller too. A swipe in from the left edge can open it as well, or the stream
+ * menu, as the Left edge swipe action setting says. That's off by default, so out of the box the
+ * swipe goes to the game. A tap at the edge goes to the game like any other. The slider hides a
+ * couple of seconds after it was last changed.
  *
  * Game runs as in GameFloatingButtonTest: with no game in its Intent, onCreate sets up the stream
  * screen, the slider among it, and then finishes before anything connects. The test then gives
@@ -54,7 +55,7 @@ import java.util.List;
 @Config(sdk = 36, instrumentedPackages = {"com.limelight.nvstream.jni"},
         qualifiers = "w960dp-h540dp-land-xhdpi") // a 1080p handheld
 public class GameBrightnessTest {
-    // The touch modes where a swipe in from the left edge opens the slider. In multi-touch mode,
+    // The touch modes where a swipe in from the left edge can open the slider. In multi-touch mode,
     // touches reach the PC as touches; GameMultiTouchTest has more on that mode.
     private static final int[] SWIPE_MODES = {Game.MOUSE_MODE_TRACKPAD_NATURAL, Game.MOUSE_MODE_TRACKPAD_GAMING,
             Game.MOUSE_MODE_MULTI_TOUCH, Game.MOUSE_MODE_DIRECT_TOUCH, Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED};
@@ -72,6 +73,11 @@ public class GameBrightnessTest {
 
     private void openStreamScreen(int touchMode) {
         openStreamScreen(touchMode, null);
+    }
+
+    // With the Left edge swipe action set to the brightness slider, which the swipe's own tests need
+    private void openStreamScreenWithTheSwipeOn(int touchMode) {
+        openStreamScreen(touchMode, "brightness");
     }
 
     // edgeSwipeAction: the Left edge swipe action setting, or null to leave it at its default
@@ -213,13 +219,13 @@ public class GameBrightnessTest {
     @Test
     public void aTapAtTheLeftEdgeGoesToTheGameInEveryTouchMode() {
         for (int touchMode : SWIPE_MODES) {
-            openStreamScreen(touchMode);
+            openStreamScreenWithTheSwipeOn(touchMode);
             tapTheLeftEdge();
             assertFalse(mode(touchMode) + "the tap opened the slider", showing());
             assertTrue(mode(touchMode) + "the tap wasn't a click on the PC: " + pc.sent, clicked());
         }
         // With touch off, the stream ignores it
-        openStreamScreen(Game.MOUSE_MODE_DISABLED);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_DISABLED);
         tapTheLeftEdge();
         assertFalse("touch off: the tap opened the slider", showing());
         assertEquals(new ArrayList<String>(), pc.sent);
@@ -228,7 +234,7 @@ public class GameBrightnessTest {
     @Test
     public void aSwipeInFromTheLeftEdgeOpensTheSliderAndTheRestOfItGoesNoFurther() {
         for (int touchMode : SWIPE_MODES) {
-            openStreamScreen(touchMode);
+            openStreamScreenWithTheSwipeOn(touchMode);
             swipeInFromTheLeftEdge();
             assertTrue(mode(touchMode) + "the swipe didn't open the slider", showing());
             // The finger carries on and lifts: the touch was cancelled where the swipe was seen
@@ -238,7 +244,7 @@ public class GameBrightnessTest {
 
     @Test
     public void aSlowSteepOrInnerSwipeLeavesTheSliderShut() {
-        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_TRACKPAD_GAMING);
         // Longer than 500 ms to get 60 dp in
         finger(MotionEvent.ACTION_DOWN, dp(10), middleY());
         advance(600);
@@ -282,7 +288,7 @@ public class GameBrightnessTest {
     public void aDragFromTheEdgeOpensTheSliderOnlyAt60DpInAndItsStartReachesThePc() {
         for (int touchMode : SWIPE_MODES) {
             // Lifted 57 dp from where it started, short of the 60 dp the swipe needs
-            openStreamScreen(touchMode);
+            openStreamScreenWithTheSwipeOn(touchMode);
             dragRightFrom(20, 57);
             finger(MotionEvent.ACTION_UP, dp(77), middleY());
             advance(1000);
@@ -322,8 +328,44 @@ public class GameBrightnessTest {
     }
 
     @Test
+    public void byDefaultASwipeFromTheEdgeOpensNothingAndAllOfItReachesThePc() {
+        for (int touchMode : SWIPE_MODES) {
+            // Nothing saved, as for anyone who never changed the setting
+            openStreamScreen(touchMode);
+            swipeInFromTheLeftEdge();
+            assertFalse(mode(touchMode) + "the swipe opened the slider", showing());
+            assertEquals(mode(touchMode) + "the swipe opened the stream menu", View.GONE, menu.getVisibility());
+            // The finger carried on past the 60 dp, and that part reached the PC too
+            assertTrue(mode(touchMode) + "the rest of the swipe didn't reach the PC: " + pc.sent,
+                    pc.sent.size() > sentAtTheSwipe.size());
+            assertEquals(mode(touchMode) + "a mouse button was left held on the PC: " + pc.sent,
+                    countStartingWith("down"), countStartingWith("up"));
+
+            // And a slow drag to the right from near the edge, like moving the cursor, which
+            // opened the slider at 60 dp when the swipe was on by default. It carries on to
+            // 120 dp, and all of it goes to the PC.
+            pc.sent.clear();
+            dragRightFrom(20, 60);
+            assertFalse(mode(touchMode) + "the slow drag opened the slider", showing());
+            int sentAt60Dp = pc.sent.size();
+            for (float moved = 63; moved <= 120; moved += 3) {
+                advance(16);
+                finger(MotionEvent.ACTION_MOVE, dp(20 + moved), middleY());
+            }
+            finger(MotionEvent.ACTION_UP, dp(140), middleY());
+            advance(1000);
+            assertFalse(mode(touchMode) + "the slow drag opened the slider", showing());
+            assertTrue(mode(touchMode) + "the start of the slow drag didn't reach the PC", sentAt60Dp > 0);
+            assertTrue(mode(touchMode) + "the rest of the slow drag didn't reach the PC: " + pc.sent,
+                    pc.sent.size() > sentAt60Dp);
+            assertEquals(mode(touchMode) + "a mouse button was left held on the PC: " + pc.sent,
+                    countStartingWith("down"), countStartingWith("up"));
+        }
+    }
+
+    @Test
     public void aTouchOnTheStreamClosesTheSlider() {
-        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_TRACKPAD_GAMING);
         swipeInFromTheLeftEdge();
         assertTrue(showing());
         pc.sent.clear();
@@ -391,7 +433,7 @@ public class GameBrightnessTest {
 
     @Test
     public void theSliderStaysUpUntilChangedThenHidesTwoSecondsAfter() {
-        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_TRACKPAD_GAMING);
         swipeInFromTheLeftEdge();
         // It used to hide 3 s after it opened, changed or not
         advance(10_000);
@@ -556,6 +598,45 @@ public class GameBrightnessTest {
     public void theStreamMenuHasABrightnessTile() {
         openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
         assertTrue("no Brightness tile in the stream menu", theStreamMenuHasBrightness());
+    }
+
+    // The stream menu's tile with this label, as OverlayMenuViewTest finds it on a device
+    private static View tile(View view, String label) {
+        if (view instanceof com.limelight.ui.overlay.OverlayMenuButton && hasText(view, label)) {
+            return view;
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = tile(group.getChildAt(i), label);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    @Test
+    public void withTheSwipeOffByDefaultTheBrightnessTileStillOpensTheSlider() {
+        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        // What Game does once it has a connection, so the menu's tiles do what they say
+        ControllerHandler controllers = useControllerHandling();
+        try {
+            ReflectionHelpers.callInstanceMethod(game, "setupOverlayMenu");
+            ReflectionHelpers.callInstanceMethod(menu, "show");
+            idle();
+            View brightness = tile(menu, context.getString(R.string.overlay_menu_brightness));
+            assertTrue("no Brightness tile in the stream menu", brightness != null);
+            assertTrue(brightness.performClick());
+            idle();
+            assertEquals("the stream menu didn't close", View.GONE, menu.getVisibility());
+            assertTrue("the Brightness tile didn't open the slider", showing());
+            assertTrue("the slider doesn't have the controller's focus", bar.hasFocus());
+            assertEquals(new ArrayList<String>(), pc.sent);
+        } finally {
+            controllers.destroy();
+        }
     }
 
     @Test
