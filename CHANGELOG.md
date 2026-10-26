@@ -27,10 +27,11 @@ steps and the checksums for each version.
 
 ### Fixed
 
-- A controller button you were holding when you opened the stream menu with the floating button
-  stayed pressed on the PC until you pressed it again. The floating button now lets go of held
-  buttons first, as holding Select on a controller always did. So do Back and a TV remote's Back,
-  which open the menu now (see Added). Tested in JVM tests only. Not yet tried on a device.
+- A controller button or keyboard key you were holding when you opened the stream menu with the
+  floating button stayed pressed on the PC until you pressed it again. The floating button and
+  Back, which opens the menu now (see Added), let go of both first. A TV remote's Back lets go of
+  controller buttons, as holding Select on a controller always did. Tested in JVM tests only.
+  Not yet tried on a device.
 
 ## [0.2.1] - 2026-10-23
 

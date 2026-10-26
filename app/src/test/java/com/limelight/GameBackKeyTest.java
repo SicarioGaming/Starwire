@@ -21,6 +21,7 @@ import com.limelight.binding.input.ControllerHandler;
 import com.limelight.binding.input.KeyboardTranslator;
 import com.limelight.nvstream.NvConnection;
 import com.limelight.nvstream.input.ControllerPacket;
+import com.limelight.nvstream.input.KeyboardPacket;
 import com.limelight.nvstream.input.MouseButtonPacket;
 import com.limelight.preferences.PreferenceConfiguration;
 
@@ -36,7 +37,9 @@ import org.robolectric.util.ReflectionHelpers;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * What Back does on the stream screen. With no game in its Intent, Game.onCreate sets up the
@@ -64,12 +67,18 @@ public class GameBackKeyTest {
     private RecordingConnection pc;
     private ControllerHandler controllers;
 
-    /** Stands in for the PC, writing down the mouse buttons and controller buttons it gets. */
+    /** Stands in for the PC, writing down the mouse buttons, keys and controller buttons it gets. */
     private static class RecordingConnection extends NvConnection {
         final List<String> sent = new ArrayList<>();
 
         RecordingConnection(Context context) {
             super(context, null, 0, null, null, null, null);
+        }
+
+        @Override
+        public void sendKeyboardInput(short keyMap, byte keyDirection, byte modifier, byte flags) {
+            sent.add("key " + (keyDirection == KeyboardPacket.KEY_DOWN ? "down " : "up ")
+                    + Integer.toHexString(keyMap & 0xFFFF) + (modifier != 0 ? " modifiers " + modifier : ""));
         }
 
         @Override
@@ -257,8 +266,8 @@ public class GameBackKeyTest {
         assertFalse("B ended the stream", game.isFinishing());
     }
 
-    // The open menu takes every key, so a button let go of while it's open would stay held on
-    // the PC until it's pressed again. Opening the menu lets go of them first.
+    // The open menu takes every key, so a button or key let go of while it's open would stay
+    // held on the PC until it's pressed again. Opening the menu lets go of them first.
 
     private static final String A_DOWN = "controller " + Integer.toHexString(ControllerPacket.A_FLAG);
 
@@ -307,5 +316,53 @@ public class GameBackKeyTest {
         pressRemoteBack();
         assertEquals(View.VISIBLE, menu.getVisibility());
         assertThePcLetGoOfA();
+    }
+
+    // Shift and W from a keyboard, held down until the test lets go. The PC gets them as 0x80 and
+    // the Windows key code: A0 for left Shift and 57 for W.
+    private long holdShiftAndW() {
+        long downTime = SystemClock.uptimeMillis();
+        key(KeyEvent.ACTION_DOWN, downTime, KeyEvent.KEYCODE_SHIFT_LEFT, NO_DEVICE, InputDevice.SOURCE_KEYBOARD, 0);
+        key(KeyEvent.ACTION_DOWN, downTime, KeyEvent.KEYCODE_W, NO_DEVICE, InputDevice.SOURCE_KEYBOARD, 0);
+        assertEquals(Arrays.asList("key down 80a0 modifiers 1", "key down 8057 modifiers 1"), pc.sent);
+        return downTime;
+    }
+
+    private void assertThePcLetGoOfShiftAndW() {
+        Set<String> keys = new HashSet<>();
+        for (String sent : pc.sent.subList(2, pc.sent.size())) {
+            if (sent.startsWith("key ")) {
+                keys.add(sent);
+            }
+        }
+        assertEquals("the PC still holds Shift or W", new HashSet<>(Arrays.asList("key up 8057", "key up 80a0")), keys);
+    }
+
+    @Test
+    public void keysHeldWhenBackOpensTheMenuAreLetGo() {
+        openStreamScreen();
+        long downTime = holdShiftAndW();
+        pressSystemBack();
+        assertEquals(View.VISIBLE, menu.getVisibility());
+        assertThePcLetGoOfShiftAndW();
+
+        // Let go of in the menu, and the menu closed again
+        key(KeyEvent.ACTION_UP, downTime, KeyEvent.KEYCODE_W, NO_DEVICE, InputDevice.SOURCE_KEYBOARD, 0);
+        key(KeyEvent.ACTION_UP, downTime, KeyEvent.KEYCODE_SHIFT_LEFT, NO_DEVICE, InputDevice.SOURCE_KEYBOARD, 0);
+        pressSystemBack();
+        assertEquals(View.GONE, menu.getVisibility());
+
+        // The next key doesn't still come with Shift
+        pc.sent.clear();
+        press(KeyEvent.KEYCODE_W, NO_DEVICE, InputDevice.SOURCE_KEYBOARD, 0);
+        assertEquals(Arrays.asList("key down 8057", "key up 8057"), pc.sent);
+    }
+
+    @Test
+    public void keysHeldWhenTheFloatingButtonOpensTheMenuAreLetGo() {
+        openStreamScreen();
+        holdShiftAndW();
+        tapTheFloatingButton();
+        assertThePcLetGoOfShiftAndW();
     }
 }
