@@ -56,4 +56,10 @@ public class ControllerVibrationSettingTest {
         assertEquals("100", row.getAttributeNS(ANDROID, "max"));
         assertEquals("@string/title_seekbar_controller_vibration_strength", row.getAttributeNS(ANDROID, "title"));
     }
+
+    // The slider moves in steps of 5 percent
+    @Test
+    public void movesInStepsOfFive() throws Exception {
+        assertEquals("5", row().getAttributeNS(SEEKBAR, "step"));
+    }
 }
