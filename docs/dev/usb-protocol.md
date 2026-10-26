@@ -9,8 +9,9 @@ is the contract between the two sides: the app's tunnel
 (`windows/StarwireUsbHelper.cs`). Both are to be tested against the same vectors file, byte for
 byte.
 
-**Status.** Written before the code. There's no tunnel, no helper and no device rules in code
-yet, and no device has gone through any of it.
+**Status.** Written before the code. Only the frames, keys and MACs exist so far
+(`SwutCodec.java`), checked by the app's JVM tests against the vectors. There's no tunnel, no
+helper and no device rules in code yet, and no device has gone through any of it.
 
 ## In plain words
 
@@ -456,7 +457,7 @@ where another program uses the same driver, detach only the port you attached.
 `app/src/test/resources/swut-v1-vectors.txt` and `windows/tests/vectors/swut-v1-vectors.txt` are
 the same file (SHA-256 `B955594038A2A423525024796861A3F43748799C8E10E4260DEA9F6EAE60A085`, LF line
 endings, never changed by Git). Each line is `name=hex`. An openssl script wrote it from these
-fixed inputs, apart from either side's code:
+fixed inputs, apart from the app's code, and the app's codec reproduces every line:
 
 | Input | Value |
 |---|---|
@@ -476,5 +477,6 @@ OP_REQ_IMPORT for bus id `1-1`. The `refuse.` lines must not check out: a BIND m
 microphone's K_auth, one with the fingerprints the other way round, one made over a HELLO that
 offered versions 1 to 2, and a BIND_ACK for the other BIND.
 
-Both sides' tests are to check every line. A change that makes either side disagree with the file
-is a change to the protocol.
+`SwutCodecTest` checks every line in the app (`./gradlew testNonRootDebugUnitTest`). The helper's
+tests are to check the same file. A change that makes either side disagree with the file is a
+change to the protocol.
