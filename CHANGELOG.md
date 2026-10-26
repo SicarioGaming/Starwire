@@ -13,6 +13,27 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Changed
+
+- **Quit Session in the stream menu asks first,** because it closes the game on the PC and
+  anything unsaved there is lost. Yes quits. No or Back keeps streaming. You can answer by touch
+  or with a controller. From Moonlight X. Checked by tests, not yet tried in a stream.
+- **Google's video decoders, as on Pixel phones, are asked for the most frames they can handle**
+  at the stream's size, instead of just the stream's frame rate. They set their speed to just
+  meet what they're asked for. Moonlight X measured about 9 ms a frame before and about 7.8 ms
+  after, at 120 FPS on a Pixel 10 Pro. From Moonlight X. Checked by tests, but not tried here:
+  we don't have a Pixel.
+- **The stats box has rounded corners.** From Moonlight X. Checked by a test, not yet seen in a
+  stream.
+
+### Fixed
+
+- **The last setting in Settings scrolls clear of the gesture bar.** With gesture navigation,
+  the see-through bar at the bottom of the screen covered it. The list still runs behind the bar,
+  and its last row now scrolls up above it. The same code also leaves room for the bar under the
+  game list, the PC list and per-game settings; no test checks those yet. From Moonlight X.
+  Checked by a test, not yet tried on a device.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.
