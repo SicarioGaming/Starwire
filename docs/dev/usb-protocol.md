@@ -148,7 +148,8 @@ helper answers with BIND_ACK, or with REFUSE and closes. Starwire sends SHARE, a
 answers with SHARE_ACK. From a SHARE_ACK with status 0, DATA and KEEPALIVE go both ways. Either
 side may send END at any time after BIND_ACK. A frame with an unknown type, a reserved byte that
 isn't 0, a payload that's too long, a layout that doesn't add up or that comes out of order ends
-the session, with END 9 after BIND_ACK. Before BIND_ACK the connection is just closed.
+the session, with END 9 after BIND_ACK. Before BIND_ACK the connection is just closed, except that
+the helper answers whatever frame comes where BIND should as "Rules for the helper" says.
 
 ### Keys
 
@@ -178,7 +179,8 @@ both sides, each as that side saw it in its own finished handshake.
 | 10..12 | reserved, 0 |
 | 12..28 | helperNonce: 16 random bytes, new for each connection |
 
-**BIND** (Starwire):
+**BIND** (Starwire). Byte 4 is the version in every version, so the helper reads it before it
+knows the rest of BIND's layout:
 
 | Bytes | Field |
 |---|---|
@@ -196,7 +198,8 @@ both sides, each as that side saw it in its own finished handshake.
 | 0..4 | frame header, type 3, length 16 |
 | 4..20 | ackMac |
 
-**REFUSE** (the helper, not authenticated):
+**REFUSE** (the helper, not authenticated). Its layout and its reasons are the same in every
+version, so any Starwire can read why any helper refused it, "no version in common" included:
 
 | Bytes | Field |
 |---|---|
@@ -212,11 +215,18 @@ Rules for the helper:
   account the receiver runs under (the keys in it are encrypted for that account). It opens the
   file read-only and lets the receiver go on saving it. Lines it can't read are skipped. It never
   writes, moves or locks the file.
+- It answers the frame that comes where BIND should in this order, and the first that applies
+  wins:
+  1. A header that doesn't read (see "Frames"): it closes the connection.
+  2. A BIND whose version, byte 4, isn't in the HELLO's range, whatever the rest of the frame
+     looks like: REFUSE 2.
+  3. Anything that isn't a well-formed BIND of that version, a frame of another type included:
+     REFUSE 3.
+  4. No pairing for the deviceId, or a MAC that doesn't check out: REFUSE 1.
+  5. Otherwise BIND_ACK.
 - It finds deviceId in constant time, works out K_usb, and wipes K_pair from memory at once. An
   unknown deviceId and a wrong MAC get the same REFUSE 1 after the same work: with no pairing, it
   checks the MAC against a random key.
-- A BIND that asks for a version outside the HELLO's range gets REFUSE 2, a malformed one
-  REFUSE 3.
 - After BIND_ACK it wipes K_usb too. From then on TLS protects the session.
 
 Rules for Starwire:
@@ -432,8 +442,10 @@ every part of a device.
 
 ## Versioning
 
-- The frame header and HELLO's layout never change, in any version. Everything after HELLO
-  follows the version Starwire picks in BIND.
+- These never change, in any version: the frame header, HELLO's layout, BIND's byte 4 (the
+  version), and REFUSE's layout and reasons. So a helper reads the version a BIND asks for before
+  it knows the rest of BIND's layout, and any Starwire can read any helper's REFUSE. Everything
+  else follows the version Starwire picks in BIND.
 - A version is 1 to 255. A new frame type, a new field, or a changed layout, key or MAC input
   needs a new version, and its labels change with it (`starwire-usb/2 ...`).
 - Starwire picks the highest version both sides speak. A helper offers every version it speaks.

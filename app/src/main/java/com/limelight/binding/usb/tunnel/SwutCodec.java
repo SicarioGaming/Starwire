@@ -265,9 +265,33 @@ public final class SwutCodec {
                 && zero(f, BIND_VERSION_AT + 1, BIND_DEVICE_ID_AT);
     }
 
-    /** The version a well-formed BIND asks for, or -1. */
+    /**
+     * The version a BIND frame asks for: its byte 4, where every version keeps it, whatever the
+     * rest of the frame looks like. -1 if it isn't a BIND frame with a payload. The helper reads
+     * it before it knows BIND's layout (see bindRefusal).
+     */
     public static int bindVersion(byte[] bind) {
-        return isBind(bind) ? bind[BIND_VERSION_AT] & 0xFF : -1;
+        return typeOf(bind) == TYPE_BIND && bind.length > BIND_VERSION_AT ? bind[BIND_VERSION_AT] & 0xFF : -1;
+    }
+
+    /**
+     * The helper's answer to the frame that came where BIND should, before it looks for a pairing:
+     * REFUSE_NO_VERSION if it's a BIND for a version this HELLO didn't offer, whatever its layout;
+     * else REFUSE_MALFORMED if it isn't a well-formed BIND (another type of frame included); else 0,
+     * and the pairing and the MAC come next (bindChecksOut, REFUSE_NOT_PAIRED).
+     */
+    public static int bindRefusal(byte[] hello, byte[] frame) {
+        if (!isHello(hello)) {
+            throw new IllegalArgumentException("the helper's own HELLO");
+        }
+        int version = bindVersion(frame);
+        if (version < 0) {
+            return REFUSE_MALFORMED;
+        }
+        if (!offers(hello, version)) {
+            return REFUSE_NO_VERSION;
+        }
+        return isBind(frame) ? 0 : REFUSE_MALFORMED;
     }
 
     /** The device id in a well-formed BIND, to find its pairing, or null. */

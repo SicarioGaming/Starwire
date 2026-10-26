@@ -293,8 +293,59 @@ public class SwutCodecTest {
         assertFalse("a helper that offered only 1 refuses it", SwutCodec.bindChecksOut(key, hello, phoneFp, helperFp, asksForTwo));
         byte[] zero = v("frame.bind");
         zero[4] = 0;
-        assertEquals(-1, SwutCodec.bindVersion(zero));
+        assertEquals(0, SwutCodec.bindVersion(zero));
+        assertEquals(SwutCodec.REFUSE_NO_VERSION, SwutCodec.bindRefusal(hello, zero));
         assertNull(SwutCodec.bindDeviceId(zero));
+    }
+
+    private static byte[] bindFrame(int length, int version) {
+        byte[] f = new byte[length];
+        f[0] = SwutCodec.TYPE_BIND;
+        f[2] = (byte) (length - 4);
+        f[3] = (byte) ((length - 4) >> 8);
+        if (length > 4) {
+            f[4] = (byte) version;
+        }
+        return f;
+    }
+
+    // Every version keeps BIND's version at byte 4, so the helper reads it before it knows the
+    // rest of BIND's layout: a version the HELLO didn't offer gets REFUSE 2 whatever the frame's
+    // length, and only then does a layout that isn't that version's get REFUSE 3
+    @Test
+    public void theHelperReadsABindsVersionBeforeItsLayout() throws Exception {
+        byte[] hello = v("frame.hello");
+        byte[] bind = v("frame.bind");
+        assertEquals(0, SwutCodec.bindRefusal(hello, bind));
+        // A later version's BIND, longer than version 1's, and one that's only the version
+        assertEquals(2, SwutCodec.bindVersion(bindFrame(60, 2)));
+        assertEquals(SwutCodec.REFUSE_NO_VERSION, SwutCodec.bindRefusal(hello, bindFrame(60, 2)));
+        assertEquals(SwutCodec.REFUSE_NO_VERSION, SwutCodec.bindRefusal(hello, bindFrame(5, 9)));
+        // Version 1, which the HELLO offered, but not in version 1's layout
+        assertEquals(1, SwutCodec.bindVersion(bindFrame(60, 1)));
+        assertEquals(SwutCodec.REFUSE_MALFORMED, SwutCodec.bindRefusal(hello, bindFrame(60, 1)));
+        byte[] short47 = Arrays.copyOf(bind, 47);
+        short47[2] = 43;
+        assertEquals(SwutCodec.REFUSE_MALFORMED, SwutCodec.bindRefusal(hello, short47));
+        // BIND's reserved bytes 5 to 7: still version 1, but malformed, with no device id read
+        for (int at = 5; at < 8; at++) {
+            byte[] r = bind.clone();
+            r[at] = 1;
+            assertEquals(1, SwutCodec.bindVersion(r));
+            assertNull("byte " + at, SwutCodec.bindDeviceId(r));
+            assertEquals("byte " + at, SwutCodec.REFUSE_MALFORMED, SwutCodec.bindRefusal(hello, r));
+            assertFalse(SwutCodec.bindChecksOut(usbKey(), hello, v("fp.phone"), v("fp.helper"), r));
+        }
+        // Not a BIND at all, or a BIND frame with no payload
+        assertEquals(SwutCodec.REFUSE_MALFORMED, SwutCodec.bindRefusal(hello, v("frame.keepalive")));
+        assertEquals(SwutCodec.REFUSE_MALFORMED, SwutCodec.bindRefusal(hello, bindFrame(4, 0)));
+        assertEquals(-1, SwutCodec.bindVersion(bindFrame(4, 0)));
+        assertEquals(-1, SwutCodec.bindVersion(hello));
+        // A helper that offers 1 to 2 goes on to the pairing for a version 2 BIND in this layout
+        byte[] two = bind.clone();
+        two[4] = 2;
+        assertEquals(0, SwutCodec.bindRefusal(SwutCodec.hello(SwutVectors.HELPER_NONCE, 1, 2), two));
+        assertThrows(IllegalArgumentException.class, () -> SwutCodec.bindRefusal(bind, bind));
     }
 
     // bindMac as usb-protocol.md writes it, worked out here and not by the codec
@@ -500,6 +551,7 @@ public class SwutCodecTest {
             SwutCodec.chooseVersion(f);
             SwutCodec.bindVersion(f);
             SwutCodec.bindDeviceId(f);
+            SwutCodec.bindRefusal(hello, f);
             for (int type = SwutCodec.TYPE_HELLO; type <= SwutCodec.TYPE_END; type++) {
                 SwutCodec.code(f, type);
                 SwutCodec.detail(f, type);
