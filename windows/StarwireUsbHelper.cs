@@ -35,8 +35,9 @@
 // follows Vibepollo (src/platform/windows/dualsense_usbip_transport.cpp, GPL-3.0, by Nonary).
 //
 // There's no version command in the driver, so the helper reads the version Windows keeps for the
-// driver's controller in Device Manager, and then checks that the driver answers its list command
-// the way that version's code does.
+// driver's controller in Device Manager, checks that the driver's file has the SHA-256 of that
+// release's file, and then checks that the driver answers its list command the way that
+// version's code does.
 //
 // The driver's commands, their layouts and its error codes are adapted from usbip-win2 0.9.8.1
 // (include/usbip/vhci.h, include/usbip/consts.h and userspace/resources/messages.mc at 55e1fa7),
@@ -83,6 +84,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 
 static class StarwireUsbHelper
@@ -475,6 +477,11 @@ sealed class DriverIdentity
     public string Provider;
     public string Service;
     public DateTime? Date;
+    // The driver's file, from its service, and its SHA-256 in lower-case hex. Null with the reason
+    // when it couldn't be read.
+    public string ImagePath;
+    public string ImageSha256;
+    public string ImageProblem;
 }
 
 // The driver, behind an interface so the tests can use a fake one
@@ -651,7 +658,75 @@ sealed class Win32Vhci : IVhciDriver
         if (date != null && date.Length == 8) {
             id.Date = DateTime.FromFileTimeUtc(BitConverter.ToInt64(date, 0));
         }
+        ReadImage(id);
         return id;
+    }
+
+    const long MaxImageBytes = 32 * 1024 * 1024;
+
+    // Finds the driver's file through its service's ImagePath and hashes it. Only reads.
+    static void ReadImage(DriverIdentity id)
+    {
+        if (id.Service == null || !Regex.IsMatch(id.Service, @"^[A-Za-z0-9_]{1,64}\z")) {
+            id.ImageProblem = "Windows doesn't name the driver's service";
+            return;
+        }
+        try {
+            string imagePath;
+            using (RegistryKey key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + id.Service, false)) {
+                imagePath = key == null ? null : key.GetValue("ImagePath") as string;
+            }
+            string path = ResolveImagePath(imagePath, Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                !Environment.Is64BitProcess && Environment.Is64BitOperatingSystem);
+            if (path == null) {
+                id.ImageProblem = "its service doesn't say where its file is (ImagePath " + (imagePath ?? "missing") + ")";
+                return;
+            }
+            id.ImagePath = path;
+            using (FileStream f = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) {
+                if (f.Length > MaxImageBytes) {
+                    id.ImageProblem = "its file is over " + MaxImageBytes / (1024 * 1024) + " MB";
+                    return;
+                }
+                using (SHA256 sha = SHA256.Create()) {
+                    id.ImageSha256 = BitConverter.ToString(sha.ComputeHash(f)).Replace("-", "").ToLowerInvariant();
+                }
+            }
+        }
+        catch (Exception e) {
+            id.ImageProblem = "couldn't read its file: " + e.Message;
+        }
+    }
+
+    // A service's ImagePath as a path this program can open: \SystemRoot\ and System32\ are under
+    // Windows, and \??\ is dropped. A 32-bit copy on 64-bit Windows reaches the real System32
+    // through Sysnative. Null for anything else.
+    public static string ResolveImagePath(string imagePath, string windows, bool sysnative)
+    {
+        if (string.IsNullOrEmpty(imagePath) || string.IsNullOrEmpty(windows)) {
+            return null;
+        }
+        string p = imagePath.Trim();
+        if (p.IndexOfAny(Path.GetInvalidPathChars()) >= 0) {
+            return null;
+        }
+        if (p.StartsWith(@"\??\", StringComparison.Ordinal)) {
+            p = p.Substring(4);
+        }
+        else if (p.StartsWith(@"\SystemRoot\", StringComparison.OrdinalIgnoreCase)) {
+            p = Path.Combine(windows, p.Substring(12));
+        }
+        else if (p.StartsWith(@"System32\", StringComparison.OrdinalIgnoreCase)) {
+            p = Path.Combine(windows, p);
+        }
+        if (p.Length < 4 || p[1] != ':' || p[2] != '\\') {
+            return null;
+        }
+        string system32 = Path.Combine(windows, "System32") + @"\";
+        if (sysnative && p.StartsWith(system32, StringComparison.OrdinalIgnoreCase)) {
+            p = Path.Combine(windows, "Sysnative") + @"\" + p.Substring(system32.Length);
+        }
+        return p;
     }
 
     delegate int PropertyCall(byte[] buffer, ref int size, out int type);
@@ -711,21 +786,27 @@ sealed class KnownDriver
     public readonly string Provider;
     public readonly string Service;
     public readonly string Name;
+    public readonly string ImageName;
+    public readonly string ImageSha256;
 
-    public KnownDriver(string version, string provider, string service, string name)
+    public KnownDriver(string version, string provider, string service, string name, string imageName, string imageSha256)
     {
         Version = version;
         Provider = provider;
         Service = service;
         Name = name;
+        ImageName = imageName;
+        ImageSha256 = imageSha256;
     }
 
     // Only versions whose command layouts were checked against their source. 12.1.30.403 dated
-    // 22 Sep 2026 is the driver in usbip-win2's 0.9.8.1 release (USBip-0.9.8.1-x64.exe): its
-    // usbip2_ude.inf, .sys and .cat have the SHA-256s Vibepollo pins for that release
-    // (packaging/windows/usbip_transport/package.ps1).
+    // 22 Sep 2026 is the driver in usbip-win2's 0.9.8.1 release (USBip-0.9.8.1-x64.exe). The
+    // SHA-256 is its usbip2_ude.sys as Vibepollo pins it for that release
+    // (packaging/windows/usbip_transport/package.ps1), and as the file installed on the PC the
+    // helper was written on hashes.
     public static readonly KnownDriver[] All = {
-        new KnownDriver("12.1.30.403", "USBIP-WIN2", "usbip2_ude", "usbip-win2 0.9.8.1"),
+        new KnownDriver("12.1.30.403", "USBIP-WIN2", "usbip2_ude", "usbip-win2 0.9.8.1",
+            "usbip2_ude.sys", "abd4fc43dce40e027e4acc884cbfe92433e026206f6565c5ee5284a39441169a"),
     };
 
     public static KnownDriver Recognize(DriverIdentity id, out string problem)
@@ -745,6 +826,16 @@ sealed class KnownDriver
                 problem = "Its version number is " + k.Name + "'s, but it comes from " + (id.Provider ?? "an unnamed provider")
                     + " with the driver service " + (id.Service ?? "(none)") + ", not " + k.Provider + " with " + k.Service
                     + ". So the helper won't use it.";
+                return null;
+            }
+            if (string.IsNullOrEmpty(id.ImageSha256)) {
+                problem = "The helper couldn't check the driver's file (" + (id.ImageProblem ?? "no reason given")
+                    + "), so it won't use it.";
+                return null;
+            }
+            if (!string.Equals(id.ImageSha256, k.ImageSha256, StringComparison.OrdinalIgnoreCase)) {
+                problem = "Its version number is " + k.Name + "'s, but its file " + (id.ImagePath ?? "") + " isn't that release's "
+                    + k.ImageName + " (its SHA-256 is " + id.ImageSha256 + ", not " + k.ImageSha256 + "). So the helper won't use it.";
                 return null;
             }
             problem = null;
@@ -1503,12 +1594,15 @@ sealed class UsbHelper
             + (id != null && id.Date.HasValue ? ", dated " + id.Date.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture) : "")
             + (id != null && id.Provider != null ? ", from " + id.Provider : "")
             + (id != null && id.Service != null ? ", service " + id.Service : "") + ".");
+        if (id != null && id.ImagePath != null) {
+            Note("Its file: " + id.ImagePath + (id.ImageSha256 != null ? ", SHA-256 " + id.ImageSha256 : "") + ".");
+        }
         KnownDriver known = KnownDriver.Recognize(id, out problem);
         if (known == null) {
             Note(problem);
             return null;
         }
-        Note("That's " + known.Name + ", which the helper knows.");
+        Note("That's " + known.Name + ", which the helper knows. Its file is that release's " + known.ImageName + ".");
         List<ImportedDevice> devices = UsbipCommands.List(driver, out problem);
         if (devices == null) {
             Note("But " + problem + ". That isn't how " + known.Name + " answers, so the helper won't use it.");

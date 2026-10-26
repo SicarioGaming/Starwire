@@ -405,8 +405,13 @@ static class StarwireUsbHelperTests
         id.Provider = "USBIP-WIN2";
         id.Service = "usbip2_ude";
         id.Date = new DateTime(2026, 9, 22, 0, 0, 0, DateTimeKind.Utc);
+        id.ImagePath = @"C:\WINDOWS\System32\DriverStore\FileRepository\usbip2_ude.inf_amd64_bcfb5e9b79f800fa\usbip2_ude.sys";
+        id.ImageSha256 = ReleaseSysSha256;
         return id;
     }
+
+    // usbip2_ude.sys from usbip-win2 0.9.8.1, as Vibepollo's package.ps1 pins it
+    const string ReleaseSysSha256 = "abd4fc43dce40e027e4acc884cbfe92433e026206f6565c5ee5284a39441169a";
 
     // A fake driver, a list file of its own, fixed random bytes, and every line the helper says
     sealed class Rig
@@ -631,6 +636,41 @@ static class StarwireUsbHelperTests
         Check("no version given: refused", KnownDriver.Recognize(other, out problem) == null && problem != null);
         other.Version = "12.1.30.4030";
         Check("a longer version isn't a match", KnownDriver.Recognize(other, out problem) == null);
+
+        // The right version, provider and service, but not that release's file
+        other = KnownIdentity();
+        other.ImageSha256 = "0" + ReleaseSysSha256.Substring(1);
+        Check("right number, another driver file: refused, naming the file and both hashes",
+            KnownDriver.Recognize(other, out problem) == null && problem.Contains("isn't that release's usbip2_ude.sys")
+            && problem.Contains(other.ImageSha256) && problem.Contains(ReleaseSysSha256) && problem.Contains(other.ImagePath));
+        other = KnownIdentity();
+        other.ImageSha256 = ReleaseSysSha256.ToUpperInvariant();
+        Check("the file's hash in capitals is the same hash", KnownDriver.Recognize(other, out problem) != null);
+        other = KnownIdentity();
+        other.ImageSha256 = null;
+        other.ImageProblem = "couldn't read its file: access denied";
+        Check("driver file not readable: refused with the reason", KnownDriver.Recognize(other, out problem) == null
+            && problem.Contains("access denied"));
+        rig = LaptopRig("other-file");
+        rig.Driver.Id.ImageSha256 = "0" + ReleaseSysSha256.Substring(1);
+        code = rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        Check("another driver file: attach refused before any command", code == StarwireUsbHelper.ExitDriver
+            && rig.Driver.Calls.Count == 0 && rig.Said("isn't that release's usbip2_ude.sys"));
+
+        // Where Windows says the driver's file is, as a path to open
+        string win = @"C:\WINDOWS";
+        Check("image path: \\SystemRoot\\ is the Windows folder", Win32Vhci.ResolveImagePath(
+            @"\SystemRoot\System32\DriverStore\FileRepository\usbip2_ude.inf_amd64_x\usbip2_ude.sys", win, false)
+            == @"C:\WINDOWS\System32\DriverStore\FileRepository\usbip2_ude.inf_amd64_x\usbip2_ude.sys");
+        Check("image path: System32\\ is under the Windows folder", Win32Vhci.ResolveImagePath(@"System32\drivers\usbip2_ude.sys", win, false)
+            == @"C:\WINDOWS\System32\drivers\usbip2_ude.sys");
+        Check("image path: \\??\\ is dropped", Win32Vhci.ResolveImagePath(@"\??\D:\drivers\usbip2_ude.sys", win, false) == @"D:\drivers\usbip2_ude.sys");
+        Check("image path: a 32-bit copy reads System32 through Sysnative", Win32Vhci.ResolveImagePath(@"System32\drivers\usbip2_ude.sys", win, true)
+            == @"C:\WINDOWS\Sysnative\drivers\usbip2_ude.sys");
+        Check("image path: missing, relative, network or odd ones are refused", Win32Vhci.ResolveImagePath(null, win, false) == null
+            && Win32Vhci.ResolveImagePath("usbip2_ude.sys", win, false) == null
+            && Win32Vhci.ResolveImagePath(@"\??\UNC\server\share\usbip2_ude.sys", win, false) == null
+            && Win32Vhci.ResolveImagePath("\"C:\\x.sys\"", win, false) == null);
 
         rig = new Rig("missing");
         rig.OpenProblem = "This PC has no USB/IP driver running (usbip-win2's controller isn't there).";
