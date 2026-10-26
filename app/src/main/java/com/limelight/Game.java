@@ -4173,7 +4173,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     // it. "Back opens the menu" makes it open the stream menu, as the floating button does,
     // instead of leaving the stream (idea from Artemis by Yukino Song, via Artemide). The open
     // menu takes Back itself to close. A mouse's Back is a right-click and a controller's buttons
-    // go to the game, so neither gets here; a TV remote's Back is ControllerHandler's.
+    // go to the game, so neither gets here; a TV remote's Back is ControllerHandler's. Android
+    // only calls this while Game opts out of predictive Back in the manifest.
     @Override
     public void onBackPressed() {
         if (prefConfig != null && prefConfig.backOpensMenu && overlayMenuView != null) {

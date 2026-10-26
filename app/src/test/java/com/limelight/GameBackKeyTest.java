@@ -183,6 +183,18 @@ public class GameBackKeyTest {
     }
 
     @Test
+    public void theStreamScreenKeepsTheOldBack() throws Exception {
+        // With predictive Back, Android doesn't call onBackPressed, so Back would leave the stream
+        // without opening the menu. Robolectric doesn't act on the opt-out: the tests here still
+        // pass with Game opted in. So this reads Game's entry in the manifest.
+        String xml = RepoFiles.read("app/src/main/AndroidManifest.xml");
+        int at = xml.indexOf("android:name=\".Game\"");
+        assertTrue("Game isn't in the manifest", at >= 0);
+        String entry = xml.substring(at, xml.indexOf('>', at));
+        assertTrue(entry, entry.contains("android:enableOnBackInvokedCallback=\"false\""));
+    }
+
+    @Test
     public void backAgainClosesTheMenu() {
         openStreamScreen();
         pressSystemBack();
