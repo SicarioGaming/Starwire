@@ -73,6 +73,7 @@ public class PreferenceConfiguration {
     private static final String MOUSE_EMULATION_STRING = "checkbox_mouse_emulation";
     private static final String ANALOG_SCROLLING_PREF_STRING = "analog_scrolling";
     private static final String MOUSE_NAV_BUTTONS_STRING = "checkbox_mouse_nav_buttons";
+    private static final String CONTROLLER_VIBRATION_STRENGTH_PREF_STRING = "seekbar_controller_vibration_strength";
     private static final String VIBRATE_OSC_PREF_STRING = "checkbox_vibrate_osc";
     private static final String VIBRATE_FALLBACK_PREF_STRING = "checkbox_vibrate_fallback";
     private static final String VIBRATE_FALLBACK_STRENGTH_PREF_STRING = "seekbar_vibrate_fallback_strength";
@@ -161,6 +162,7 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_MOUSE_EMULATION = true;
     private static final String DEFAULT_ANALOG_STICK_FOR_SCROLLING = "right";
     private static final boolean DEFAULT_MOUSE_NAV_BUTTONS = false;
+    private static final int DEFAULT_CONTROLLER_VIBRATION_STRENGTH = 100;
     private static final boolean DEFAULT_VIBRATE_OSC = true;
     private static final boolean DEFAULT_VIBRATE_FALLBACK = false;
     private static final int DEFAULT_VIBRATE_FALLBACK_STRENGTH = 100;
@@ -244,6 +246,8 @@ public class PreferenceConfiguration {
     public boolean mouseEmulation;
     public AnalogStickForScrolling analogStickForScrolling;
     public boolean mouseNavButtons;
+    // 0 to 100 percent of the game's rumble, on every controller
+    public int controllerVibrationStrength;
     public boolean vibrateOsc;
     public boolean vibrateFallbackToDevice;
     public int vibrateFallbackToDeviceStrength;
@@ -942,6 +946,8 @@ public class PreferenceConfiguration {
         config.analogStickForScrolling = getAnalogStickForScrollingValue(context);
 
         config.deadzonePercentage = prefs.getInt(DEADZONE_PREF_STRING, DEFAULT_DEADZONE);
+
+        config.controllerVibrationStrength = prefs.getInt(CONTROLLER_VIBRATION_STRENGTH_PREF_STRING, DEFAULT_CONTROLLER_VIBRATION_STRENGTH);
 
         config.oscOpacity = prefs.getInt(OSC_OPACITY_PREF_STRING, DEFAULT_OPACITY);
 
