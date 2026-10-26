@@ -2463,34 +2463,44 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
                     // Release ALL gamepad inputs for all controllers before opening menu
                     // to ensure the host doesn't think any buttons/sticks are still pressed
-                    for (int i = 0; i < inputDeviceContexts.size(); i++) {
-                        InputDeviceContext context = inputDeviceContexts.valueAt(i);
-                        // Reset all button flags, triggers, and analog sticks to neutral
-                        context.inputMap = 0;
-                        context.leftTrigger = 0;
-                        context.rightTrigger = 0;
-                        context.leftStickX = 0;
-                        context.leftStickY = 0;
-                        context.rightStickX = 0;
-                        context.rightStickY = 0;
-                        sendControllerInputPacket(context);
-                    }
-
-                    // Also reset the default context
-                    defaultContext.inputMap = 0;
-                    defaultContext.leftTrigger = 0;
-                    defaultContext.rightTrigger = 0;
-                    defaultContext.leftStickX = 0;
-                    defaultContext.leftStickY = 0;
-                    defaultContext.rightStickX = 0;
-                    defaultContext.rightStickY = 0;
-                    sendControllerInputPacket(defaultContext);
+                    releaseAllControllerInput();
 
                     overlayMenuListener.onOverlayMenuOpen();
                 }
             }
         };
         mainThreadHandler.postDelayed(overlayMenuOpenRunnable, overlayMenuOpenMs);
+    }
+
+    /**
+     * Release all gamepad inputs for all controllers, so the host doesn't think any buttons or
+     * sticks are still pressed. Called before the overlay menu opens: the open menu takes every
+     * controller event, so a button let go of while it's open would otherwise stay held on the
+     * host until it's pressed again.
+     */
+    public void releaseAllControllerInput() {
+        for (int i = 0; i < inputDeviceContexts.size(); i++) {
+            InputDeviceContext context = inputDeviceContexts.valueAt(i);
+            // Reset all button flags, triggers, and analog sticks to neutral
+            context.inputMap = 0;
+            context.leftTrigger = 0;
+            context.rightTrigger = 0;
+            context.leftStickX = 0;
+            context.leftStickY = 0;
+            context.rightStickX = 0;
+            context.rightStickY = 0;
+            sendControllerInputPacket(context);
+        }
+
+        // Also reset the default context
+        defaultContext.inputMap = 0;
+        defaultContext.leftTrigger = 0;
+        defaultContext.rightTrigger = 0;
+        defaultContext.leftStickX = 0;
+        defaultContext.leftStickY = 0;
+        defaultContext.rightStickX = 0;
+        defaultContext.rightStickY = 0;
+        sendControllerInputPacket(defaultContext);
     }
 
 
@@ -2518,6 +2528,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         // menu" on, as the system's Back does, or else exit the activity
         if (wasActive && wasRemoteBack) {
             if (prefConfig.backOpensMenu && overlayMenuListener != null) {
+                // As the hold does
+                releaseAllControllerInput();
                 overlayMenuListener.onOverlayMenuOpen();
             }
             else {

@@ -4131,13 +4131,24 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         return com.limelight.ui.AppIcons.tile(this, appName);
     }
 
+    // The floating button's tap and "Back opens the menu"
     private void toggleOverlayMenu() {
         if (overlayMenuView.getVisibility() == View.VISIBLE) {
             overlayMenuView.closeMenu();
         }
         else {
-            overlayMenuView.show();
+            openOverlayMenu();
         }
+    }
+
+    // The open menu takes every controller event, so a button let go of while it's open would
+    // stay held on the PC until it's pressed again. Let go of them all first, as holding the
+    // controller's menu button does.
+    private void openOverlayMenu() {
+        if (controllerHandler != null) {
+            controllerHandler.releaseAllControllerInput();
+        }
+        overlayMenuView.show();
     }
 
     // The system's Back (the navigation bar's button or the back gesture) when nothing else took

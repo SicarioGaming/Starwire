@@ -256,4 +256,56 @@ public class GameBackKeyTest {
         assertEquals("B opened the menu", View.GONE, menu.getVisibility());
         assertFalse("B ended the stream", game.isFinishing());
     }
+
+    // The open menu takes every key, so a button let go of while it's open would stay held on
+    // the PC until it's pressed again. Opening the menu lets go of them first.
+
+    private static final String A_DOWN = "controller " + Integer.toHexString(ControllerPacket.A_FLAG);
+
+    private void holdA() {
+        key(KeyEvent.ACTION_DOWN, SystemClock.uptimeMillis(), KeyEvent.KEYCODE_BUTTON_A, NO_DEVICE,
+                InputDevice.SOURCE_GAMEPAD, 0);
+        assertEquals(Arrays.asList(A_DOWN), pc.sent);
+    }
+
+    private void assertThePcLetGoOfA() {
+        String last = null;
+        for (String packet : pc.sent) {
+            if (packet.startsWith("controller ")) {
+                last = packet;
+            }
+        }
+        assertEquals("the PC still holds A", "controller 0", last);
+    }
+
+    private void tapTheFloatingButton() {
+        game.findViewById(R.id.floatingMenuButton).performClick();
+        assertEquals("the floating button didn't open the menu", View.VISIBLE, menu.getVisibility());
+    }
+
+    @Test
+    public void aButtonHeldWhenBackOpensTheMenuIsLetGo() {
+        openStreamScreen();
+        holdA();
+        pressSystemBack();
+        assertEquals(View.VISIBLE, menu.getVisibility());
+        assertThePcLetGoOfA();
+    }
+
+    @Test
+    public void aButtonHeldWhenTheFloatingButtonOpensTheMenuIsLetGo() {
+        openStreamScreen();
+        holdA();
+        tapTheFloatingButton();
+        assertThePcLetGoOfA();
+    }
+
+    @Test
+    public void aButtonHeldWhenARemotesBackOpensTheMenuIsLetGo() {
+        openStreamScreen();
+        holdA();
+        pressRemoteBack();
+        assertEquals(View.VISIBLE, menu.getVisibility());
+        assertThePcLetGoOfA();
+    }
 }

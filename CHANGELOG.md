@@ -25,6 +25,13 @@ steps and the checksums for each version.
   u/Glove5751 for asking for it. Tested in JVM tests only, with a stand-in for the remote. Not yet
   tried on a phone, a tablet or a TV.
 
+### Fixed
+
+- A controller button you were holding when you opened the stream menu with the floating button
+  stayed pressed on the PC until you pressed it again. The floating button now lets go of held
+  buttons first, as holding Select on a controller always did. So do Back and a TV remote's Back,
+  which open the menu now (see Added). Tested in JVM tests only. Not yet tried on a device.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.
