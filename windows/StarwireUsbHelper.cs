@@ -33,7 +33,8 @@
 // a serial number it makes up for each attach), and before a detach it finds the port that holds
 // exactly that. It never sends port 0 or below, which the driver takes as "every device". Before
 // it stops the driver's reconnect attempts, it waits for the detaches the driver has queued. This
-// follows Vibepollo (src/platform/windows/dualsense_usbip_transport.cpp, GPL-3.0, by Nonary).
+// follows Vibepollo (src/platform/windows/dualsense_usbip_transport.cpp, GPL-3.0-or-later, by
+// Chase Payne, Nonary).
 //
 // There's no version command in the driver, so the helper reads the version Windows keeps for the
 // driver's controller in Device Manager, checks that the driver's file has the SHA-256 of that

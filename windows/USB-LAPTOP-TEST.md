@@ -11,15 +11,32 @@ attaches it, and Windows here sees a cabled DualSense. You play a game on this P
 laptop with Moonlight.
 
 What has been tried so far: the helper's tests with a fake driver, and `--probe` on this PC,
-which read the driver's version and its list of devices. The helper has never attached or
-detached a real device. This test is the first time.
+which read the driver's version, checked its file's SHA-256 and read its list of devices. The
+helper has never attached or detached a real device. This test is the first time.
 
-> **usbipd has no password.** While the pad is shared, anyone on the laptop's network who can
-> reach TCP port 3240 can take it. Do this only on your home network, and unbind it as soon as
-> you're done (step 13).
+> **Read this first.** USB/IP has no password and no encryption, on either side.
+>
+> - **The laptop:** while the pad is shared, anyone on its network who can reach TCP port 3240
+>   can take it.
+> - **This PC:** it attaches whatever answers at the laptop's address for that bus ID, and the
+>   USB/IP driver reads that data inside Windows. Someone else on the network, or a mistyped
+>   address, could hand this PC a different device, like a keyboard that types. The helper
+>   detaches straight away anything that doesn't say it's a DualSense, but it can only go by what
+>   the other side says, and Windows may already have started setting the device up.
+> - **After a drop:** if the connection drops, this PC's driver keeps reconnecting to the
+>   laptop's address for about 2 hours (20 tries, 30 seconds apart at first, rising to 8
+>   minutes), and attaches whatever answers there. Nothing watches those tries. So run the
+>   detach on this PC (step 13) straight after any drop, and before the laptop sleeps, leaves the
+>   network or gets a new address.
+> - **Sleep:** while a device is attached, this PC may not go to sleep (usbip-win2 issue #197).
+>   Detach first.
+>
+> Do this only on your home network, and unbind the pad on the laptop as soon as you're done
+> (step 13).
 
-The driver runs inside Windows. usbip-win2 has had blue-screen bugs in older versions (issues
-#172 and #181, fixed upstream). Save your work on this PC before step 7.
+The driver runs inside Windows. usbip-win2 has had blue-screen bugs (issue #172, closed in June
+2026, and #181, whose fixes are in 0.9.8.1, the version here). Save your work on this PC before
+step 7.
 
 ## You need
 
@@ -52,15 +69,15 @@ Use a terminal opened as administrator (right-click Terminal, Run as administrat
    Ethernet > Network profile type > Private network.
 
 4. Allow usbipd through the firewall on the Private network only. Its installer adds a rule named
-   usbipd for TCP 3240 on every network profile, from the local subnet (from usbipd-win's
-   Installer/Server.wxs). Limit it to Private, and check it:
+   usbipd for usbipd.exe on TCP 3240, on every network profile, from the local subnet (from
+   usbipd-win's Installer/Server.wxs). Limit it to Private, and check it:
 
        Set-NetFirewallRule -DisplayName usbipd -Profile Private
        Get-NetFirewallRule -DisplayName usbipd | Format-List DisplayName, Enabled, Profile, Direction, Action
 
-   If there's no such rule, add one:
+   If there's no such rule, add one for usbipd.exe only:
 
-       New-NetFirewallRule -DisplayName usbipd -Direction Inbound -Protocol TCP -LocalPort 3240 -Profile Private -RemoteAddress LocalSubnet -Action Allow
+       New-NetFirewallRule -DisplayName usbipd -Direction Inbound -Program (Get-Command usbipd).Source -Protocol TCP -LocalPort 3240 -Profile Private -RemoteAddress LocalSubnet -Action Allow
 
 5. Share the pad:
 
@@ -74,8 +91,8 @@ Use a terminal opened as administrator (right-click Terminal, Run as administrat
 
 ## On this PC
 
-Use a normal PowerShell window (not as administrator) in the Starwire folder, on the branch
-`feature/usb-pc-helper`.
+Use a normal PowerShell window (not as administrator) in a Starwire checkout that has
+`windows\StarwireUsbHelper.cs`.
 
 7. Build the helper and run its tests:
 
@@ -89,15 +106,16 @@ Use a normal PowerShell window (not as administrator) in the Starwire folder, on
        cd $env:TEMP\starwire-usb-helper-tests
        .\StarwireUsbHelper.exe --probe | Out-Host
 
-   It should say "That's usbip-win2 0.9.8.1, which the helper knows." If it names another
-   version, stop here and send me the output. Don't update or reinstall the driver: Vibepollo
-   uses it.
+   It should say "That's usbip-win2 0.9.8.1, which the helper knows. Its file is that release's
+   usbip2_ude.sys." If it names another version or another file, stop here and keep the output.
+   Don't update or reinstall the driver: Vibepollo uses it.
 
 9. Attach the pad:
 
        .\StarwireUsbHelper.exe --debug-attach <laptop-ip> <bus-id> | Out-Host
 
-   It prints each step. It should end with "Attached on port" and name the Sony DualSense. With
+   It prints each step. It should say "Attached on port" and name the Sony DualSense. If it says
+   the device isn't a DualSense, it has already detached it: check the bus ID on the laptop. With
    a wrong address the driver can take a while to give up. On the laptop, `usbipd list` should
    now say Attached, and the pad stops working there.
 
@@ -119,6 +137,9 @@ Use a normal PowerShell window (not as administrator) in the Starwire folder, on
     - Wi-Fi or Ethernet on each side, and 5 GHz or 6 GHz Wi-Fi;
     - anything odd: crackling from the pad's speaker, the pad dropping out, Windows messages.
 
+    If the pad drops out (the game loses it, or the laptop's `usbipd list` no longer says
+    Attached), stop and run the detach on this PC (step 13) straight away.
+
     If the haptics stutter, try the driver's other receive mode: detach (step 13, this PC's half
     only), then attach again with `--low-latency` added to step 9, and compare.
 
@@ -129,8 +150,8 @@ Use a normal PowerShell window (not as administrator) in the Starwire folder, on
         .\StarwireUsbHelper.exe --debug-detach | Out-Host
 
     It should end with "Done: the helper has nothing attached now." It only detaches what the
-    helper attached. If Vibepollo's virtual pad is attached, it's listed as another program's
-    and left alone.
+    helper attached, and it stops the driver's reconnect tries for it. If Vibepollo's virtual pad
+    is attached, it's listed as another program's and left alone.
 
     Then on the laptop, as administrator:
 
@@ -142,8 +163,9 @@ Use a normal PowerShell window (not as administrator) in the Starwire folder, on
 14. If you won't use usbipd again, remove it with `winget uninstall usbipd`, or at least turn its
     firewall rule off: `Disable-NetFirewallRule -DisplayName usbipd`.
 
-Send me the output of steps 8, 9 and 13 and your notes from step 12. The output shows the
-laptop's local address and a serial number the helper made up, nothing else about you.
+Keep the output of steps 8, 9 and 13 and your notes from step 12. The output shows the laptop's
+local address and a serial number the helper made up. If the helper reports a problem with its
+list of attached devices, it also shows that file's path, which has your Windows user name in it.
 
 ## If something goes wrong
 
@@ -153,10 +175,15 @@ laptop's local address and a serial number the helper made up, nothing else abou
   network set to Public (step 3).
 - **"shares no device with bus ID"**: bind it again (step 5). The bus ID changes if the pad
   moves to another USB port.
+- **"not a DualSense"**: that bus ID is another device. The helper has already detached it.
+  Check `usbipd list` on the laptop, and unbind anything you didn't mean to share.
 - **"isn't a home-network address"**: the helper only connects to private, link-local, VPN and
   loopback addresses. Use the laptop's local address from `ipconfig`.
-- **You unbound on the laptop before detaching here**: this PC's driver keeps trying to
-  reconnect the pad. Run step 13's detach anyway; it stops that.
+- **"isn't the helper's list"**: there's a file at `%LOCALAPPDATA%\Starwire\usb-attached.txt`
+  that the helper didn't write. It won't change it, so it won't attach either. Move the file
+  somewhere else.
+- **The pad dropped out, or you unbound on the laptop before detaching here**: this PC's driver
+  keeps trying to reconnect it. Run step 13's detach straight away; it stops that.
 - **This PC restarted while the pad was attached**: a restart detaches it. Step 13's detach then
   says it isn't attached any more and clears the helper's list.
 
