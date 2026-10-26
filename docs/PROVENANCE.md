@@ -168,6 +168,24 @@ The official wrapper jar of Gradle 7.4 to 7.4.2 (Apache-2.0), added to Moonlight
 `verify.sh` and Gradle's own wrapper check in `prebuilts.yml` compare against it. All it does is
 download Gradle 9.7.1, the version in `gradle-wrapper.properties`.
 
+### HiddenApiBypass, a library Gradle checks
+
+[HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass) 6.1 by LSPosed
+(Apache-2.0) isn't in the repo. Gradle downloads it from Maven Central like the other libraries,
+but this one is checked: [`gradle/verification-metadata.xml`](../gradle/verification-metadata.xml)
+holds the SHA-256 of each of its files, and Gradle stops the build if a download doesn't match.
+It's checked because it reaches calls Android hides from apps, which the DualSense trigger
+effects use (off by default, Experimental). The other libraries aren't checked yet.
+
+| File | SHA-256 |
+| --- | --- |
+| `hiddenapibypass-6.1.aar` | `e3161dd21c97a4540b1698a33f7062aeaa1450008e1e2176070e5380f7a6324c` |
+| `hiddenapibypass-6.1.module` | `0a9110b0713c3f7aff9f65de0bebd2de8c2ebe14f421dd4b7e851e7f0df9be3e` |
+| `hiddenapibypass-6.1.pom` | `55109914ea9c6ef31c903198e9af0b671be208412a1539bfab025ff47d9f9597` |
+
+The AAR's hash is also the one the release's own `.module` file lists. Nobody has rebuilt it from
+its source for Starwire.
+
 ### Generated: shaders_spv.h
 
 `app/src/main/jni/vulkan/shaders_spv.h` is compiled SPIR-V for the Vulkan renderer, made from

@@ -255,6 +255,9 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:5.5.0'
     implementation 'org.jmdns:jmdns:3.6.3'
     implementation 'com.github.cgutman:ShieldControllerExtensions:1.0.1'
+    // Reaches Android's hidden Bluetooth HID calls for the DualSense's trigger effects
+    // (Experimental, off by default). Its SHA-256 is checked: gradle/verification-metadata.xml
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'
 
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 

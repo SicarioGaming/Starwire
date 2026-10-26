@@ -96,6 +96,8 @@ public final class OpenSourceNotices {
             new Component(JAVA, "ShieldControllerExtensions", "1.0.1", "MIT",
                     "Copyright (c) 2022 Cameron Gutman",
                     "shield-controller-extensions.txt", "https://github.com/cgutman/ShieldControllerExtensions"),
+            new Component(JAVA, "HiddenApiBypass", "6.1", "Apache-2.0", "LSPosed",
+                    APACHE, "https://github.com/LSPosed/AndroidHiddenApiBypass"),
             new Component(JAVA, "desugar_jdk_libs", "2.1.5", "GPL-2.0 with the Classpath Exception",
                     "Google, from OpenJDK", "desugar_jdk_libs.txt",
                     "https://github.com/google/desugar_jdk_libs"),
