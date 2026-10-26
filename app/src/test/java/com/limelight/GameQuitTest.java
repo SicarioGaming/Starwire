@@ -27,6 +27,7 @@ import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.overlay.OverlayMenuButton;
 import com.limelight.ui.overlay.OverlayMenuView;
 
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -207,6 +208,26 @@ public class GameQuitTest {
         ControllerHandler controllers = ReflectionHelpers.getField(game, "controllerHandler");
         assertTrue("the game on the PC is quit", controllers.pendingApplicationQuit);
         assertTrue("the stream screen closes", game.isFinishing());
+    }
+
+    // Closed first, so the question gets the controller and keyboard input
+    @Test
+    public void theMenuClosesBeforeItAsks() {
+        // Game's own listener, noting the calls that matter here as they come
+        OverlayMenuView.MenuActionListener real = ReflectionHelpers.getField(menu, "actionListener");
+        List<String> calls = new ArrayList<>();
+        menu.setMenuActionListener((OverlayMenuView.MenuActionListener) Proxy.newProxyInstance(
+                OverlayMenuView.MenuActionListener.class.getClassLoader(),
+                new Class<?>[] {OverlayMenuView.MenuActionListener.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("onMenuClosed") || method.getName().equals("onQuitSession")) {
+                        calls.add(method.getName());
+                    }
+                    return method.invoke(real, args);
+                }));
+
+        tapQuit();
+        assertEquals(List.of("onMenuClosed", "onQuitSession"), calls);
     }
 
     @Test
