@@ -258,7 +258,7 @@
             android:summary="@string/summary_left_edge_swipe_action"
             android:entries="@array/left_edge_swipe_action_names"
             android:entryValues="@array/left_edge_swipe_action_values"
-            android:defaultValue="brightness" />
+            android:defaultValue="off" />
         <Preference
             android:key="overlay_custom_commands"
             android:title="@string/title_overlay_custom_commands"
