@@ -20,8 +20,8 @@
 //                                      mode instead of its default, zero-copy
 //   StarwireUsbHelper.exe --debug-detach
 //                                      detaches the devices the helper attached, and nothing else
-//   --state-file <path>                keeps the list of attached devices there instead of
-//                                      %LOCALAPPDATA%\Starwire\usb-attached.txt (for testing)
+//
+// The list of what the helper attached is in %LOCALAPPDATA%\Starwire\usb-attached.txt.
 //
 // From PowerShell, pipe the output of the commands (for example `| Out-Host`): a program without a
 // window isn't waited for otherwise.
@@ -110,7 +110,6 @@ static class StarwireUsbHelper
         string busId = null;
         int tcpPort = UsbipAbi.DefaultTcpPort;
         bool lowLatency = false;
-        string stateFile = null;
         string problem = null;
         for (int i = 0; i < args.Length && problem == null; i++) {
             string a = args[i].ToLowerInvariant();
@@ -136,14 +135,6 @@ static class StarwireUsbHelper
             else if (a == "--low-latency") {
                 lowLatency = true;
             }
-            else if (a == "--state-file") {
-                if (i + 1 >= args.Length) {
-                    problem = "--state-file needs a path.";
-                }
-                else {
-                    stateFile = args[++i];
-                }
-            }
             else {
                 problem = "Unknown option: " + args[i];
             }
@@ -155,11 +146,11 @@ static class StarwireUsbHelper
         }
         if (problem != null) {
             Console.WriteLine(problem);
-            Console.WriteLine("Usage: StarwireUsbHelper.exe [--probe | --debug-attach <ip> <bus-id> [--port 3240] [--low-latency] | --debug-detach] [--state-file <path>]");
+            Console.WriteLine("Usage: StarwireUsbHelper.exe [--probe | --debug-attach <ip> <bus-id> [--port 3240] [--low-latency] | --debug-detach]");
             return ExitUsage;
         }
 
-        OwnedDevices owned = new OwnedDevices(stateFile != null ? Path.GetFullPath(stateFile) : OwnedDevices.DefaultPath());
+        OwnedDevices owned = new OwnedDevices(OwnedDevices.DefaultPath());
         if (command == "--probe") {
             return new UsbHelper(Win32Vhci.Open, owned, Random, DriverMutex, Console.WriteLine).Probe();
         }
@@ -1075,7 +1066,9 @@ sealed class OwnedDevice
     }
 }
 
-// The list of attached devices, in a small text file so a later run (or the icon) can detach them
+// The list of attached devices, in a small text file so a later run (or the icon) can detach them.
+// The helper only ever changes a file it wrote itself, one that starts with its heading, and keeps
+// any line it doesn't understand as it is.
 sealed class OwnedDevices
 {
     const string Header = "# Starwire USB helper: the USB devices it attached. It only ever detaches these.";
@@ -1085,6 +1078,10 @@ sealed class OwnedDevices
     public readonly string FilePath;
     public readonly List<OwnedDevice> Devices = new List<OwnedDevice>();
     public readonly List<string> Problems = new List<string>();
+    // Comments and lines the helper doesn't understand, written back as they are
+    readonly List<string> kept = new List<string>();
+    // The last Load read the whole file and it was the helper's, or there was no file
+    bool readWhole;
 
     public OwnedDevices(string filePath)
     {
@@ -1100,13 +1097,16 @@ sealed class OwnedDevices
     {
         Devices.Clear();
         Problems.Clear();
+        kept.Clear();
+        readWhole = false;
         string[] lines;
         try {
             if (!File.Exists(FilePath)) {
+                readWhole = true;
                 return;
             }
             if (new FileInfo(FilePath).Length > MaxFileBytes) {
-                Problems.Add("the list is over " + MaxFileBytes / 1024 + " KB, so it was ignored");
+                Problems.Add("the list is over " + MaxFileBytes / 1024 + " KB, so it was ignored, and it's left as it is");
                 return;
             }
             lines = File.ReadAllLines(FilePath, Encoding.UTF8);
@@ -1115,18 +1115,26 @@ sealed class OwnedDevices
             Problems.Add("couldn't read it: " + e.Message);
             return;
         }
-        for (int i = 0; i < lines.Length; i++) {
+        if (lines.Length == 0 || lines[0] != Header) {
+            Problems.Add("it isn't the helper's list (its first line isn't the helper's heading), so the helper ignores it "
+                + "and won't change it. Move it somewhere else if the helper should keep its list there");
+            return;
+        }
+        readWhole = true;
+        for (int i = 1; i < lines.Length; i++) {
             string line = lines[i];
-            if (line.Length == 0 || line[0] == '#') {
+            if (line == Columns || line.Length == 0) {
                 continue;
             }
-            OwnedDevice d = Parse(line);
-            if (d == null) {
-                Problems.Add("line " + (i + 1) + " isn't understood, so it was ignored");
-            }
-            else {
+            OwnedDevice d = line[0] == '#' ? null : Parse(line);
+            if (d != null) {
                 Devices.Add(d);
+                continue;
             }
+            if (line[0] != '#') {
+                Problems.Add("line " + (i + 1) + " isn't understood, so it was ignored, and it's kept as it is");
+            }
+            kept.Add(line);
         }
     }
 
@@ -1158,11 +1166,27 @@ sealed class OwnedDevices
     }
 
     // Written whole to a new file and moved over the old one, so a crash leaves one or the other.
-    // An empty list removes the file.
+    // An empty list removes the file. A file that isn't the helper's, or that the last Load
+    // couldn't read whole, is never replaced or removed.
     public bool Save(out string problem)
     {
         try {
-            if (Devices.Count == 0) {
+            if (File.Exists(FilePath)) {
+                if (!readWhole) {
+                    problem = "the helper couldn't read all of " + FilePath + " just now, so it won't replace it";
+                    return false;
+                }
+                string first;
+                using (StreamReader r = new StreamReader(FilePath, Encoding.UTF8)) {
+                    first = r.ReadLine();
+                }
+                if (first != Header) {
+                    problem = FilePath + " isn't the helper's list (its first line isn't the helper's heading), "
+                        + "so the helper won't replace or remove it";
+                    return false;
+                }
+            }
+            if (Devices.Count == 0 && kept.Count == 0) {
                 if (File.Exists(FilePath)) {
                     File.Delete(FilePath);
                 }
@@ -1179,6 +1203,9 @@ sealed class OwnedDevices
                 s.Append(d.Port.ToString(CultureInfo.InvariantCulture)).Append('\t').Append(d.Host).Append('\t')
                     .Append(d.Service).Append('\t').Append(d.BusId).Append('\t').Append(d.Serial).Append("\r\n");
             }
+            foreach (string line in kept) {
+                s.Append(line).Append("\r\n");
+            }
             string next = FilePath + ".new";
             File.WriteAllText(next, s.ToString(), new UTF8Encoding(false));
             if (File.Exists(FilePath)) {
@@ -1187,6 +1214,8 @@ sealed class OwnedDevices
             else {
                 File.Move(next, FilePath);
             }
+            // What's there now is exactly what this wrote
+            readWhole = true;
             problem = null;
             return true;
         }

@@ -23,6 +23,9 @@ static class StarwireUsbHelperTests
     const string VibepolloSerial = "VP0123456789AB0";
     // The port the helper detaches as a wait for the driver's queued detaches
     const int NoSuchPort = int.MaxValue;
+    // The first line of the helper's list, written out here so a change to it shows: lists written
+    // by an earlier helper must still be read
+    const string ListHeading = "# Starwire USB helper: the USB devices it attached. It only ever detaches these.";
 
     static int passed, failed;
     static string temp;
@@ -65,6 +68,7 @@ static class StarwireUsbHelperTests
         DropDuringDetach();
         NeverEveryDevice();
         OwnedList();
+        NotTheHelpersList();
         ListGrows();
         CrashSafety();
         ShortReplies();
@@ -910,7 +914,8 @@ static class StarwireUsbHelperTests
 
         // A list file edited to point at port 0 or a device without a serial is ignored
         Rig rig = LaptopRig("edited");
-        File.WriteAllText(rig.Owned.FilePath, "0\t127.0.0.1\t50123\t1-1\t" + VibepolloSerial + "\r\n0\t127.0.0.1\t50123\t1-1\t\r\n");
+        File.WriteAllText(rig.Owned.FilePath, ListHeading + "\r\n0\t127.0.0.1\t50123\t1-1\t" + VibepolloSerial
+            + "\r\n0\t127.0.0.1\t50123\t1-1\t\r\n");
         int code = rig.Helper().DebugDetach();
         Check("edited list: Vibepollo's device isn't touched", rig.Driver.PlugoutPorts().Count == 0 && rig.Driver.Ports[0] != null
             && rig.Said("isn't understood") && code == StarwireUsbHelper.ExitOk);
@@ -930,7 +935,7 @@ static class StarwireUsbHelperTests
             && b.Devices[0].Host == Laptop && b.Devices[1].Host == "fe80::1" && b.Devices[1].BusId == "3-1.4" && b.Devices[1].Port == 0);
         Check("list: no file left half-written", !File.Exists(path + ".new"));
 
-        File.WriteAllText(path, "# comment\r\n"
+        File.WriteAllText(path, ListHeading + "\r\n# comment\r\n"
             + "2\t" + Laptop + "\t3240\t2-3\tSW0123456789ABC\r\n"
             + "2\t" + Laptop + "\t3240\t2-3\r\n"
             + "x\t" + Laptop + "\t3240\t2-3\tSW0123456789ABC\r\n"
@@ -941,14 +946,57 @@ static class StarwireUsbHelperTests
             + "2\t" + Laptop + "\t3240\t2-3\tSWI23456789ABCD\r\n"
             + "2\t" + Laptop + "\t3240\t2-3\tsw0123456789abc\r\n");
         b.Load();
-        Check("list: bad lines ignored, each named", b.Devices.Count == 1 && b.Problems.Count == 8 && b.Problems[0].StartsWith("line 3 "));
+        Check("list: bad lines ignored, each named", b.Devices.Count == 1 && b.Problems.Count == 8 && b.Problems[0].StartsWith("line 4 "));
+        b.Devices.Clear();
+        Check("list: lines it doesn't understand, and comments, are kept when it writes the list again",
+            b.Save(out problem) && TextOf(path).Contains("\r\n# comment\r\n")
+            && TextOf(path).Contains("\r\n2\t8.8.8.8\t3240\t2-3\tSW0123456789ABC\r\n")
+            && TextOf(path).StartsWith(ListHeading + "\r\n"));
 
-        File.WriteAllText(path, new string('#', 70 * 1024));
+        string big = ListHeading + "\r\n" + new string('#', 70 * 1024);
+        File.WriteAllText(path, big);
         b.Load();
         Check("list: an oversized file is ignored", b.Devices.Count == 0 && b.Problems.Count == 1);
+        Check("list: and left as it is", !b.Save(out problem) && TextOf(path) == big);
 
+        File.WriteAllText(path, ListHeading + "\r\n2\t" + Laptop + "\t3240\t2-3\tSW0123456789ABC\r\n");
+        b.Load();
         b.Devices.Clear();
         Check("list: an empty list removes the file", b.Save(out problem) && !File.Exists(path));
+    }
+
+    static void NotTheHelpersList()
+    {
+        // A file there that the helper didn't write: it never replaces or removes it
+        Rig rig = LaptopRig("notes");
+        string notes = "my own notes, not a list\r\n";
+        File.WriteAllText(rig.Owned.FilePath, notes);
+        int code = rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        Check("someone else's file: attach refused before the driver is asked", code == StarwireUsbHelper.ExitAttach
+            && rig.Driver.Count(UsbipAbi.PluginHardwareOnce) == 0 && rig.Said("isn't the helper's list"));
+        Check("someone else's file: left as it was", rig.FileText() == notes);
+        code = rig.Helper().DebugDetach();
+        Check("someone else's file: detach finds nothing of the helper's in it, changes nothing",
+            code == StarwireUsbHelper.ExitOk && rig.Driver.PlugoutPorts().Count == 0 && rig.FileText() == notes);
+
+        // Even a file whose lines look like the helper's, without its heading
+        File.WriteAllText(rig.Owned.FilePath, "2\t" + Laptop + "\t3240\t2-3\tSW0123456789ABC\r\n");
+        OwnedDevices o = new OwnedDevices(rig.Owned.FilePath);
+        o.Load();
+        string problem;
+        Check("no heading: nothing read from it, and an empty list doesn't remove it", o.Devices.Count == 0
+            && !o.Save(out problem) && File.Exists(rig.Owned.FilePath));
+
+        // A line from a newer helper, with a sixth field, survives an attach and a detach
+        rig = LaptopRig("newer");
+        string newer = "2\t192.168.1.60\t3240\t2-1\tSW0123456789ABC\tfuture-field";
+        File.WriteAllText(rig.Owned.FilePath, ListHeading + "\r\n" + newer + "\r\n");
+        code = rig.Helper().DebugAttach(Laptop, "2-3", 3240, false);
+        Check("a line it doesn't understand: kept after an attach", code == StarwireUsbHelper.ExitOk
+            && rig.FileText().Contains("\r\n" + newer + "\r\n") && rig.FileText().Contains("\t2-3\tSW"));
+        code = rig.Helper().DebugDetach();
+        Check("a line it doesn't understand: kept after the detach, the helper's own line gone", code == StarwireUsbHelper.ExitOk
+            && rig.FileText().Contains("\r\n" + newer + "\r\n") && !rig.FileText().Contains("\t2-3\tSW"));
     }
 
     static void ListGrows()
@@ -1144,6 +1192,12 @@ static class StarwireUsbHelperTests
     }
 
     // ---------------------------------------------------------------- helpers
+    // A file's text, or "" when there's no such file
+    static string TextOf(string path)
+    {
+        return File.Exists(path) ? File.ReadAllText(path) : "";
+    }
+
     static ImportedDevice Find(FakeVhci fake, string busId)
     {
         foreach (ImportedDevice d in fake.Ports) {
