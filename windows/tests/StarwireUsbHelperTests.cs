@@ -151,6 +151,9 @@ static class StarwireUsbHelperTests
         public void Drop(int port)
         {
             ImportedDevice d = Ports[port - 1];
+            if (d == null) {
+                return; // nothing there to drop: the checks after say what went wrong
+            }
             Ports[port - 1] = null;
             string key = d.Host + "|" + d.Service + "|" + d.BusId;
             int n;
@@ -163,6 +166,9 @@ static class StarwireUsbHelperTests
         public void DropHalfway(int port)
         {
             ImportedDevice d = Ports[port - 1];
+            if (d == null) {
+                return; // nothing there to drop: the checks after say what went wrong
+            }
             Ports[port - 1] = null;
             HalfDetached.Add(d.Host + "|" + d.Service + "|" + d.BusId);
         }
@@ -1073,12 +1079,20 @@ static class StarwireUsbHelperTests
             code == StarwireUsbHelper.ExitOk && rig.Driver.PlugoutPorts().Count == 0 && rig.FileText() == notes);
 
         // Even a file whose lines look like the helper's, without its heading
-        File.WriteAllText(rig.Owned.FilePath, "2\t" + Laptop + "\t3240\t2-3\tSW0123456789ABC\r\n");
+        File.WriteAllText(rig.Owned.FilePath, "2\t" + Laptop + "\t3240\t2-3\tSW0123456789ABC\r\n"
+            + "3\t" + Laptop + "\t3240\t2-4\tSWZZZZZZZZZZZZZ\r\n");
         OwnedDevices o = new OwnedDevices(rig.Owned.FilePath);
         o.Load();
         string problem;
         Check("no heading: nothing read from it, and an empty list doesn't remove it", o.Devices.Count == 0
             && !o.Save(out problem) && File.Exists(rig.Owned.FilePath));
+
+        // Replaced by someone else's file after the helper read its own
+        File.WriteAllText(rig.Owned.FilePath, ListHeading + "\r\n2\t" + Laptop + "\t3240\t2-3\tSW0123456789ABC\r\n");
+        o.Load();
+        File.WriteAllText(rig.Owned.FilePath, notes);
+        Check("replaced after the helper read it: not overwritten", o.Devices.Count == 1 && !o.Save(out problem)
+            && TextOf(rig.Owned.FilePath) == notes);
 
         // A line from a newer helper, with a sixth field, survives an attach and a detach
         rig = LaptopRig("newer");
