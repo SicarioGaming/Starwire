@@ -53,7 +53,7 @@ import java.util.List;
 @Config(sdk = 36, instrumentedPackages = {"com.limelight.nvstream.jni"},
         qualifiers = "w960dp-h540dp-land-xhdpi") // a 1080p handheld
 public class GameBrightnessTest {
-    // The touch modes where a swipe in from the left edge opens the slider. In multi-touch mode,
+    // The touch modes where a swipe in from the left edge can open the slider. In multi-touch mode,
     // touches from the view behind the stream go the way they do in direct touch.
     private static final int[] SWIPE_MODES = {Game.MOUSE_MODE_TRACKPAD_NATURAL, Game.MOUSE_MODE_TRACKPAD_GAMING,
             Game.MOUSE_MODE_MULTI_TOUCH, Game.MOUSE_MODE_DIRECT_TOUCH, Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED};
@@ -71,6 +71,11 @@ public class GameBrightnessTest {
 
     private void openStreamScreen(int touchMode) {
         openStreamScreen(touchMode, null);
+    }
+
+    // With the Left edge swipe action set to the brightness slider, which the swipe's own tests need
+    private void openStreamScreenWithTheSwipeOn(int touchMode) {
+        openStreamScreen(touchMode, "brightness");
     }
 
     // edgeSwipeAction: the Left edge swipe action setting, or null to leave it at its default
@@ -210,13 +215,13 @@ public class GameBrightnessTest {
     @Test
     public void aTapAtTheLeftEdgeGoesToTheGameInEveryTouchMode() {
         for (int touchMode : SWIPE_MODES) {
-            openStreamScreen(touchMode);
+            openStreamScreenWithTheSwipeOn(touchMode);
             tapTheLeftEdge();
             assertFalse(mode(touchMode) + "the tap opened the slider", showing());
             assertTrue(mode(touchMode) + "the tap wasn't a click on the PC: " + pc.sent, clicked());
         }
         // With touch off, the stream ignores it
-        openStreamScreen(Game.MOUSE_MODE_DISABLED);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_DISABLED);
         tapTheLeftEdge();
         assertFalse("touch off: the tap opened the slider", showing());
         assertEquals(new ArrayList<String>(), pc.sent);
@@ -225,7 +230,7 @@ public class GameBrightnessTest {
     @Test
     public void aSwipeInFromTheLeftEdgeOpensTheSliderAndTheRestOfItGoesNoFurther() {
         for (int touchMode : SWIPE_MODES) {
-            openStreamScreen(touchMode);
+            openStreamScreenWithTheSwipeOn(touchMode);
             swipeInFromTheLeftEdge();
             assertTrue(mode(touchMode) + "the swipe didn't open the slider", showing());
             // The finger carries on and lifts: the touch was cancelled where the swipe was seen
@@ -235,7 +240,7 @@ public class GameBrightnessTest {
 
     @Test
     public void aSlowSteepOrInnerSwipeLeavesTheSliderShut() {
-        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_TRACKPAD_GAMING);
         // Longer than 500 ms to get 60 dp in
         finger(MotionEvent.ACTION_DOWN, dp(10), middleY());
         advance(600);
@@ -279,7 +284,7 @@ public class GameBrightnessTest {
     public void aDragFromTheEdgeOpensTheSliderOnlyAt60DpInAndItsStartReachesThePc() {
         for (int touchMode : SWIPE_MODES) {
             // Lifted 57 dp from where it started, short of the 60 dp the swipe needs
-            openStreamScreen(touchMode);
+            openStreamScreenWithTheSwipeOn(touchMode);
             dragRightFrom(20, 57);
             finger(MotionEvent.ACTION_UP, dp(77), middleY());
             advance(1000);
@@ -315,7 +320,7 @@ public class GameBrightnessTest {
 
     @Test
     public void aTouchOnTheStreamClosesTheSlider() {
-        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_TRACKPAD_GAMING);
         swipeInFromTheLeftEdge();
         assertTrue(showing());
         pc.sent.clear();
@@ -383,7 +388,7 @@ public class GameBrightnessTest {
 
     @Test
     public void theSliderStaysUpUntilChangedThenHidesTwoSecondsAfter() {
-        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_TRACKPAD_GAMING);
         swipeInFromTheLeftEdge();
         // It used to hide 3 s after it opened, changed or not
         advance(10_000);
