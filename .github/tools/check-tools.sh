@@ -613,7 +613,8 @@ ok "device-run.sh runs a leg's passes on emulators only, and reports them"
 # 13. check-publish.sh, in a made-up repo: an upstream commit brought in with git cherry-pick -x keeps
 # its author, which passes only when the commit its last line names is on an upstream ref and has the
 # same author and date, and the committer is still the publishing identity in UTC. What it adds is
-# still checked, and the output never shows what matched.
+# still checked, and the output never shows what matched. Its default list of upstream remotes has
+# every fork Starwire takes commits from.
 begin
 work="$(mktemp -d)"
 repo="$work/repo"
@@ -693,8 +694,30 @@ publish 1 "personal: COMMIT notes.txt:1 [private pattern on line 1]" "$up" "$pub
 $picked"
 if grep -q 'planted-private-word' <<< "$published"; then fail "check-publish.sh showed the private word it found"; fi
 if grep -q 'identity\|timezone' <<< "$published"; then fail "check-publish.sh failed a real cherry-pick's identity"; fi
+# With UPSTREAM_REMOTES unset, a pick from any fork Starwire takes commits from counts as upstream:
+# Moonlight X, Artemide, Turnip, Nightjar and Moonlight V+ (vplus). A fork not on that list doesn't.
+for remote in moonlightx artemide turnip nightjar vplus elsewhere; do
+    fork=$(mk "" "$up" "$up" "a change in $remote" "Change something in $remote")
+    git -C "$repo" update-ref "refs/remotes/$remote/fork-main" "$fork"
+    tip=$(mk "$base" "$up" "$pub" "the change from $remote" "Change something in $remote
+
+(cherry picked from commit $fork)")
+    expected=0 want="clean"
+    if [ "$remote" = elsewhere ]; then
+        expected=1 want="identity: ${tip:0:10} author is not $me, and its cherry-pick line names no upstream commit"
+    fi
+    set +e
+    published=$(cd "$repo" && unset UPSTREAM_REMOTES && PUBLISH_IDENTITY="$me" \
+        bash "$HERE/check-publish.sh" main "$tip" "$work/patterns.txt" 2>&1)
+    status=$?
+    set -e
+    if [ $status -ne $expected ] || ! grep -qxF -- "$want" <<< "$published"; then
+        printf '%s\n' "$published" >&2
+        fail "check-publish.sh's default upstream remotes, on a pick from $remote: exit $status (expected $expected), or no line \"$want\""
+    fi
+done
 rm -rf "$work"
-ok "check-publish.sh accepts real upstream cherry-picks and nothing that only looks like one"
+ok "check-publish.sh accepts real upstream cherry-picks, from every fork on its default list, and nothing that only looks like one"
 
 # 14. check-commits.sh sorts its planted commit messages, branch names and commits (in a throwaway
 # repo of its own) the way CONTRIBUTING.md's rules say

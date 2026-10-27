@@ -13,7 +13,8 @@
 #                  commit and file, for things that are already public anyway.
 #
 # It looks only at commits that new-tip has and public-tip doesn't, and skips upstream ones (anything
-# reachable from refs/remotes/moonlightx, artemide or turnip; set UPSTREAM_REMOTES to change the list).
+# reachable from refs/remotes/moonlightx, artemide, turnip, nightjar or vplus, the forks Starwire takes
+# commits from; set UPSTREAM_REMOTES to change the list).
 # It only reads the repo: no network, no changes, and the same input always gives the same output.
 # Findings say where something is, never what matched, so the output is safe to paste.
 # Exit 0 = clean, 1 = something to fix, 2 = usage error.
@@ -37,7 +38,7 @@ set -u
 export LC_ALL=C
 
 ID_OK=${PUBLISH_IDENTITY:-SicarioGaming <stayf8dop@gmail.com>}
-UPSTREAM=${UPSTREAM_REMOTES:-moonlightx artemide turnip}
+UPSTREAM=${UPSTREAM_REMOTES:-moonlightx artemide turnip nightjar vplus}
 MAX_LINES=40
 ZERO=0000000000000000000000000000000000000000
 

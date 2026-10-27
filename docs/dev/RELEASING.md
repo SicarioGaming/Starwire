@@ -55,7 +55,10 @@ What was decided before running it (23 Oct):
 `.github/tools/check-publish.sh` looks at every commit a push would add to the public repo and stops
 if it finds:
 
-- a commit or tag by anyone other than `SicarioGaming <stayf8dop@gmail.com>`, or not dated in UTC
+- a commit or tag by anyone other than `SicarioGaming <stayf8dop@gmail.com>`, or not dated in UTC.
+  A commit brought in with `git cherry-pick -x` keeps its own author and date when the commit it
+  names is on one of the forks' remotes: `moonlightx`, `artemide`, `turnip`, `nightjar` or `vplus`
+  (Moonlight V+). Fetch each of them with `tagOpt --no-tags`, as below
 - a keystore or key file, `keystore.properties`, `local.properties`, `.env`, anything under
   `private/`, or a Reddit draft
 - an access token, a private key, a written-out password, a local user folder, or a private network
