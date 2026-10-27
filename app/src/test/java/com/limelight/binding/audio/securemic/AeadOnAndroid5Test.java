@@ -137,6 +137,45 @@ public class AeadOnAndroid5Test {
         assertEquals(-1, SwmcCodec.openAudio(oldSession, good, good.length, out));
     }
 
+    // A refused packet leaves none of its plaintext in the buffer, with Android 5's GCM (which
+    // writes the plaintext out before it checks the tag) and with the JVM's own. Only the bytes
+    // open could have written are cleared; the rest of the buffer is left alone.
+    @Test
+    public void aRefusedPacketLeavesNoneOfItsPlaintext() throws Exception {
+        Map<String, String> v = SwmcVectors.read();
+        byte[] kAudio = hex(v.get("key.audio"));
+        byte[] forged = hex(v.get("pkt.audio7"));
+        forged[forged.length - 1] ^= 1;
+        byte[] tc16 = hex(v.get("kat.gcm_tc16"));
+        tc16[tc16.length - 1] ^= 1;
+        for (boolean onAndroid5 : new boolean[] {true, false}) {
+            Aead audio = onAndroid5 ? android5(kAudio) : new Aead(kAudio);
+            byte[] out = filled(2048);
+            assertEquals(-1, SwmcCodec.openAudio(audio, forged, forged.length, out));
+            assertCleared(audio.providerName(), out, 0, 540);
+
+            // At an offset into the buffer, as Aead.open allows
+            Aead kat = onAndroid5 ? android5(TC16_KEY) : new Aead(TC16_KEY);
+            out = filled(TC16_PT.length + 10);
+            assertEquals(-1, kat.open(TC16_IV, 0, TC16_AAD, 0, TC16_AAD.length, tc16, 0, tc16.length, out, 7));
+            assertCleared(kat.providerName(), out, 7, TC16_PT.length);
+        }
+    }
+
+    private static byte[] filled(int length) {
+        byte[] b = new byte[length];
+        Arrays.fill(b, (byte) 0x5A);
+        return b;
+    }
+
+    // out[from..from+length) is zero, and the rest still holds what filled() put there
+    private static void assertCleared(String provider, byte[] out, int from, int length) {
+        for (int i = 0; i < out.length; i++) {
+            boolean inside = i >= from && i < from + length;
+            assertEquals(provider + " byte " + i, inside ? 0 : 0x5A, out[i]);
+        }
+    }
+
     // A session's run of packets: the same Aead seals each one, and the platform's GCM on this JVM
     // opens what Android 5's sealed, and the other way round
     @Test

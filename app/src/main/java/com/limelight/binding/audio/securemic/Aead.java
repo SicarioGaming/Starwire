@@ -7,6 +7,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import java.security.GeneralSecurityException;
 import java.security.Provider;
+import java.util.Arrays;
 
 /**
  * AES-256-GCM with a 12-byte nonce and a 16-byte tag, from the platform's own provider. That's
@@ -56,7 +57,8 @@ public final class Aead {
 
     /**
      * Decrypts ciphertext and tag into out at outAt. Returns the plaintext's length, or -1 if it
-     * isn't authentic (out may then hold anything).
+     * isn't authentic, and then out holds none of it: when the tag doesn't match,
+     * out[outAt..outAt + inLength - 16) is zeroed.
      */
     public int open(byte[] nonce, int nonceAt, byte[] aad, int aadAt, int aadLength,
                     byte[] in, int inAt, int inLength, byte[] out, int outAt) throws GeneralSecurityException {
@@ -72,6 +74,8 @@ public final class Aead {
         // BouncyCastle throws its parent, a plain BadPaddingException ("mac check in GCM failed").
         // With no padding, a tag that doesn't match is all a BadPaddingException can mean here.
         catch (BadPaddingException e) {
+            // BouncyCastle writes the plaintext out before it checks the tag, so clear it
+            Arrays.fill(out, outAt, outAt + inLength - TAG_LENGTH, (byte) 0);
             return -1;
         }
     }
