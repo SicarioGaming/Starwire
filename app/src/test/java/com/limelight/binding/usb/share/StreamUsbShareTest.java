@@ -13,6 +13,7 @@ import android.content.Intent;
 import android.content.DialogInterface;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
+import android.net.ConnectivityManager;
 import android.os.Looper;
 import android.widget.FrameLayout;
 
@@ -27,9 +28,12 @@ import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowAlertDialog;
+import org.robolectric.shadows.ShadowConnectivityManager;
+import org.robolectric.shadows.ShadowNetwork;
 import org.robolectric.shadows.ShadowUsbManager;
 import org.robolectric.util.ReflectionHelpers;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -209,5 +213,30 @@ public class StreamUsbShareTest {
         assertFalse(dialog.isShowing());
         assertEquals(1, share.items().size());
         assertTrue(backends.tunnels.isEmpty());
+    }
+
+    // The phone's network going away reaches the tunnel at once, so a Wi-Fi drop offers "Share
+    // again" without waiting for the tunnel's 8 s of silence. Watched only while the stream offers USB.
+    @Test
+    public void aNetworkDropReachesTheTunnelAtOnce() {
+        ShadowConnectivityManager connectivity =
+                shadowOf((ConnectivityManager) activity.getSystemService(Context.CONNECTIVITY_SERVICE));
+        List<ConnectivityManager.NetworkCallback> before = new ArrayList<>(connectivity.getNetworkCallbacks());
+        share.start(true, target, null);
+        List<ConnectivityManager.NetworkCallback> added = new ArrayList<>(connectivity.getNetworkCallbacks());
+        added.removeAll(before);
+        assertEquals(1, added.size());
+
+        share.choose(PAD);
+        worker.runAll();
+        backends.tunnel().bindAck();
+        backends.tunnel().shareAck();
+        idle();
+        added.get(0).onLost(ShadowNetwork.newInstance(100));
+        idle();
+        assertEquals(1, backends.tunnel().networkLosses);
+
+        share.stop(UsbShareTunnel.END_STREAM_ENDED);
+        assertFalse(connectivity.getNetworkCallbacks().contains(added.get(0)));
     }
 }

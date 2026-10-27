@@ -2,6 +2,10 @@ package com.limelight.binding.usb.share;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.os.Build;
 import android.os.Handler;
 import android.widget.Toast;
 
@@ -19,6 +23,9 @@ import java.util.concurrent.Executors;
  * USB sharing during one stream (Experimental), for Game: the stream menu's USB devices page, the
  * question before a keyboard or mouse is shared, and giving the device back when the stream ends
  * or the screen closes. Game calls start() once the stream is up, and stop() when it ends.
+ *
+ * It also tells the tunnel when the phone's network goes away, so a Wi-Fi drop shows as lost (and
+ * offers "Share again") at once, not after the tunnel's 8 s of silence.
  */
 public final class StreamUsbShare {
     private static Executor workerForTests;
@@ -28,6 +35,7 @@ public final class StreamUsbShare {
     private UsbShareController controller;
     private ExecutorService worker;
     private AlertDialog question;
+    private ConnectivityManager.NetworkCallback network;
 
     public StreamUsbShare(Activity activity, OverlayMenuView menu) {
         this.activity = activity;
@@ -76,6 +84,7 @@ public final class StreamUsbShare {
                     }
                 }, main::post, work);
         menu.setUsbDevicesShown(true);
+        watchNetwork(main);
     }
 
     /** Whether the stream menu offers USB devices now */
@@ -109,6 +118,7 @@ public final class StreamUsbShare {
         }
         controller.close(endReason);
         controller = null;
+        stopWatchingNetwork();
         if (worker != null) {
             // Lets a connect already running finish; the tunnel then ends it, as it was asked
             worker.shutdown();
@@ -137,6 +147,46 @@ public final class StreamUsbShare {
                     }
                 })
                 .show();
+    }
+
+    // The phone's default network going away; the tunnel's connection goes over it
+    private void watchNetwork(Handler main) {
+        ConnectivityManager connectivity = (ConnectivityManager) activity.getSystemService(Context.CONNECTIVITY_SERVICE);
+        // Sharing needs Android 9 or later anyway (UsbShareBackends.Factory.isSupported)
+        if (connectivity == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+        network = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onLost(Network lost) {
+                main.post(() -> {
+                    if (controller != null) {
+                        controller.networkLost();
+                    }
+                });
+            }
+        };
+        try {
+            connectivity.registerDefaultNetworkCallback(network, main);
+        }
+        catch (RuntimeException e) {
+            // Too many callbacks in the app, say: a drop then shows after 8 s of silence
+            network = null;
+        }
+    }
+
+    private void stopWatchingNetwork() {
+        if (network == null) {
+            return;
+        }
+        ConnectivityManager connectivity = (ConnectivityManager) activity.getSystemService(Context.CONNECTIVITY_SERVICE);
+        try {
+            connectivity.unregisterNetworkCallback(network);
+        }
+        catch (RuntimeException e) {
+            // Never registered
+        }
+        network = null;
     }
 
     private void dismissQuestion() {
