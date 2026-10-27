@@ -13,11 +13,13 @@ byte.
 findings are fixed here, but not its second round or the maintainer's sign-off, so it can still
 change. The frames, keys and MACs exist (`SwutCodec.java`), and so does Starwire's end of the
 tunnel (`UsbTunnel.java` and `SwutTls.java`: TLS, BIND, SHARE, the relay to the exporter, and
-each way a session ends). The app's JVM tests check them against the vectors, and Starwire's end
-against a fake helper and a fake exporter on 127.0.0.1. Starwire's end hasn't run on a phone, or
-with the real helper or exporter. The device rules' cases are written, but no code decides them
-yet. The helper's end of the tunnel, its relay and the device rules aren't in code, no device has
-gone through any of it, and nothing here has been tried on Windows.
+each way a session ends). Starwire's copy of the device rules (`UsbDeviceRules.java`) decides
+every one of their cases, and the exporter (`UsbExporter.java`) applies them before it exports
+anything. The app's JVM tests check all of this against the vectors and the rules' cases, and
+Starwire's end of the tunnel against a fake helper and a fake exporter on 127.0.0.1. The tunnel
+and the exporter aren't joined to each other yet, and neither has run on a phone or with the real
+helper. The helper's end of the tunnel, its device rules and its relay aren't in code, no device
+has gone through any of it, and nothing here has been tried on Windows.
 
 ## In plain words
 
@@ -692,7 +694,7 @@ change to the protocol.
 ### The device rules' cases
 
 `app/src/test/resources/swut-v1-policy.txt` and `windows/tests/vectors/swut-v1-policy.txt` are
-the same file too (SHA-256 `1ACFA0A186B4BF0F68E90317897CDAE9AFC83D38BECE590B55003DCB793599B4`,
+the same file too (SHA-256 `2EC55B710F7FB46D2BE00B38103DC25F118B4C213CA14F710D68D42DE4CADB4B`,
 LF line endings, never changed by Git). Each case is two lines: `<case>.share=` a whole SHARE
 frame in hex, and `<case>.want=` the decision the device rules reach for it: `allow`, `ask`, or
 `refuse` and the rule. `.github/tools/vectors/make-swut-v1-policy.sh` wrote it from descriptors
@@ -700,8 +702,11 @@ written out by hand, each case changing one thing in the same test pad (its `pad
 vectors' `frame.share`, byte for byte). The cases cover each class code check, IADs, endpoints,
 the ways descriptors can fail to read, and the report descriptors that parsers can read
 differently: an extended usage, a Usage Page after the Usage, two Usages, Delimiter, Push and
-Pop, long items and nesting.
+Pop, long items and nesting. The cases after `report_deepest` came from a review of Starwire's
+rules on 27 Oct 2026, one for each check it found no case for: mice, pointers and keypads, the
+other pads and pages, Telephony, the endpoints each class may have, the descriptors' lengths and
+places, and reserved items and tags.
 
 `SwutPolicyCasesTest` checks that both copies are the same, that every SHARE in it is well formed,
-and that every rule a SHARE can break has a case. Nothing checks the decisions yet: Starwire's
-device rules and the helper's are each to reach every one, in their own tests.
+and that every rule a SHARE can break has a case. `UsbDeviceRulesTest` checks that Starwire's
+device rules reach every decision. The helper's rules are to reach every one too, in its own tests.

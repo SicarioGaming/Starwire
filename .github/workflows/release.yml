@@ -30,10 +30,11 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Install the NDK
+      - name: Install the NDK and CMake
         run: |
           NDK=$(grep -oP 'ndkVersion "\K[^"]+' app/build.gradle)
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK" > /dev/null
+          CMAKE=$(grep -oP '^\s*version "\K[^"]+' usbip-backend/build.gradle)
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK" "cmake;$CMAKE" > /dev/null
 
       - name: Build the signed release APK
         env:

@@ -860,6 +860,7 @@
     <string name="oss_licence_missing">This licence text is missing from the app. The project page has it.</string>
     <string name="credits_section_moonlight">Moonlight versions</string>
     <string name="credits_section_microphone">Microphone</string>
+    <string name="credits_section_usb">USB devices</string>
     <string name="credits_section_video">Video and drivers</string>
     <string name="credits_section_hosts">Hosts</string>
     <string name="credits_section_tools">Tools</string>
@@ -869,13 +870,14 @@
     <string name="credit_artemide">Nano Pacer / Fast V-Sync, Sync and Async LFR, async decode, MediaTek low-latency work, and the version of the Artemis features that Starwire ported</string>
     <string name="credit_axixi">Full keyboard, shortcuts list, Lite overlay, shortcut file format (via Artemis)</string>
     <string name="credit_turnip">Custom Turnip Vulkan driver for PyroWave</string>
-    <string name="credit_vplus">Ideas: bitrate mid-stream, audio haptics, 1% lows</string>
+    <string name="credit_vplus">The USB exporter that USB sharing is built on (usbip-backend), and ideas: bitrate mid-stream, audio haptics, 1% lows</string>
     <string name="credit_moonlit">Ideas: monitor switcher, pinch to zoom anytime</string>
     <string name="credit_fold">Idea: letting the stream follow a foldable\'s inner screen</string>
     <string name="credit_apollo_microphone">The in-stream microphone: the Android capture, the moonlight-common-c changes, and the Apollo build that receives it</string>
     <string name="credit_vban">VBAN, the network audio format Starwire\'s microphone uses, and VB-Cable, the virtual microphone the receiver plays into (donationware)</string>
     <string name="credit_pyrowave">The PyroWave codec</string>
     <string name="credit_adrenotools">Loading a custom Adreno Vulkan driver</string>
+    <string name="credit_usbipdcpp">The USB/IP server inside the app that USB sharing uses. This product uses usbipdcpp (https://github.com/yunsmall/usbipdcpp), licensed under LGPLv3.</string>
     <string name="credit_vibepollo">The host Starwire is developed with (fork of Apollo)</string>
     <string name="credit_apollo_sunshine">The hosts Vibepollo is built on</string>
     <string name="credit_claude_code">Writing the Starwire code, ports, redesign and tests</string>

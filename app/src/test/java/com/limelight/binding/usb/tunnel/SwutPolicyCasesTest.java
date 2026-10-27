@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  */
 public class SwutPolicyCasesTest {
     static final String FILE = "swut-v1-policy.txt";
-    static final String SHA256 = "1acfa0a186b4bf0f68e90317897cdae9afc83d38bece590b55003dcb793599b4";
+    static final String SHA256 = "2ec55b710f7fb46d2be00b38103dc25f118b4c213ca14f710d68d42de4cadb4b";
 
     private static final Pattern WANT = Pattern.compile("allow|ask|refuse ([1-9]|10)");
 

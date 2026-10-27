@@ -60,6 +60,9 @@ public final class OpenSourceNotices {
     private static final String CORE = "libmoonlight-core.so";
     private static final String RENDERER = "libvulkan_renderer.so";
     private static final String PYROWAVE = "libpyrowave-shared.so";
+    // The USB exporter (usbip-backend, from Moonlight V+): its versions are the pins in
+    // usbip-backend/src/main/cpp/CMakeLists.txt, which UsbBuildTest checks
+    private static final String USBIP = "libmoonlight_usbip.so";
 
     public static final Component[] ALL = {
             new Component(APP, "Starwire", BuildConfig.VERSION_NAME, "GPL-3.0",
@@ -74,6 +77,9 @@ public final class OpenSourceNotices {
                     "Cameron Gutman and the Moonlight contributors (Starwire's fork)",
                     "GPL-3.0.txt", "https://github.com/SicarioGaming/moonlight-common-c",
                     CORE),
+            new Component(APP, "Moonlight V+ USB exporter (usbip-backend)", "e8f69de", "GPL-3.0",
+                    "qiin2333 and the Moonlight V+ contributors, after yunsmall's Android-Usbipdcpp",
+                    "GPL-3.0.txt", "https://github.com/qiin2333/moonlight-vplus", USBIP),
 
             new Component(JAVA, "Bouncy Castle", "1.85.2", "MIT",
                     "Copyright (c) 2000-2026 The Legion of the Bouncy Castle Inc.",
@@ -132,9 +138,22 @@ public final class OpenSourceNotices {
             new Component(NATIVE, "Vulkan-Headers", "6802bb4", "Apache-2.0 or MIT",
                     "Copyright 2015-2026 The Khronos Group Inc.", "vulkan-headers.txt",
                     "https://github.com/KhronosGroup/Vulkan-Headers", PYROWAVE),
+            new Component(NATIVE, "usbipdcpp", "1355113", "LGPL-3.0", "yunsmall",
+                    "usbipdcpp.txt", "https://github.com/yunsmall/usbipdcpp", USBIP),
+            new Component(NATIVE, "libusb", "1.0.29", "LGPL-2.1-or-later",
+                    "Copyright © 2001 Johannes Erdfelt and others", "libusb.txt",
+                    "https://github.com/libusb/libusb", USBIP),
+            new Component(NATIVE, "Asio", "1.30.2", "BSL-1.0",
+                    "Copyright (c) 2003-2024 Christopher M. Kohlhoff", "asio.txt",
+                    "https://github.com/chriskohlhoff/asio", USBIP),
+            new Component(NATIVE, "spdlog", "1.15.3", "MIT", "Copyright (c) 2016 Gabi Melman.",
+                    "spdlog.txt", "https://github.com/gabime/spdlog", USBIP),
+            new Component(NATIVE, "fmt (inside spdlog)", "11.2.0", "MIT",
+                    "Copyright (c) 2012 - present, Victor Zverovich and {fmt} contributors", "spdlog.txt",
+                    "https://github.com/fmtlib/fmt", USBIP),
             new Component(NATIVE, "LLVM libc++", null, "Apache-2.0 with LLVM exceptions",
                     "The LLVM Project", "llvm-libcxx.txt", "https://github.com/llvm/llvm-project",
-                    CORE, RENDERER, PYROWAVE),
+                    CORE, RENDERER, PYROWAVE, USBIP),
 
             new Component(OTHER, "Material Design icons", null, "Apache-2.0", "Google",
                     APACHE, "https://github.com/google/material-design-icons"),

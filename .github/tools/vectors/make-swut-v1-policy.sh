@@ -145,4 +145,62 @@ case_ report_no_collection "$(report "05010905")" "refuse 7"
 case_ report_cut_item "$(report "${PAD}26ff")" "refuse 7"
 case_ report_too_deep "$(report "05010905a101$(printf 'a100%.0s' $(seq 16))${ITEMS}$(printf 'c0%.0s' $(seq 17))")" "refuse 7"
 case_ report_deepest "$(report "05010905a101$(printf 'a100%.0s' $(seq 15))${ITEMS}$(printf 'c0%.0s' $(seq 16))")" allow
+
+# The cases below came after a review of Starwire's rules: each check above them that no case
+# tested before. Mice, pointers and keypads ask, like keyboards
+case_ report_mouse "$(report "05010902a101${ITEMS}c0")" ask
+case_ report_pointer "$(report "05010901a101${ITEMS}c0")" ask
+case_ report_keypad "$(report "05010907a101${ITEMS}c0")" ask
+case_ hid_boot_mouse "$(share "$DEV" "$(config 01 "$(iface 00 00 01 03 01 02)$(hidd 40)$(ep 81 03 64 04)")" "00:$PAD")" ask
+# Only subclass 1 with protocol 1 or 2 is a boot keyboard or mouse
+case_ hid_boot_other_protocol "$(share "$DEV" "$(config 01 "$(iface 00 00 01 03 01 00)$(hidd 40)$(ep 81 03 64 04)")" "00:$PAD")" allow
+case_ hid_protocol_without_boot "$(share "$DEV" "$(config 01 "$(iface 00 00 01 03 00 01)$(hidd 40)$(ep 81 03 64 04)")" "00:$PAD")" allow
+
+# The other pads, and the pages and usages that aren't one
+case_ report_joystick "$(report "05010904a101${PAD_ITEMS}c0")" allow
+case_ report_multi_axis "$(report "05010908a101${PAD_ITEMS}c0")" allow
+case_ report_game_controls "$(report "05050901a101${PAD_ITEMS}c0")" allow
+case_ report_wireless_radio "$(report "0501090ca101${ITEMS}c0")" "refuse 8"
+case_ report_fido_page "$(report "06d0f10901a101${ITEMS}c0")" "refuse 8"
+case_ report_page_below_vendor "$(report "06fffe0901a101${ITEMS}c0")" "refuse 8"
+TELEPHONY=050b0905a101${ITEMS}c0
+case_ report_telephony_without_audio "$(report "$TELEPHONY")" ask
+headset_with() { config 03 "$(iface 00 00 00 01 01 00)092401000109000101$(iface 01 00 00 01 02 00)$(iface 01 01 01 01 02 00)$(ep9 01 09 192 01)$(iface 02 00 01 03 00 00)$(hidd "$(bytes "$1")")$(ep 83 03 4 08)"; }
+case_ headset_telephony "$(share "$DEV" "$(headset_with "$TELEPHONY")" "02:$TELEPHONY")" allow
+
+# Endpoints that do and don't fit their class
+case_ hid_in_and_out "$(share "$DEV" "$(config 01 "$(iface 00 00 02 03 00 00)$(hidd 40)$(ep 81 03 64 04)$(ep 01 03 64 04)")" "00:$PAD")" allow
+case_ hid_two_out_endpoints "$(share "$DEV" "$(config 01 "$(iface 00 00 03 03 00 00)$(hidd 40)$(ep 81 03 64 04)$(ep 01 03 64 04)$(ep 02 03 64 04)")" "00:$PAD")" "refuse 7"
+case_ hid_isochronous_endpoint "$(share "$DEV" "$(config 01 "$(iface 00 00 01 03 00 00)$(hidd 40)$(ep 81 01 64 01)")" "00:$PAD")" "refuse 7"
+case_ audio_control_interrupt_in "$(share "$DEV" "$(config 01 "$(iface 00 00 01 01 01 00)$(ep 81 03 16 08)")")" allow
+case_ audio_control_two_endpoints "$(share "$DEV" "$(config 01 "$(iface 00 00 02 01 01 00)$(ep 81 03 16 08)$(ep 82 03 16 08)")")" "refuse 7"
+case_ audio_control_bulk_endpoint "$(share "$DEV" "$(config 01 "$(iface 00 00 01 01 01 00)$(ep 81 02 64 00)")")" "refuse 7"
+case_ audio_control_out_endpoint "$(share "$DEV" "$(config 01 "$(iface 00 00 01 01 01 00)$(ep 01 03 16 08)")")" "refuse 7"
+case_ midi_interrupt_endpoint "$(share "$DEV" "$(config 01 "$(iface 00 00 01 01 03 00)$(ep 81 03 64 04)")")" "refuse 7"
+
+# Configurations that don't read
+case_ endpoint_twice "$(share "$DEV" "$(config 01 "$(iface 00 00 02 01 03 00)$(ep 01 02 64 00)$(ep 01 02 64 00)")")" "refuse 7"
+case_ interface_twice "$(share "$DEV" "$(config 01 "$(iface 00 00 00 01 01 00)$(iface 00 00 00 01 01 00)")")" "refuse 7"
+case_ endpoint_nine_bytes_outside_audio "$(share "$DEV" "$(config 01 "$(iface 00 00 01 03 00 00)$(hidd 40)$(ep9 81 03 64 04)")" "00:$PAD")" "refuse 7"
+case_ interface_ten_bytes "$(share "$DEV" "$(config 01 0a040000000101000000)")" "refuse 7"
+case_ iad_nine_bytes "$(share "$(dev ef 02 01)" "$(config 01 "090b00010300000000$(hid_pad "$PAD")")" "00:$PAD")" "refuse 7"
+case_ iad_no_interfaces "$(share "$(dev ef 02 01)" "$(config 01 "$(iad 00 00 03 00 00)$(hid_pad "$PAD")")" "00:$PAD")" "refuse 7"
+case_ iad_named_twice "$(share "$(dev ef 02 01)" "$(config 01 "$(iad 00 01 03 00 00)$(iad 00 01 03 00 00)$(hid_pad "$PAD")")" "00:$PAD")" "refuse 7"
+case_ configuration_inside "$(share "$DEV" "$(config 01 "$(hid_pad "$PAD")090209000101008032")" "00:$PAD")" "refuse 7"
+case_ device_descriptor_inside "$(share "$DEV" "$(config 01 "$(hid_pad "$PAD")$DEV")" "00:$PAD")" "refuse 7"
+case_ hid_descriptor_physical_first "$(share "$DEV" "$(config 01 "$(iface 00 00 01 03 00 00)092111010001232800$(ep 81 03 64 04)")" "00:$PAD")" "refuse 7"
+
+# Class codes: EF/02 groups by IADs only with protocol 1, and an IAD's video function is rule 8
+case_ device_class_misc_other_protocol "$(share "$(dev ef 02 02)" "$PAD_CONFIG" "00:$PAD")" "refuse 8"
+case_ iad_video_function "$(share "$(dev ef 02 01)" "$(config 01 "$(iad 00 01 0e 03 00)$(hid_pad "$PAD")")" "00:$PAD")" "refuse 8"
+
+# Report descriptors: reserved items and tags, the Delimiter alone, and a Collection's data that
+# isn't 1
+case_ report_reserved_type "$(report "0c$PAD")" "refuse 7"
+case_ report_reserved_main_tag "$(report "d0$PAD")" "refuse 7"
+case_ report_reserved_local_tag "$(report "68$PAD")" "refuse 7"
+case_ report_delimiter_alone "$(report "0501a9010905a900a101${PAD_ITEMS}c0")" "refuse 7"
+case_ report_collection_two_bytes "$(report "05010905a20101${PAD_ITEMS}c0")" "refuse 7"
+# A 4-byte Usage carries its page, so a Usage Page after it changes nothing
+case_ report_extended_usage_then_page "$(report "0b050001000507a101${PAD_ITEMS}c0")" allow
 } > "$out"

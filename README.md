@@ -470,6 +470,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Send your microphone to the PC with any host: a VBAN stream to Starwire's receiver on the PC, which plays it into VB-Cable. Encrypted from 0.2.1, and only from devices you've paired with the PC; a "Not encrypted" option stays for Voicemeeter and other VBAN apps ([see above](#new-in-020-your-microphone-on-the-pc-with-any-host)). The receiver has no window, just an icon by the clock with pairing, a mic check and a test tone | New in Starwire, with its Windows receiver and setup script; VBAN is VB-Audio's network audio format |
 | Or send it over the stream itself, with a choice of microphone **(needs [logabell's Apollo build](https://github.com/logabell/apollo-microphone/releases) on the PC)** | Ported from logabell's Artemis and moonlight-common-c microphone changes ([Artemis PR #537](https://github.com/ClassicOldSong/moonlight-android/pull/537)); echo-cancelled capture is new in Starwire |
 | Per-game settings for the new options (codec, V-Sync, LFR, async decode, display, touch mode, cursor, audio haptics, and the jitter buffer coming in 0.2.1) | Extends Moonlight X's per-app settings (MoreOrLessSoftware); the per-game jitter buffer is from Moonlight X too |
+| USB sharing's phone side, not in the stream menu yet: the USB/IP exporter inside the app, and the device rules that decide what may be shared before anything is (one device at a time, Android 9 or later on 64-bit ARM). No device has been shared through it yet | The exporter is ported from Moonlight V+'s usbip-backend (qiin2333), after yunsmall's Android-Usbipdcpp, and built on usbipdcpp (yunsmall) and libusb; the device rules and one-device sharing are new in Starwire |
 
 </details>
 
@@ -499,13 +500,14 @@ repos a star:
 | [Artemide](https://github.com/derflacco/moonlight-android) | derflacco | Nano Pacer / Fast V-Sync, Sync and Async LFR, async decode, MediaTek low-latency work, and the version of all the Artemis features above that Starwire ported |
 | [Moonlight (Axixi2233 fork)](https://github.com/Axixi2233/moonlight-android) | Axixi2233 | Full keyboard, shortcuts list, Lite overlay, shortcut file format (via Artemis) |
 | [Moonlight X Turnip](https://github.com/NoCrypt/moonlight-x-turnip) | ncpt (NoCrypt) | Custom Turnip Vulkan driver for PyroWave |
-| [Moonlight V+](https://github.com/qiin2333/moonlight-vplus) | qiin2333 | Ideas: bitrate mid-stream, audio haptics, 1% lows |
+| [Moonlight V+](https://github.com/qiin2333/moonlight-vplus) | qiin2333 | The USB exporter that USB sharing is built on (usbip-backend), and ideas: bitrate mid-stream, audio haptics, 1% lows |
 | [Moonlit Artemis](https://github.com/4had45/moonlit-artemis) | Mohammad Forhad (4had45) | Ideas: monitor switcher, pinch to zoom anytime |
 | [Moonlight Fold](https://github.com/sblocktechnologies/moonlight-fold) | sblocktechnologies | Idea: letting the stream follow a foldable's inner screen |
 | [Apollo microphone](https://github.com/logabell/apollo-microphone) | logabell | The in-stream microphone: the Android capture, the moonlight-common-c changes, and the Apollo build that receives it |
 | [VBAN and VB-Cable](https://vb-audio.com/Cable/) | VB-Audio (Vincent Burel) | VBAN, the network audio format Starwire's microphone uses, and VB-Cable, the virtual microphone the receiver plays into (donationware) |
 | [PyroWave](https://github.com/Themaister/pyrowave) | Hans-Kristian Arntzen (Themaister) | The PyroWave codec (MIT) |
 | [libadrenotools](https://github.com/bylaws/libadrenotools) | Billy Laws (bylaws) | Loading a custom Adreno Vulkan driver (BSD-2-Clause) |
+| [usbipdcpp](https://github.com/yunsmall/usbipdcpp) | yunsmall | The USB/IP server inside the app that USB sharing uses (LGPL-3.0). This product uses usbipdcpp (https://github.com/yunsmall/usbipdcpp), licensed under LGPLv3. |
 | [Vibepollo](https://github.com/Nonary/Vibepollo) | Chase Payne (Nonary) | The host Starwire is developed with (fork of Apollo) |
 | [Apollo](https://github.com/ClassicOldSong/Apollo) / [Sunshine](https://github.com/LizardByte/Sunshine) | ClassicOldSong / LizardByte | The hosts Vibepollo is built on |
 | [Claude Code](https://claude.com/claude-code) | Anthropic | Writing the Starwire code, ports, redesign and tests |
@@ -570,7 +572,10 @@ the same value.
 1. Install Android Studio (or just the Android SDK), a JDK 17 or newer (Android Studio comes with
    one), and the exact NDK version in `app/build.gradle`, currently 29.0.14206865. In Android
    Studio that's **SDK Manager → SDK Tools → NDK (Side by side)** with **Show Package Details**
-   ticked; on the command line, `sdkmanager "ndk;29.0.14206865"`.
+   ticked; on the command line, `sdkmanager "ndk;29.0.14206865"`. The USB exporter also needs
+   CMake 3.31.6 (**CMake** in the same list, or `sdkmanager "cmake;3.31.6"`), and its first
+   build downloads the pinned sources of usbipdcpp, libusb, Asio and spdlog from GitHub, each
+   checked against its SHA-256 (`usbip-backend/src/main/cpp/CMakeLists.txt`).
 2. Clone with the submodules:
    ```bash
    git clone --recursive https://github.com/SicarioGaming/Starwire.git
