@@ -30,6 +30,16 @@ steps and the checksums for each version.
   or tablet yet, and nothing in the app starts it until the stream menu gets its USB item. The
   APK carries the exporter for 64-bit ARM (and x86_64 in debug builds), and its licences are in
   Settings > About > Open-source licences.
+- **USB devices (Experimental), the menu side:** a "USB devices (Experimental)" setting under
+  Controllers, off by default, adds "USB devices" to the stream menu. It lists what's plugged into
+  the phone: which devices can't be shared and why, which ask you first (keyboards and mice), and
+  that the rest are checked in full when you share them. Choosing one asks Android's permission
+  and shares it; choosing it again, unplugging it or ending the stream gives it back, and after a
+  lost connection, or the phone's network going away, it offers to share it again. A device that
+  turns out to be a keyboard or mouse only once Starwire reads all of it isn't shared, and asks you
+  then. Only this part is in so far, tested on the computer with stand-ins for the parts that carry
+  the device to the PC, so the setting stays hidden until those are in. Nothing has been shared on
+  a phone or a PC yet, and the question for a keyboard hasn't been tried with a controller.
 
 ## [0.2.1] - 2026-10-23
 

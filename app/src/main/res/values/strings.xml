@@ -196,6 +196,8 @@
     <string name="summary_checkbox_xb1_driver">Enables a built-in USB driver for devices without native Xbox controller support</string>
     <string name="title_checkbox_usb_bind_all">Override native Xbox gamepad support</string>
     <string name="summary_checkbox_usb_bind_all">Use Starwire\'s USB driver for all supported gamepads, even if native Xbox controller support is present</string>
+    <string name="title_checkbox_usb_share">USB devices (Experimental)</string>
+    <string name="summary_checkbox_usb_share">Share a wired device plugged into this phone with the PC, from the stream menu. The PC needs Starwire\'s USB helper, and this phone paired with its microphone receiver.</string>
     <string name="title_checkbox_mouse_emulation">Mouse emulation via gamepad</string>
     <string name="summary_checkbox_mouse_emulation">Long pressing the Start button will switch the gamepad into mouse mode</string>
     <string name="title_checkbox_flip_face_buttons">Flip face buttons</string>
@@ -544,6 +546,43 @@
     <string name="bitrate_mbps">%1$d Mbps</string>
     <string name="bitrate_changed">Bitrate set to %1$d Mbps</string>
     <string name="bitrate_failed">Couldn\'t change bitrate: %1$s</string>
+
+    <!-- Starwire: sharing a wired USB device with the PC (Experimental) -->
+    <string name="overlay_menu_usb_devices">USB devices</string>
+    <string name="usb_share_none_plugged_in">No USB devices plugged in</string>
+    <string name="usb_share_unnamed">USB device %1$04x:%2$04x</string>
+    <string name="usb_share_verdict_allowed">Can be shared</string>
+    <string name="usb_share_verdict_unchecked">Checked when you share it</string>
+    <string name="usb_share_verdict_ask">Asks you first</string>
+    <string name="usb_share_verdict_refused">Can\'t be shared. %1$s</string>
+    <string name="usb_share_rule_hub">It\'s a USB hub.</string>
+    <string name="usb_share_rule_storage">It\'s storage, a camera or a phone.</string>
+    <string name="usb_share_rule_network">It\'s a network adapter, modem or radio.</string>
+    <string name="usb_share_rule_vendor">It needs its maker\'s own driver.</string>
+    <string name="usb_share_rule_unconfirmed">Keyboards and mice need your yes on this phone first.</string>
+    <string name="usb_share_rule_configurations">It has more than one configuration.</string>
+    <string name="usb_share_rule_unreadable">Its descriptors don\'t add up.</string>
+    <string name="usb_share_rule_other_class">Starwire doesn\'t share this kind of device.</string>
+    <string name="usb_share_rule_mismatch">It sent the PC something it hadn\'t described.</string>
+    <string name="usb_share_rule_too_fast">It\'s a USB 3 device.</string>
+    <string name="usb_share_rule_other">The device rules refused it.</string>
+    <string name="usb_share_state_permission">Waiting for Android\'s permission</string>
+    <string name="usb_share_state_confirm">Waiting for your answer</string>
+    <string name="usb_share_state_connecting">Connecting to the PC</string>
+    <string name="usb_share_state_shared">Shared with the PC. Select to stop.</string>
+    <string name="usb_share_state_stopping">Giving it back</string>
+    <string name="usb_share_state_lost">Connection lost. Share again?</string>
+    <string name="usb_share_one_at_a_time">Stop sharing %1$s first. One device is shared at a time.</string>
+    <string name="usb_share_confirm_title">Share this keyboard or mouse?</string>
+    <string name="usb_share_confirm_message">While \"%1$s\" (%2$04x:%3$04x) is shared, the PC gets everything you type or click on it.</string>
+    <string name="usb_share_confirm_share">Share</string>
+    <string name="usb_share_confirm_cancel">Don\'t share</string>
+    <string name="usb_share_shared_toast">%1$s is shared with the PC.</string>
+    <string name="usb_share_unplugged_toast">%1$s was unplugged, so it\'s no longer shared.</string>
+    <string name="usb_share_lost_toast">Lost the connection to the PC. %1$s is back on this phone.</string>
+    <string name="usb_share_connect_failed">Couldn\'t start sharing it. Try again in a moment.</string>
+    <string name="usb_share_ended">Sharing stopped.</string>
+    <string name="usb_share_permission_denied">Android didn\'t let Starwire use it.</string>
 
     <!-- Starwire: Warp Drive / Warp 2 pacing (from Artemide), cursor hiding, long-press right click -->
     <string name="pacing_warp">Warp Drive: 2x FPS from the PC, newest frame shown (Experimental)</string>
