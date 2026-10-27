@@ -147,9 +147,14 @@ public class UsbExporterTest {
             return busId;
         }
 
+        Runnable onUnbind;
+
         @Override
         public void unbind(long handle, String busId) {
             calls.add("unbind " + handle + " " + busId);
+            if (onUnbind != null) {
+                onUnbind.run();
+            }
         }
 
         @Override
@@ -617,5 +622,20 @@ public class UsbExporterTest {
         assertEquals(next.name, exporter.current().deviceName);
         assertTrue("the new device's unplug isn't heard", watch.on);
         assertEquals(List.of("start", "stop", "start"), watch.events);
+    }
+
+    // current() may be called from the main thread, so it never waits for the lock that stop()
+    // holds while the native exporter lets the device go, which can take seconds
+    @Test
+    public void currentDoesntWaitForAStopUnderWay() throws Exception {
+        exporter.start(device("pad"), false);
+        List<Thread> started = new ArrayList<>();
+        Object[] during = new Object[] {"not asked"};
+        natives.onUnbind = () -> during[0] = onAnotherThread(started, exporter::current);
+        exporter.stop();
+        for (Thread t : started) {
+            t.join();
+        }
+        assertNull("current() waited for the stop, or still gave the device", during[0]);
     }
 }

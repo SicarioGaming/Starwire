@@ -161,6 +161,10 @@ public final class UsbExporter {
     // the export it belongs to, so a stop() or a failed start() never ends another export's.
     private Active active;
     private boolean watching;
+    // What current() returns, readable without the lock: start(), connect() and stop() hold the
+    // lock while the native exporter works, which can take seconds, and current() may be called
+    // from the main thread
+    private volatile Export current;
 
     public UsbExporter(Context context, Listener listener) {
         Context app = context.getApplicationContext();
@@ -309,6 +313,7 @@ public final class UsbExporter {
                 // A bus id or descriptors SHARE can't carry never get as far as the tunnel
                 export.shareFrame();
                 active = new Active(export, device);
+                current = export;
                 exported = true;
                 return export;
             }
@@ -369,9 +374,9 @@ public final class UsbExporter {
         release(null);
     }
 
-    /** The shared device, or null. */
-    public synchronized Export current() {
-        return active == null ? null : active.export;
+    /** The shared device, or null. It never waits for a start() or stop() under way. */
+    public Export current() {
+        return current;
     }
 
     // Android said this device was unplugged: release it off the main thread, then say so
@@ -410,6 +415,7 @@ public final class UsbExporter {
             return null;
         }
         active = null;
+        current = null;
         try {
             closeQuietly(a.socket);
             teardown(a.export.handle, a.export.busId);
