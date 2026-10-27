@@ -40,9 +40,12 @@ import java.util.TimerTask;
  *       stack, to logcat (tag StuckTest) and to the run's output, where parse-instrument.sh turns
  *       the test into a failure even if it passes after this;</li>
  *   <li>finishes the test's activities, so a screen that keeps the main thread busy goes, the
- *       wait ends, and the run carries on with the next test;</li>
- *   <li>if the test still hasn't finished 30 seconds later, the main thread is blocked outright:
- *       it reports again and ends the process, so the run stops now and not 40 minutes on.</li>
+ *       wait ends, and the run carries on with the next test. That only works while the main
+ *       thread still runs the system's messages, as closing a screen takes several of them. A
+ *       layout that never ends holds them back, because only the drawing gets through;</li>
+ *   <li>if the test still hasn't finished 30 seconds later, it reports again and ends the
+ *       process, so the run stops now and not 40 minutes on. The tests after it don't run, and
+ *       the report is what's left to go on.</li>
  * </ol>
  */
 public class StuckTestWatchdog extends RunListener {
