@@ -91,9 +91,9 @@ public class AboutSettingsTest {
     }
 
     // The sections are the ones the page is built from, not a count typed in here: that count
-    // stayed at 5 when 0.3.0 added the USB devices credits, and failed on every device. A section
-    // left out, or listed twice, still fails, through the entries count or the repeat check.
-    // AboutPagesTest checks the same on the JVM.
+    // stayed at 5 when 0.3.0 added the USB devices credits, and failed on every emulator leg that
+    // ran it. A section left out, or listed twice, still fails, through the entries count or the
+    // repeat check. AboutPagesTest checks the same on the JVM.
     private void checkPage(String page, int title, int[] sections, int entries) {
         Intent intent = new Intent(target, OpenSourceActivity.class)
                 .putExtra(OpenSourceActivity.EXTRA_PAGE, page);
