@@ -26,8 +26,8 @@ android {
 
         // Starwire's own version. The code carries on from Moonlight X's 315 so that builds
         // installed during development can be upgraded in place.
-        versionName "0.2.1"
-        versionCode = 319
+        versionName "0.3.0"
+        versionCode = 320
         buildConfigField "String", "GIT_COMMIT", "\"${gitCommit}\""
 
         // Generate native debug symbols to allow Google Play to symbolicate our native crashes

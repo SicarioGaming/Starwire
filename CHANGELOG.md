@@ -13,6 +13,8 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-28
+
 ### Added
 
 - **A Brightness item in the stream menu,** which opens the brightness slider. A controller moves
@@ -389,7 +391,8 @@ same app renamed; it installs separately, so you can uninstall Voidlink afterwar
 - **Extras:** monitor switching, pinch to zoom anytime, changing the bitrate mid-stream, audio
   haptics and shortcuts imported from a file.
 
-[Unreleased]: https://github.com/SicarioGaming/Starwire/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/SicarioGaming/Starwire/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/SicarioGaming/Starwire/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/SicarioGaming/Starwire/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/SicarioGaming/Starwire/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/SicarioGaming/Starwire/compare/v0.1.0...v0.1.2
