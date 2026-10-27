@@ -133,6 +133,13 @@ public final class UsbExporter {
         Socket create();
     }
 
+    /** Android's unplug broadcast, heard while a device is shared, so the tests can stand in for it. */
+    interface UnplugWatch {
+        void start();
+
+        void stop();
+    }
+
     private static final class Active {
         final Export export;
         final Device device;
@@ -148,20 +155,21 @@ public final class UsbExporter {
     private final Sockets sockets;
     private final Executor background;
     private final Listener listener;
-    private final Context context;
     private final UsbManager usbManager;
-    private final BroadcastReceiver detachReceiver;
+    private final UnplugWatch unplugWatch;
+    // active and watching change only under this object's lock. The watch starts and stops with
+    // the export it belongs to, so a stop() or a failed start() never ends another export's.
     private Active active;
-    private boolean receiverRegistered;
+    private boolean watching;
 
     public UsbExporter(Context context, Listener listener) {
-        this.context = context.getApplicationContext();
-        this.usbManager = (UsbManager) this.context.getSystemService(Context.USB_SERVICE);
+        Context app = context.getApplicationContext();
+        this.usbManager = (UsbManager) app.getSystemService(Context.USB_SERVICE);
         this.natives = new RealNatives();
         this.sockets = Socket::new;
         this.background = Executors.newSingleThreadExecutor(r -> new Thread(r, "UsbExporter"));
         this.listener = listener;
-        this.detachReceiver = new BroadcastReceiver() {
+        BroadcastReceiver detachReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context c, Intent intent) {
                 UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
@@ -170,17 +178,50 @@ public final class UsbExporter {
                 }
             }
         };
+        this.unplugWatch = new UnplugWatch() {
+            @Override
+            public void start() {
+                IntentFilter filter = new IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    // A system broadcast, which reaches an unexported receiver too (as in UsbDriverService)
+                    app.registerReceiver(detachReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                }
+                else {
+                    app.registerReceiver(detachReceiver, filter);
+                }
+            }
+
+            @Override
+            public void stop() {
+                try {
+                    app.unregisterReceiver(detachReceiver);
+                }
+                catch (IllegalArgumentException ignored) {
+                }
+            }
+        };
     }
 
     // For the JVM tests: no Android, and the background work runs where the test says
-    UsbExporter(Natives natives, Sockets sockets, Executor background, Listener listener) {
-        this.context = null;
+    UsbExporter(Natives natives, Sockets sockets, Executor background, Listener listener, UnplugWatch unplugWatch) {
         this.usbManager = null;
         this.natives = natives;
         this.sockets = sockets;
         this.background = background;
         this.listener = listener;
-        this.detachReceiver = null;
+        this.unplugWatch = unplugWatch;
+    }
+
+    UsbExporter(Natives natives, Sockets sockets, Executor background, Listener listener) {
+        this(natives, sockets, background, listener, new UnplugWatch() {
+            @Override
+            public void start() {
+            }
+
+            @Override
+            public void stop() {
+            }
+        });
     }
 
     /** Android 9 or later on 64-bit ARM, the only builds with the exporter's library. */
@@ -205,32 +246,26 @@ public final class UsbExporter {
         if (usbManager == null || !usbManager.hasPermission(device)) {
             throw new SecurityException("No USB permission for this device");
         }
+        // The lock for the whole start, so a second one can't open the device meanwhile
         synchronized (this) {
             if (active != null) {
                 throw new IllegalStateException("A USB device is already shared");
             }
-        }
-        UsbDeviceConnection connection = usbManager.openDevice(device);
-        if (connection == null) {
-            throw new IOException("Android couldn't open the USB device");
-        }
-        // Listening before the export, so an unplug straight after it isn't missed
-        registerDetachReceiver();
-        try {
+            UsbDeviceConnection connection = usbManager.openDevice(device);
+            if (connection == null) {
+                throw new IOException("Android couldn't open the USB device");
+            }
             return start(new AndroidDevice(device, connection), inputConfirmed);
-        }
-        catch (Refused | IOException | RuntimeException e) {
-            unregisterDetachReceiver();
-            throw e;
         }
     }
 
     synchronized Export start(Device device, boolean inputConfirmed) throws Refused, IOException {
+        if (active != null) {
+            device.close();
+            throw new IllegalStateException("A USB device is already shared");
+        }
         boolean exported = false;
         try {
-            if (active != null) {
-                throw new IllegalStateException("A USB device is already shared");
-            }
             byte[][] parts = split(device.rawDescriptors());
             if (parts == null) {
                 throw new Refused(UsbDeviceRules.refusal(SwutCodec.RULE_UNREADABLE));
@@ -258,6 +293,8 @@ public final class UsbExporter {
             int flags = asks ? SwutCodec.FLAG_CONFIRMED_INPUT : 0;
             byte[] name = SwmcCodec.nameBytes(device.productName() == null ? "" : device.productName());
 
+            // Watching before the export, so an unplug straight after it isn't missed
+            watch(true);
             long handle = natives.start();
             String busId = null;
             try {
@@ -284,6 +321,7 @@ public final class UsbExporter {
         finally {
             if (!exported) {
                 device.close();
+                watch(false);
             }
         }
     }
@@ -324,14 +362,8 @@ public final class UsbExporter {
     }
 
     /** Gives the shared device back to the phone: Stop, or the stream ending. */
-    public void stop() {
-        Active released;
-        synchronized (this) {
-            released = release(null);
-        }
-        if (released != null) {
-            unregisterDetachReceiver();
-        }
+    public synchronized void stop() {
+        release(null);
     }
 
     /** The shared device, or null. */
@@ -346,27 +378,43 @@ public final class UsbExporter {
             synchronized (this) {
                 released = release(deviceName);
             }
-            if (released != null) {
-                unregisterDetachReceiver();
-                if (listener != null) {
-                    listener.onDeviceGone(released.export);
-                }
+            if (released != null && listener != null) {
+                listener.onDeviceGone(released.export);
             }
         });
     }
 
+    // Starts or stops the unplug watch. Called with the lock held, as active changes.
+    private void watch(boolean on) {
+        if (watching == on) {
+            return;
+        }
+        if (on) {
+            unplugWatch.start();
+        }
+        else {
+            unplugWatch.stop();
+        }
+        watching = on;
+    }
+
     // The tunnel's end of the connection goes first, so the exporter's session drains by itself,
     // then the device leaves the exporter, the exporter stops, and Android gets the device back.
-    // This is V+'s order (UsbIpBackend).
+    // This is V+'s order (UsbIpBackend). Called with the lock held.
     private Active release(String onlyDeviceName) {
         Active a = active;
         if (a == null || (onlyDeviceName != null && !onlyDeviceName.equals(a.export.deviceName))) {
             return null;
         }
         active = null;
-        closeQuietly(a.socket);
-        teardown(a.export.handle, a.export.busId);
-        a.device.close();
+        try {
+            closeQuietly(a.socket);
+            teardown(a.export.handle, a.export.busId);
+            a.device.close();
+        }
+        finally {
+            watch(false);
+        }
         return a;
     }
 
@@ -417,37 +465,6 @@ public final class UsbExporter {
             return null;
         }
         return new byte[][] {Arrays.copyOfRange(raw, 0, at), Arrays.copyOfRange(raw, at, at + total)};
-    }
-
-    private void registerDetachReceiver() {
-        synchronized (this) {
-            if (context == null || receiverRegistered) {
-                return;
-            }
-            receiverRegistered = true;
-        }
-        IntentFilter filter = new IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // A system broadcast, which reaches an unexported receiver too (as in UsbDriverService)
-            context.registerReceiver(detachReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        }
-        else {
-            context.registerReceiver(detachReceiver, filter);
-        }
-    }
-
-    private void unregisterDetachReceiver() {
-        synchronized (this) {
-            if (context == null || !receiverRegistered) {
-                return;
-            }
-            receiverRegistered = false;
-        }
-        try {
-            context.unregisterReceiver(detachReceiver);
-        }
-        catch (IllegalArgumentException ignored) {
-        }
     }
 
     private static final class AndroidDevice implements Device {

@@ -21,9 +21,11 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 /**
  * UsbExporter's rules, with the native exporter, the device and the socket stood in for: the
@@ -213,15 +215,76 @@ public class UsbExporterTest {
         }
     }
 
+    // Android's unplug broadcast: whether it's heard now, each start and stop, and any that
+    // happened without the exporter's lock, the one that guards which device is shared
+    final class FakeWatch implements UsbExporter.UnplugWatch {
+        final List<String> events = Collections.synchronizedList(new ArrayList<>());
+        volatile boolean on;
+        volatile Runnable onStop;
+
+        @Override
+        public void start() {
+            events.add(Thread.holdsLock(exporter) ? "start" : "start without the lock");
+            on = true;
+        }
+
+        @Override
+        public void stop() {
+            events.add(Thread.holdsLock(exporter) ? "stop" : "stop without the lock");
+            Runnable r = onStop;
+            onStop = null;
+            if (r != null) {
+                r.run();
+            }
+            on = false;
+        }
+    }
+
     private final FakeNatives natives = new FakeNatives();
     private final List<FakeSocket> sockets = new ArrayList<>();
     private final List<UsbExporter.Export> gone = new ArrayList<>();
+    private final FakeWatch watch = new FakeWatch();
     private boolean failConnect;
     private final UsbExporter exporter = new UsbExporter(natives, () -> {
         FakeSocket s = new FakeSocket(natives.calls, failConnect);
         sockets.add(s);
         return s;
-    }, Runnable::run, gone::add);
+    }, Runnable::run, gone::add, watch);
+
+    private static final Object BLOCKED = new Object();
+
+    // Runs task on another thread and returns what it returned, or BLOCKED once that thread waits
+    // for a lock the calling thread holds. In these tests the exporter's is the only lock that
+    // thread can meet. No clock: it watches the thread until it has finished or is blocked.
+    private static Object onAnotherThread(List<Thread> started, Callable<Object> task) {
+        Object[] result = new Object[1];
+        Thread t = new Thread(() -> {
+            try {
+                result[0] = task.call();
+            }
+            catch (Exception e) {
+                result[0] = e;
+            }
+        });
+        started.add(t);
+        t.start();
+        while (true) {
+            Thread.State state = t.getState();
+            if (state == Thread.State.TERMINATED) {
+                try {
+                    t.join();
+                }
+                catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+                return result[0];
+            }
+            if (state == Thread.State.BLOCKED) {
+                return BLOCKED;
+            }
+            Thread.yield();
+        }
+    }
 
     private FakeDevice device(String caseName) throws IOException {
         SwutCodec.Share share = caseShare(caseName);
@@ -470,5 +533,60 @@ public class UsbExporterTest {
         };
         assertEquals("refuse 7", refusal(cut, false).toString());
         assertTrue(cut.closed);
+    }
+
+    // ---------------------------------------------------------------- the review's fixes
+    // The unplug watch belongs to the export: it starts with it and stops with it, always under
+    // the lock that guards which device is shared
+    @Test
+    public void theUnplugWatchStartsAndStopsWithItsExport() throws Exception {
+        FakeDevice pad = device("pad");
+        exporter.start(pad, false);
+        assertTrue(watch.on);
+        exporter.stop();
+        assertFalse(watch.on);
+        exporter.start(device("pad"), false);
+        exporter.deviceDetached(exporter.current().deviceName);
+        assertFalse(watch.on);
+        assertEquals("refuse 2", refusal(device("interface_storage"), true).toString());
+        natives.speed = 4;
+        assertEquals("refuse 10", refusal(device("pad"), false).toString());
+        assertFalse(watch.on);
+        assertEquals("a refused device is never watched", List.of("start", "stop", "start", "stop"), watch.events);
+    }
+
+    // A second start fails without touching the first device's watch
+    @Test
+    public void aSecondStartLeavesTheFirstExportsWatchAlone() throws Exception {
+        exporter.start(device("pad"), false);
+        try {
+            exporter.start(new FakeDevice("/dev/bus/usb/001/007", caseShare("pad")), false);
+            fail("a second device was shared");
+        }
+        catch (IllegalStateException expected) {
+        }
+        assertTrue("the first device's unplug is no longer heard", watch.on);
+        assertEquals(List.of("start"), watch.events);
+    }
+
+    // A start that comes while a stop is giving the last device back gets a watch of its own.
+    // Here it comes while the stop is ending the old device's watch: it waits for the lock, so
+    // the stop can't end the new device's watch instead
+    @Test
+    public void aStartDuringAStopKeepsItsOwnWatch() throws Exception {
+        exporter.start(device("pad"), false);
+        FakeDevice next = new FakeDevice("/dev/bus/usb/001/008", caseShare("pad"));
+        List<Thread> started = new ArrayList<>();
+        Object[] during = new Object[1];
+        watch.onStop = () -> during[0] = onAnotherThread(started, () -> exporter.start(next, false));
+        exporter.stop();
+        for (Thread t : started) {
+            t.join();
+        }
+        assertSame("the start went ahead without waiting for the stop", BLOCKED, during[0]);
+        assertNotNull(exporter.current());
+        assertEquals(next.name, exporter.current().deviceName);
+        assertTrue("the new device's unplug isn't heard", watch.on);
+        assertEquals(List.of("start", "stop", "start"), watch.events);
     }
 }
