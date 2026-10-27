@@ -304,11 +304,13 @@ public class AppViewTest {
     public void offscreenDrawingShowsGpuBitmaps() {
         // The tests above draw the screen by hand, and box art can be a GPU bitmap, which a
         // canvas made on a bitmap refuses: appListOpensWithoutClosing failed that way on every
-        // emulator
+        // emulator. Where the GPU gives back no picture at all (Google's ATD image) there's
+        // nothing to check, so it skips there.
         org.junit.Assume.assumeTrue("GPU bitmaps start with Android 8",
                 android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O);
         int green = android.graphics.Color.rgb(40, 160, 90);
         android.graphics.Bitmap[] drawn = new android.graphics.Bitmap[1];
+        String[] cantDraw = new String[1];
         RuntimeException[] failed = new RuntimeException[1];
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             android.graphics.Bitmap soft = android.graphics.Bitmap.createBitmap(
@@ -322,6 +324,9 @@ public class AppViewTest {
             image.layout(0, 0, 240, 320);
             try {
                 drawn[0] = drawToBitmap(image, 240, 320);
+                if (drawn[0] == null) {
+                    cantDraw[0] = whyGpuCantDrawOffscreen();
+                }
             }
             catch (RuntimeException e) {
                 // Thrown here it would stop the whole run, not just this test
@@ -330,6 +335,12 @@ public class AppViewTest {
         });
         if (failed[0] != null) {
             throw new AssertionError("drawing a GPU bitmap offscreen failed", failed[0]);
+        }
+        if (drawn[0] == null) {
+            // No picture skips only where the GPU can't draw a 1x1 one either; anywhere else it
+            // fails
+            org.junit.Assume.assumeTrue(cantDraw[0], cantDraw[0] == null);
+            fail("drawing a GPU bitmap offscreen gave no picture");
         }
         assertEquals(android.graphics.Bitmap.Config.ARGB_8888, drawn[0].getConfig());
         int middle = drawn[0].getPixel(120, 160);
@@ -431,6 +442,16 @@ public class AppViewTest {
                 android.view.View.MeasureSpec.makeMeasureSpec(height, android.view.View.MeasureSpec.EXACTLY));
         root.layout(0, 0, width, height);
         android.graphics.Bitmap bitmap = drawToBitmap(root, width, height);
+        if (bitmap == null) {
+            // The screen was laid out and drawn into the recording all the same; only its picture
+            // is missing, and that's allowed only where the GPU can't draw offscreen at all
+            String why = whyGpuCantDrawOffscreen();
+            if (why == null) {
+                throw new AssertionError("drawing the screen offscreen gave no picture");
+            }
+            android.util.Log.w("AppViewTest", "Not saving this drawing as " + fileName + ": " + why);
+            return;
+        }
         try (java.io.FileOutputStream out = new java.io.FileOutputStream(
                 TestFiles.file(activity, fileName))) {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
@@ -444,13 +465,22 @@ public class AppViewTest {
     // a GPU (HARDWARE) bitmap, such as the box art appListOpensWithoutClosing hands the hero.
     // From Android 9 the screen is recorded instead and the recording drawn by the GPU, as the
     // real screen is. Android 8 has no public way, so it gets the canvas's hidden switch (not
-    // tried on an Android 8 device).
+    // tried on an Android 8 device). Null when the GPU gives back no picture.
     private static android.graphics.Bitmap drawToBitmap(android.view.View root, int width, int height) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             android.graphics.Picture picture = new android.graphics.Picture();
             root.draw(picture.beginRecording(width, height));
             picture.endRecording();
-            return android.graphics.Bitmap.createBitmap(picture, width, height, android.graphics.Bitmap.Config.ARGB_8888);
+            if (!picture.requiresHardwareAcceleration()) {
+                // No GPU bitmaps in it, so Android draws it in software
+                return android.graphics.Bitmap.createBitmap(picture, width, height, android.graphics.Bitmap.Config.ARGB_8888);
+            }
+            // Asked for ARGB_8888, Android has the GPU draw a GPU bitmap and copies that out, and
+            // when the GPU gives back nothing it calls copy() on null itself (Bitmap.java line
+            // 1314 on Android 11). Asked for the GPU bitmap, it hands back the null instead.
+            android.graphics.Bitmap gpu = android.graphics.Bitmap.createBitmap(
+                    picture, width, height, android.graphics.Bitmap.Config.HARDWARE);
+            return gpu == null ? null : gpu.copy(android.graphics.Bitmap.Config.ARGB_8888, false);
         }
         android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888);
         android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
@@ -464,5 +494,29 @@ public class AppViewTest {
         }
         root.draw(canvas);
         return bitmap;
+    }
+
+    // Null when this device's GPU can draw a GPU bitmap offscreen the way drawToBitmap does, else
+    // why it can't. It tries a 1x1 drawing with the same Android calls and nothing of the app's.
+    // Google's lean ATD image (Android 11) can't: the GPU drawing comes back empty (logcat:
+    // "ThreadedRenderer: Error reading image: -30001!", that is no buffer came back) and all its
+    // screenshots are black, so it seems to draw nothing with the GPU at all.
+    private static String whyGpuCantDrawOffscreen() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) {
+            // drawToBitmap doesn't use the GPU there
+            return null;
+        }
+        android.graphics.Bitmap gpu = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+                .copy(android.graphics.Bitmap.Config.HARDWARE, false);
+        if (gpu == null) {
+            return "this device can't make GPU bitmaps";
+        }
+        android.graphics.Picture picture = new android.graphics.Picture();
+        picture.beginRecording(1, 1).drawBitmap(gpu, 0, 0, null);
+        picture.endRecording();
+        if (android.graphics.Bitmap.createBitmap(picture, 1, 1, android.graphics.Bitmap.Config.HARDWARE) == null) {
+            return "the GPU on this device gives back no picture of an offscreen drawing";
+        }
+        return null;
     }
 }
