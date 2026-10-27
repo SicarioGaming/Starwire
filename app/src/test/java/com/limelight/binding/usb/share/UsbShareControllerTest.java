@@ -86,7 +86,8 @@ public class UsbShareControllerTest {
         assertEquals(str(R.string.usb_share_verdict_unchecked), detail(PAD));
         assertEquals(str(R.string.usb_share_verdict_ask), detail(KEYBOARD));
         assertEquals(str(R.string.usb_share_verdict_refused, str(R.string.usb_share_rule_storage)), detail(STICK));
-        assertEquals(str(R.string.usb_share_verdict_allowed), detail(HEADSET));
+        // Android doesn't show all that decides, even for audio
+        assertEquals(str(R.string.usb_share_verdict_unchecked), detail(HEADSET));
     }
 
     @Test

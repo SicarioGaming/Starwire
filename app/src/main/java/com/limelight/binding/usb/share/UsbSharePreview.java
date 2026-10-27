@@ -10,9 +10,9 @@ import java.util.Set;
  *
  * Android shows the class codes, configurations, interfaces and endpoints, but not interface
  * association descriptors, descriptor lengths or HID report descriptors. So this runs the checks
- * that only need what it shows, in the contract's order, and a device with a HID interface gets
- * an incomplete verdict: the exporter decides it again from all its descriptors when you share
- * it (UsbShareExporter), and that decision is the one that counts.
+ * that only need what it shows, in the contract's order. Its verdicts that aren't refusals are
+ * incomplete: the exporter decides again from all the device's descriptors, and its speed, when
+ * you share it (UsbShareExporter), and that decision is the one that counts.
  */
 public final class UsbSharePreview {
     // USB class codes (usb.org "Defined Class Codes")
@@ -58,7 +58,6 @@ public final class UsbSharePreview {
         }
         // 4. Android doesn't show IADs, so their checks wait for the full descriptors
         // 5. Each interface and alternate setting, in order
-        boolean hasHid = false;
         boolean asks = false;
         for (UsbDeviceSummary.Interface i : d.interfaces) {
             int rule = refusalFor(i.interfaceClass, i.subclass);
@@ -68,7 +67,6 @@ public final class UsbSharePreview {
                 }
             }
             else if (i.interfaceClass == CLASS_HID) {
-                hasHid = true;
                 // A boot keyboard or mouse asks, whatever its report descriptor says
                 asks |= i.subclass == 1 && (i.protocol == 1 || i.protocol == 2);
             }
@@ -83,7 +81,10 @@ public final class UsbSharePreview {
         if (asks) {
             return UsbVerdict.ASK_UNCHECKED;
         }
-        return hasHid ? UsbVerdict.ALLOW_UNCHECKED : UsbVerdict.ALLOW;
+        // Not refused so far, but nothing here is known to be allowed: Android doesn't show the
+        // descriptor lengths (step 1), the IADs (step 4), the report descriptors (step 6) or the
+        // speed (rule 10). The exporter decides once it has read them all.
+        return UsbVerdict.ALLOW_UNCHECKED;
     }
 
     // The rule a class refuses by, or 0 for a class the rules don't refuse outright

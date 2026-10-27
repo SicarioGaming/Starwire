@@ -4,9 +4,9 @@ package com.limelight.binding.usb.share;
  * What the device rules (docs/dev/usb-protocol.md, "The device rules, version 1") decide for a
  * device: shared, shared after you say yes, or refused for one of the rules.
  *
- * A verdict from what Android tells every app about a device is incomplete when the device has a
- * HID interface: its report descriptors decide, and Starwire can only read them once Android
- * lets it open the device.
+ * A verdict from what Android tells every app about a device (UsbSharePreview) is incomplete
+ * unless it refuses: the descriptor lengths, IADs, HID report descriptors and speed also decide,
+ * and only the exporter reads them, once Android lets Starwire open the device.
  */
 public final class UsbVerdict {
     public static final int ALLOWED = 0;
@@ -34,7 +34,7 @@ public final class UsbVerdict {
     public final int decision;
     /** For REFUSED, the rule that refused it; otherwise 0 */
     public final int rule;
-    /** False while a HID report descriptor still has to be read */
+    /** False until the exporter has read all of the device: a preview */
     public final boolean complete;
 
     private UsbVerdict(int decision, int rule, boolean complete) {

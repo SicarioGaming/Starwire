@@ -29,6 +29,20 @@ public class UsbSharePreviewTest {
         assertEquals(UsbVerdict.refused(rule), UsbSharePreview.judge(d));
     }
 
+    // Starwire's own USB driver (UsbDriverService) only ever takes Xbox pads and the Xbox 360
+    // wireless receiver, which are all vendor-specific: the rules refuse them, so sharing never
+    // fights that driver over a device
+    @Test
+    public void xboxPadsAreRefusedAsVendorSpecific() {
+        // Xbox One pad, Xbox 360 pad, Xbox 360 wireless receiver
+        refused(UsbVerdict.RULE_UNLISTED_VENDOR, device("d", null, 0xFF, 0x47, 0xD0, 1,
+                iface(0, 0, 0xFF, 0x47, 0xD0, ep(0x81, INTERRUPT), ep(0x02, INTERRUPT))));
+        refused(UsbVerdict.RULE_UNLISTED_VENDOR, device("d", null, 0xFF, 0xFF, 0xFF, 1,
+                iface(0, 0, 0xFF, 0x5D, 0x01, ep(0x81, INTERRUPT), ep(0x02, INTERRUPT))));
+        refused(UsbVerdict.RULE_UNLISTED_VENDOR, device("d", null, 0, 0, 0, 1,
+                iface(0, 0, 0xFF, 0x5D, 0x81, ep(0x81, INTERRUPT), ep(0x01, INTERRUPT))));
+    }
+
     @Test
     public void padsWaitForTheirReportDescriptor() {
         assertEquals(UsbVerdict.ALLOW_UNCHECKED, UsbSharePreview.judge(FakeUsb.pad("p")));
@@ -46,10 +60,12 @@ public class UsbSharePreviewTest {
                 hid(0, 0), iface(1, 0, 0x03, 1, 1, ep(0x82, INTERRUPT)))));
     }
 
+    // Android doesn't show a USB 3 headset's speed, or an IAD that doesn't match its interfaces,
+    // so even audio is only checked once it's shared
     @Test
-    public void audioIsAllowedWithNothingLeftToRead() {
-        assertEquals(UsbVerdict.ALLOW, UsbSharePreview.judge(FakeUsb.headset("h")));
-        assertEquals(UsbVerdict.ALLOW, UsbSharePreview.judge(one(iface(0, 0, 0x01, 3, 0, ep(0x81, BULK), ep(0x01, BULK)))));
+    public void audioIsCheckedWhenShared() {
+        assertEquals(UsbVerdict.ALLOW_UNCHECKED, UsbSharePreview.judge(FakeUsb.headset("h")));
+        assertEquals(UsbVerdict.ALLOW_UNCHECKED, UsbSharePreview.judge(one(iface(0, 0, 0x01, 3, 0, ep(0x81, BULK), ep(0x01, BULK)))));
         // A headset's buttons are HID: their report descriptor decides
         assertEquals(UsbVerdict.ALLOW_UNCHECKED, UsbSharePreview.judge(device("d", null, 0, 0, 0, 1,
                 iface(0, 0, 0x01, 1, 0), iface(1, 0, 0x01, 2, 0), iface(2, 0, 0x03, 0, 0, ep(0x81, INTERRUPT)))));
@@ -58,7 +74,7 @@ public class UsbSharePreviewTest {
     @Test
     public void theDevicesOwnClassCodes() {
         // Grouped by IADs
-        assertEquals(UsbVerdict.ALLOW, UsbSharePreview.judge(device("d", null, 0xEF, 0x02, 0x01, 1,
+        assertEquals(UsbVerdict.ALLOW_UNCHECKED, UsbSharePreview.judge(device("d", null, 0xEF, 0x02, 0x01, 1,
                 iface(0, 0, 0x01, 1, 0))));
         refused(UsbVerdict.RULE_HUB, device("d", null, 0x09, 0, 0, 1, iface(0, 0, 0x09, 0, 0, ep(0x81, INTERRUPT))));
         refused(UsbVerdict.RULE_STORAGE, device("d", null, 0x08, 0, 0, 1));
