@@ -26,9 +26,10 @@ import com.limelight.LimeLog;
  * </ul>
  * A line that would repeat a trigger's last one isn't logged, so a game that sends the same effect
  * every frame logs it once. At most 10 lines go out in a second, counted from the second's first
- * line. Past that, changes are only counted. With the next change after that second, or when the
- * stream ends, one line says how many weren't logged, and each trigger's last change in that time
- * is logged with its own time. So the log always ends on what each trigger got last.
+ * line. Past that, changes are only counted. With the game's next message after that second, a
+ * repeat too, or when the stream ends, one line says how many weren't logged, and each trigger's
+ * last change in that time is logged with its own time. So the log always ends on what each
+ * trigger got last.
  *
  * Nothing about the pad, the PC or the player goes in. DualSenseBluetooth makes one only for a
  * stream with the DualSense switch on. Plain Java and not thread-safe: DualSenseBluetooth calls it
@@ -111,15 +112,17 @@ public final class TriggerEffectLog {
                           boolean padReady) {
         String line = TRIGGER_NAMES[trigger] + " mode=0x" + hex(mode) + " params=" + hex(parameters)
                 + " " + outcome(mode, gameTookOver, padReady);
+        // Once the second is up, what the limit held back goes out with the next message, even a
+        // repeat, so logcat's own time for those lines isn't long after their t=
+        if (heldBackCount > 0 && atMs - secondStartMs >= SECOND_MS) {
+            startSecond(atMs);
+        }
         String last = heldBack[trigger] != null ? heldBack[trigger] : logged[trigger];
         if (line.equals(last)) {
             return;
         }
         if (!secondStarted || atMs - secondStartMs >= SECOND_MS) {
-            secondStarted = true;
-            secondStartMs = atMs;
-            linesThisSecond = 0;
-            logHeldBack();
+            startSecond(atMs);
         }
         if (linesThisSecond < MAX_LINES_A_SECOND) {
             write(atMs, trigger, line);
@@ -131,6 +134,14 @@ public final class TriggerEffectLog {
         heldBackCount++;
         heldBack[trigger] = line;
         heldBackMs[trigger] = atMs;
+    }
+
+    // A new second for the limit, from this time on, after what the last one held back
+    private void startSecond(long atMs) {
+        secondStarted = true;
+        secondStartMs = atMs;
+        linesThisSecond = 0;
+        logHeldBack();
     }
 
     private String outcome(int mode, boolean gameTookOver, boolean padReady) {

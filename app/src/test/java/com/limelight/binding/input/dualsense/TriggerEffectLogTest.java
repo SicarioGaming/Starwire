@@ -134,6 +134,29 @@ public class TriggerEffectLogTest {
     }
 
     @Test
+    public void aRepeatOnceTheSecondIsUpLogsWhatTheLimitHeldBack() {
+        // 12 R2 changes in 12 ms: the last two are held back
+        for (int force = 0; force < 12; force++) {
+            rightResistance(force, force);
+        }
+        // Then the game sends R2's last effect again every frame, and nothing changes
+        for (long ms = 16; ms < 1000; ms += 16) {
+            rightResistance(ms, 11);
+        }
+        assertEquals("still in the second", 10, lines.size());
+
+        // The first message once the second is up logs what was held back, though it's a repeat,
+        // so logcat's own time for those lines isn't far behind
+        rightResistance(1000, 11);
+        assertEquals(Arrays.asList(
+                "DualSense effect: t=10ms 1 change not logged, more than 10 in a second",
+                resistanceLine(11, 11)), lines.subList(10, lines.size()));
+        rightResistance(1016, 11);
+        log.finish();
+        assertEquals("nothing more", 12, lines.size());
+    }
+
+    @Test
     public void theEndOfTheStreamLogsWhatTheLimitHeldBack() {
         for (int force = 0; force < 12; force++) {
             rightResistance(force, force);
