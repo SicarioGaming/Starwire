@@ -559,7 +559,7 @@
     <string name="usb_share_rule_storage">It\'s storage, a camera or a phone.</string>
     <string name="usb_share_rule_network">It\'s a network adapter, modem or radio.</string>
     <string name="usb_share_rule_vendor">It needs its maker\'s own driver.</string>
-    <string name="usb_share_rule_unconfirmed">You didn\'t say yes to sharing it.</string>
+    <string name="usb_share_rule_unconfirmed">Keyboards and mice need your yes on this phone first.</string>
     <string name="usb_share_rule_configurations">It has more than one configuration.</string>
     <string name="usb_share_rule_unreadable">Its descriptors don\'t add up.</string>
     <string name="usb_share_rule_other_class">Starwire doesn\'t share this kind of device.</string>
