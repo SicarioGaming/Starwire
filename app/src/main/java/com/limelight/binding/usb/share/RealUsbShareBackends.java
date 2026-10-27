@@ -42,7 +42,8 @@ final class RealUsbShareBackends implements UsbShareBackends.Factory {
         MicPairing pairing(Context app, String computerUuid);
     }
 
-    private static final class AppParts implements Parts {
+    /** The app's own parts. Not private, so RealUsbShareBackendsTest can check them. */
+    static final class AppParts implements Parts {
         @Override
         public boolean isSupported() {
             return UsbExporter.isSupported();

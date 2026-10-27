@@ -2,7 +2,9 @@ package com.limelight.binding.usb.share;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
@@ -11,6 +13,7 @@ import android.content.Context;
 import android.hardware.usb.UsbDevice;
 
 import com.limelight.binding.audio.securemic.MicPairing;
+import com.limelight.binding.audio.securemic.StoredPairings;
 import com.limelight.binding.usb.ExporterOnLoopback;
 import com.limelight.binding.usb.UsbDeviceRules;
 import com.limelight.binding.usb.UsbExporter;
@@ -104,6 +107,62 @@ public class RealUsbShareBackendsTest {
         // A computer isn't a 64-bit ARM phone
         assertEquals(UsbExporter.isSupported(), factory.isSupported());
         assertEquals(UsbExporter.isSupported(), UsbShareBackends.available());
+    }
+
+    // The app's own parts: the contract's port, Android's exporter and the real tunnel, and the
+    // microphone's pairing read from its store, a new copy each time
+    @Test
+    public void theAppsPartsAreTheRealOnes() throws Exception {
+        RealUsbShareBackends.AppParts parts = new RealUsbShareBackends.AppParts();
+        assertEquals(UsbTunnel.DEFAULT_PORT, parts.helperPort());
+        assertEquals(6981, parts.helperPort());
+        assertEquals(UsbExporter.isSupported(), parts.isSupported());
+
+        UsbExporter x = parts.exporter(context, export -> {
+        });
+        assertNotNull(x);
+        assertNull(x.current());
+        // A computer isn't a 64-bit ARM phone, so Android's exporter opens nothing here
+        UsbDevice pad = AndroidUsbDevicesTest.pad(PAD, "Test pad");
+        IOException refused = assertThrows(IOException.class, () -> x.start(pad, true));
+        assertTrue(refused.getMessage(), refused.getMessage().contains("64-bit ARM"));
+
+        UsbTunnel tunnel = parts.tunnel(new UsbTunnel.Exporter() {
+            @Override
+            public byte[] start() throws IOException {
+                throw new IOException("not in this test");
+            }
+
+            @Override
+            public Socket connect(int timeoutMs) throws IOException {
+                throw new IOException("not in this test");
+            }
+
+            @Override
+            public void stop() {
+            }
+        }, new UsbTunnel.Listener() {
+            @Override
+            public void onSharing() {
+            }
+
+            @Override
+            public void onEnded(UsbTunnel.Ending ending) {
+            }
+        });
+        assertNotNull(tunnel);
+        assertFalse(tunnel.isConnected());
+
+        assertNull(parts.pairing(context, "pc-uuid"));
+        MicPairing saved = HelperOnLoopback.pairing("pc-uuid");
+        StoredPairings.put(context, saved);
+        MicPairing first = parts.pairing(context, "pc-uuid");
+        assertNotNull(first);
+        assertArrayEquals(saved.key, first.key);
+        Arrays.fill(first.key, (byte) 0);
+        MicPairing second = parts.pairing(context, "pc-uuid");
+        assertArrayEquals("wiping a copy wiped the stored key", saved.key, second.key);
+        assertNull(parts.pairing(context, "another-pc"));
     }
 
     // The share flow's numbers are the tunnel's and the contract's, so passing them on changes nothing
