@@ -22,9 +22,15 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.limelight.BuildConfig;
 import com.limelight.R;
+import com.limelight.ui.AboutCredits;
+import com.limelight.ui.OpenSourceNotices;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 
 /** Settings > About, and the Credits and Open-source licences pages it opens. */
 @RunWith(AndroidJUnit4.class)
@@ -74,15 +80,21 @@ public class AboutSettingsTest {
 
     @Test
     public void licencesPageListsEveryComponent() {
-        checkPage(OpenSourceActivity.PAGE_LICENCES, R.string.title_about_licences, 4);
+        checkPage(OpenSourceActivity.PAGE_LICENCES, R.string.title_about_licences,
+                OpenSourceNotices.sections(), OpenSourceNotices.ALL.length);
     }
 
     @Test
     public void creditsPageListsEveryProject() {
-        checkPage(OpenSourceActivity.PAGE_CREDITS, R.string.title_about_credits, 5);
+        checkPage(OpenSourceActivity.PAGE_CREDITS, R.string.title_about_credits,
+                AboutCredits.sections(), AboutCredits.ALL.length);
     }
 
-    private void checkPage(String page, int title, int sections) {
+    // The sections are the ones the page is built from, not a count typed in here: that count
+    // stayed at 5 when 0.3.0 added the USB devices credits, and failed on every device. A section
+    // left out, or listed twice, still fails, through the entries count or the repeat check.
+    // AboutPagesTest checks the same on the JVM.
+    private void checkPage(String page, int title, int[] sections, int entries) {
         Intent intent = new Intent(target, OpenSourceActivity.class)
                 .putExtra(OpenSourceActivity.EXTRA_PAGE, page);
         try (ActivityScenario<OpenSourceActivity> scenario = ActivityScenario.launch(intent)) {
@@ -90,16 +102,28 @@ public class AboutSettingsTest {
             scenario.onActivity(activity -> {
                 assertEquals(activity.getString(title),
                         ((TextView) activity.findViewById(R.id.settingsTitle)).getText().toString());
+                List<String> expected = new ArrayList<>();
+                for (int section : sections) {
+                    expected.add(activity.getString(section));
+                }
+                assertEquals(page + " lists a section twice: " + expected,
+                        expected.size(), new HashSet<>(expected).size());
+
                 LinearLayout pills = activity.findViewById(R.id.settingsSections);
-                assertEquals(page + " section pills", sections, pills.getChildCount());
+                List<String> shown = new ArrayList<>();
+                for (int i = 0; i < pills.getChildCount(); i++) {
+                    shown.add(((TextView) pills.getChildAt(i)).getText().toString());
+                }
+                assertEquals(page + " section pills", expected, shown);
 
                 PreferenceFragment fragment = (PreferenceFragment)
                         activity.getFragmentManager().findFragmentById(R.id.stream_settings);
                 PreferenceScreen screen = fragment.getPreferenceScreen();
-                assertEquals(sections, screen.getPreferenceCount());
+                List<String> headings = new ArrayList<>();
                 int items = 0;
                 for (int i = 0; i < screen.getPreferenceCount(); i++) {
                     PreferenceCategory category = (PreferenceCategory) screen.getPreference(i);
+                    headings.add(category.getTitle().toString());
                     assertTrue(category.getTitle() + " is empty", category.getPreferenceCount() > 0);
                     for (int j = 0; j < category.getPreferenceCount(); j++) {
                         Preference item = category.getPreference(j);
@@ -108,9 +132,8 @@ public class AboutSettingsTest {
                         items++;
                     }
                 }
-                int expected = page.equals(OpenSourceActivity.PAGE_CREDITS) ?
-                        com.limelight.ui.AboutCredits.ALL.length : com.limelight.ui.OpenSourceNotices.ALL.length;
-                assertEquals(expected, items);
+                assertEquals(page + " headings", expected, headings);
+                assertEquals(page + " entries", entries, items);
             });
         }
     }
