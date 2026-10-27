@@ -115,6 +115,30 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The PC's USB helper and its side of the USB tunnel, built with the C# compiler that comes with
+  # Windows and run as 64-bit and 32-bit programs, against a fake driver and over 127.0.0.1 only.
+  # It also checks setup-usb.ps1's plan without installing anything. Nothing in windows/ needs the
+  # submodules.
+  usb-helper:
+    name: USB helper tests (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: USB helper tests
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File windows\tests\run-usb-helper-tests.ps1 -OutDir "$env:RUNNER_TEMP\usb-helper-tests"
+
+      # Every check's line, for a failure that only happens on the runner
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: usb-helper-test-logs
+          path: ${{ runner.temp }}/usb-helper-tests/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
   # devices.yml puts in the command-line tools that know pixel_fold and the other newer profiles
   # (the runner's own 12.0 don't) and checks every leg's profile and system image first
   devices:
