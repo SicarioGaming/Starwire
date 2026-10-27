@@ -13,8 +13,11 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.limelight.preferences.StreamSettings;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -203,14 +206,28 @@ public class OverlayMenuViewTest {
         OverlayMenuButton stats = (OverlayMenuButton) findButton(menu, str(com.limelight.R.string.overlay_menu_toggle_stats));
         OverlayMenuButton floating = (OverlayMenuButton) findButton(menu, str(com.limelight.R.string.overlay_menu_floating_button));
         OverlayMenuButton guide = (OverlayMenuButton) findButton(menu, str(com.limelight.R.string.overlay_menu_guide));
-        onMain(() -> {
+        Runnable check = () -> {
             android.view.accessibility.AccessibilityNodeInfo off = stats.createAccessibilityNodeInfo();
             assertTrue(off.isCheckable());
             assertFalse(off.isChecked());
             assertTrue(off.getClassName().toString().endsWith("Switch"));
             assertTrue(floating.createAccessibilityNodeInfo().isChecked());
             assertFalse("one-shot buttons aren't switches", guide.createAccessibilityNodeInfo().isCheckable());
-        });
+        };
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            onMain(check);
+            return;
+        }
+        // Android 5 can only describe a view that's in a window (5.0 read the window's details
+        // without checking: a NullPointerException there), so there the menu goes in one first,
+        // a settings screen's. Only there, so the test needs no screen to open anywhere else.
+        try (ActivityScenario<StreamSettings> scenario = ActivityScenario.launch(StreamSettings.class)) {
+            scenario.onActivity(activity -> {
+                activity.addContentView(menu, new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                check.run();
+            });
+        }
     }
 
     @Test
@@ -333,12 +350,22 @@ public class OverlayMenuViewTest {
         press(first ? KeyEvent.KEYCODE_DPAD_RIGHT : KeyEvent.KEYCODE_DPAD_LEFT);
         assertTrue(selected(tiles[side]));
 
-        // Down twice: the bottom row, then Close, which sits above Quit and Disconnect
+        // Down twice: the bottom row, then Close
         press(KeyEvent.KEYCODE_DPAD_DOWN);
         assertTrue(selected(tiles[Math.min(side + columns, last)]));
         press(KeyEvent.KEYCODE_DPAD_DOWN);
         assertTrue(selected(com.limelight.R.string.overlay_menu_close));
-        press(KeyEvent.KEYCODE_DPAD_DOWN);
+        // Close sits above Quit and Disconnect, except on screens under 480 dp tall (a phone or a
+        // 1080p handheld held sideways), where all three share one row. This used to press down
+        // there too, and failed on the 1080p handheld legs (432 dp tall).
+        if (context.getResources().getConfiguration().screenHeightDp < OverlayMenuView.COMPACT_HEIGHT_DP) {
+            press(KeyEvent.KEYCODE_DPAD_DOWN);
+            assertTrue("down from Close left the one-row bar", selected(com.limelight.R.string.overlay_menu_close));
+            press(KeyEvent.KEYCODE_DPAD_RIGHT);
+        }
+        else {
+            press(KeyEvent.KEYCODE_DPAD_DOWN);
+        }
         assertTrue(selected(com.limelight.R.string.overlay_menu_quit_session));
         press(KeyEvent.KEYCODE_DPAD_RIGHT);
         assertTrue(selected(com.limelight.R.string.overlay_menu_disconnect));

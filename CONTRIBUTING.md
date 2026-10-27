@@ -81,9 +81,12 @@ the serial that `adb devices -l` shows:
 
 It installs with `adb install -r` and never uninstalls, so the debug app keeps its pairing with
 your PC. After the instrumented suite it runs the smoke tests, saves their screenshots and looks
-for crashes. `--allow-stream` adds a short Desktop stream to the paired PC; without it nothing is
-streamed. `./gradlew connectedNonRootDebugAndroidTest` runs the suite too, but it may not keep the
-pairing.
+for crashes. A test that hangs for 90 seconds fails with what the app's main thread was doing
+(`StuckTestWatchdog` in `com.limelight.testing`). The watchdog then closes the test's screens so
+the run can go on to the next test. If the test is still stuck 30 seconds later, it ends the run
+there. `--allow-stream` adds a short Desktop stream to the paired PC; without it nothing is
+streamed. `./gradlew connectedNonRootDebugAndroidTest` runs the suite too, but it may not keep
+the pairing.
 
 Or by hand with `am instrument`, which is also how to run one class:
 

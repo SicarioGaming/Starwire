@@ -24,7 +24,6 @@ import android.widget.TextView;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.By;
-import androidx.test.uiautomator.Configurator;
 import androidx.test.uiautomator.Direction;
 import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
@@ -36,6 +35,7 @@ import com.limelight.SizeChange;
 import com.limelight.computers.ComputerDatabaseManager;
 import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.preferences.StreamSettings;
+import com.limelight.testing.Automation;
 
 import org.junit.After;
 import org.junit.Assume;
@@ -280,8 +280,7 @@ public class SmokeTest {
     // Taps the view and waits for the app to report the click (every view's click sends one to
     // accessibility, which UI Automator turns on). False when something else took the tap.
     private boolean tapReachesApp(UiObject2 view) {
-        UiAutomation automation = InstrumentationRegistry.getInstrumentation()
-                .getUiAutomation(Configurator.getInstance().getUiAutomationFlags());
+        UiAutomation automation = Automation.uiAutomation();
         try {
             automation.executeAndWaitForEvent(view::click,
                     event -> event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED

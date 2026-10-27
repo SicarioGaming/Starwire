@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import android.content.Context;
 import android.content.Intent;
@@ -12,6 +13,7 @@ import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceFragment;
 import android.preference.PreferenceManager;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.EditText;
 import android.widget.ListAdapter;
 import android.widget.ListView;
@@ -26,6 +28,8 @@ import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
 
 import com.limelight.R;
+import com.limelight.testing.Automation;
+import com.limelight.testing.TestFiles;
 
 import org.junit.After;
 import org.junit.Before;
@@ -157,7 +161,7 @@ public class CustomResolutionTest {
 
             // The resolution list has a Custom button
             UiObject2 custom = openListWithCustomButton(scenario, device, "list_resolution");
-            File shots = new File(context.getExternalFilesDir(null), "custom-resolution");
+            File shots = TestFiles.file(context, "custom-resolution");
             shots.mkdirs();
             device.takeScreenshot(new File(shots, "resolution-dialog.png"));
             custom.click();
@@ -166,15 +170,14 @@ public class CustomResolutionTest {
             // Too wide: the dialog says so and stays open, and nothing is saved
             inputs.get(0).setText("9000");
             inputs.get(1).setText("900");
-            device.findObject(By.res("android", "button1")).click();
+            dialogButton(device, "button1").click();
             device.waitForIdle();
             assertEquals(2, device.findObjects(By.clazz(EditText.class)).size());
             assertEquals("1920x1080", prefs.getString("list_resolution", null));
 
             inputs.get(0).setText("1600");
-            device.findObject(By.res("android", "button1")).click();
-            assertTrue("the custom resolution dialog didn't close",
-                    device.wait(Until.gone(By.clazz(EditText.class)), WAIT_MS));
+            dialogButton(device, "button1").click();
+            assertClosed(device, "the custom resolution dialog");
             assertEquals("1600x900", prefs.getString("list_resolution", null));
             // The bitrate follows the new size, as it does for the listed ones
             assertEquals(PreferenceConfiguration.getDefaultBitrate("1600x900", "60"),
@@ -189,15 +192,14 @@ public class CustomResolutionTest {
             openListWithCustomButton(scenario, device, "list_fps").click();
             inputs = waitForInputs(device, 1);
             inputs.get(0).setText("0");
-            device.findObject(By.res("android", "button1")).click();
+            dialogButton(device, "button1").click();
             device.waitForIdle();
             assertEquals(1, device.findObjects(By.clazz(EditText.class)).size());
             assertEquals("60", prefs.getString("list_fps", null));
 
             inputs.get(0).setText(ODD_FPS);
-            device.findObject(By.res("android", "button1")).click();
-            assertTrue("the custom frame rate dialog didn't close",
-                    device.wait(Until.gone(By.clazz(EditText.class)), WAIT_MS));
+            dialogButton(device, "button1").click();
+            assertClosed(device, "the custom frame rate dialog");
             assertEquals(ODD_FPS, prefs.getString("list_fps", null));
             assertEquals(PreferenceConfiguration.getDefaultBitrate("1600x900", ODD_FPS),
                     prefs.getInt("seekbar_bitrate_kbps", 0));
@@ -226,6 +228,51 @@ public class CustomResolutionTest {
         assertEquals(context.getString(R.string.seekbar_custom).toUpperCase(Locale.ROOT),
                 custom.getText().toUpperCase(Locale.ROOT));
         return custom;
+    }
+
+    // A button of the custom value dialog. Its keyboard opens with it, and on Android TV 14
+    // (Gboard) the keyboard took the screen: the buttons were out of sight, UI Automator found
+    // none, and the test stopped with a NullPointerException. A person puts the keyboard away with
+    // back first, and so does this, only when the keyboard is what hides the button.
+    private static UiObject2 dialogButton(UiDevice device, String id) {
+        UiObject2 button = device.findObject(By.res("android", id));
+        if (button == null && keyboardShowing()) {
+            device.pressBack();
+            button = device.wait(Until.findObject(By.res("android", id)), WAIT_MS);
+        }
+        if (button == null) {
+            fail("the dialog's " + id + " isn't on screen (" + whatsOpen(device) + ")");
+        }
+        return button;
+    }
+
+    private static boolean keyboardShowing() {
+        for (AccessibilityWindowInfo window : Automation.uiAutomation().getWindows()) {
+            if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void assertClosed(UiDevice device, String dialog) {
+        // Android 6's emulator left the frame rate dialog open (2026-10-23) and its log was gone
+        // by the time the run ended, so the message says what was on screen
+        if (!device.wait(Until.gone(By.clazz(EditText.class)), WAIT_MS)) {
+            fail(dialog + " didn't close (" + whatsOpen(device) + ")");
+        }
+    }
+
+    // The dialog's fields, keyboard and OK button as the screen has them, for a failure message
+    private static String whatsOpen(UiDevice device) {
+        StringBuilder seen = new StringBuilder();
+        for (UiObject2 input : device.findObjects(By.clazz(EditText.class))) {
+            seen.append("field \"").append(input.getText()).append("\", ");
+        }
+        seen.append(keyboardShowing() ? "keyboard showing, " : "no keyboard, ");
+        UiObject2 ok = device.findObject(By.res("android", "button1"));
+        seen.append(ok == null ? "no OK button" : "OK button at " + ok.getVisibleBounds());
+        return seen.toString();
     }
 
     private static List<UiObject2> waitForInputs(UiDevice device, int count) {

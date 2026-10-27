@@ -190,6 +190,12 @@ steps and the checksums for each version.
   holding Select on a controller, the three-finger tap and the left edge swipe. Holding Select
   always let go of controller buttons, but not of keys. Tested in JVM tests only. Not yet tried
   on a device.
+- On the Android 11 phone emulators, the PC list and the games screen never let the app go idle,
+  so the device tests that open them never finished. A possible cause is fixed. Each time Android
+  measured the system bars, these screens and the settings screens set the navigation bar's look
+  again, even when nothing had changed, and Android can answer that by measuring again. They now
+  set it only when it changes. Whether that was the cause is only known after the next emulator
+  run. Checked by JVM tests, not yet tried on a device.
 
 ## [0.2.1] - 2026-10-23
 

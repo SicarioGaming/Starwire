@@ -185,11 +185,19 @@ public class UiHelper {
                             tappableInsets.right,
                             0);
 
-                    // Show a translucent navigation bar if we can't tap there
-                    if (tappableInsets.bottom != 0) {
+                    // Show a translucent navigation bar if we can't tap there.
+                    //
+                    // Starwire: only when that changes. Setting a window flag sends the window's
+                    // attributes to the system again even when the flag was already set, and the
+                    // system can answer with another insets pass, so setting it on every pass can
+                    // go round without end (RootViewInsetsTest).
+                    boolean translucent = tappableInsets.bottom != 0;
+                    boolean wasTranslucent = (activity.getWindow().getAttributes().flags
+                            & WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION) != 0;
+                    if (translucent && !wasTranslucent) {
                         activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
                     }
-                    else {
+                    else if (!translucent && wasTranslucent) {
                         activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
                     }
 

@@ -1,0 +1,64 @@
+INSTRUMENTATION_STATUS: class=com.limelight.AppViewTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=3
+INSTRUMENTATION_STATUS: stream=
+com.limelight.AppViewTest:
+INSTRUMENTATION_STATUS: test=tileMenuOpensOnIconTiles
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.limelight.AppViewTest
+INSTRUMENTATION_STATUS: id=StuckTest
+INSTRUMENTATION_STATUS: stream=
+com.limelight.AppViewTest#tileMenuOpensOnIconTiles: stuck for 120 s; its activities were finished so the run could go on
+Main thread (RUNNABLE):
+    at android.view.ThreadedRenderer.nSyncAndDrawFrame(Native Method)
+    at android.view.Choreographer.doFrame(Choreographer.java:761)
+Main thread's message queue:
+  Looper (main, tid 2) {b1c2d3e}
+    Message 0: { when=-1ms barrier=4211 }
+    (Total messages: 1, polling=false, quitting=false)
+
+Test thread Instr: androidx.test.runner.AndroidJUnitRunner (WAITING):
+    at android.app.Instrumentation.waitForIdleSync(Instrumentation.java:441)
+INSTRUMENTATION_STATUS: stuck=stuck for 120 s; its activities were finished so the run could go on
+INSTRUMENTATION_STATUS: test=tileMenuOpensOnIconTiles
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.limelight.AppViewTest
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=3
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=tileMenuOpensOnIconTiles
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.limelight.AppViewTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=3
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=offscreenDrawingShowsGpuBitmaps
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.limelight.AppViewTest
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=3
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: test=offscreenDrawingShowsGpuBitmaps
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: class=com.limelight.AppViewTest
+INSTRUMENTATION_STATUS: current=3
+INSTRUMENTATION_STATUS: id=AndroidJUnitRunner
+INSTRUMENTATION_STATUS: numtests=3
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: test=appListOpensWithoutClosing
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_STATUS: class=com.limelight.AppViewTest
+INSTRUMENTATION_STATUS: id=StuckTest
+INSTRUMENTATION_STATUS: stream=
+com.limelight.AppViewTest#appListOpensWithoutClosing: still stuck 30 s after its activities were finished: the main thread is blocked, so the process was ended
+Main thread (WAITING):
+    at java.lang.Object.wait(Native Method)
+INSTRUMENTATION_STATUS: stuck=still stuck 30 s after its activities were finished: the main thread is blocked, so the process was ended
+INSTRUMENTATION_STATUS: test=appListOpensWithoutClosing
+INSTRUMENTATION_STATUS_CODE: 1
+INSTRUMENTATION_RESULT: shortMsg=Process crashed.
+INSTRUMENTATION_CODE: 0
