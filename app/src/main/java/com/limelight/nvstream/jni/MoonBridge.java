@@ -361,14 +361,6 @@ public class MoonBridge {
         }
     }
 
-    // The host's DualSense trigger effects (0x5503); left and right are 10 bytes each
-    public static void bridgeClSetAdaptiveTriggers(short controllerNumber, byte eventFlags, byte typeLeft,
-                                                   byte typeRight, byte[] left, byte[] right) {
-        if (connectionListener != null) {
-            connectionListener.setAdaptiveTriggers(controllerNumber, eventFlags, typeLeft, typeRight, left, right);
-        }
-    }
-
     public static void setupBridge(VideoDecoderRenderer videoRenderer, AudioRenderer audioRenderer,
                                    NvConnectionListener connectionListener, int supportedVideoFormats) {
         MoonBridge.videoRenderer = videoRenderer;
