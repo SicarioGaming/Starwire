@@ -66,11 +66,13 @@ steps and the checksums for each version.
 - **A log line for each DualSense trigger effect a game sends,** while Trigger effects is on, so
   a screen recording can be matched to the effects the game really sent. Each line starts with
   `DualSense effect:` and gives the time since the stream screen opened, the trigger (R2 or L2),
-  the effect's mode and bytes as the PC sent them, and what Starwire did with it: sent it to the
-  pad, held it because no pad was ready yet, turned the trigger off for a mode it doesn't pass
-  on, or ignored it for the Off preset. An effect the game sends again is logged once. At most
-  10 lines go out a second, and a line says how many changes were left out. Nothing about the
-  pad, the PC or you is in it. Checked by JVM tests, not yet read on a device.
+  the effect's mode and bytes in hex as the PC sent them, and what Starwire did with it: passed
+  it on to the pad, held it because no pad was ready yet, turned the trigger off for a mode it
+  doesn't pass on, or ignored it for the Off preset. A trigger's effect is logged when it
+  changes, not each time the game sends it again. After 10 lines in a second, counted from the
+  first of them, changes are only counted until that second is up. Then a line says how many
+  were left out, if any, and each trigger's last change is logged with its own time. Nothing
+  about the pad, the PC or you is in it. Checked by JVM tests, not yet read on a device.
 
 ### Changed
 

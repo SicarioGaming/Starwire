@@ -225,6 +225,7 @@ public final class DualSenseBluetooth {
             // Kept in the rules either way, for a session that starts later
             rules.onGameMessage(message);
             boolean toPad = session != null && deviceId == sessionDevice;
+            // Logged as sent before the send runs; the send takes the latest effects
             if (effectLog != null) {
                 effectLog.onGameMessage(atMs, message.triggers, typeLeft, typeRight, leftBytes, rightBytes,
                         rules.gameTookOver(), toPad);

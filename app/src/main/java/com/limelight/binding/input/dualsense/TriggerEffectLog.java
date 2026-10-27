@@ -15,8 +15,9 @@ import com.limelight.LimeLog;
  * host sent them (the mode with 0x, so 25 can't be read as decimal), and what Starwire did with
  * the effect:
  * <ul>
- * <li>{@code sent}: passed on to the pad. Messages that come faster than one send go out as one
- * report with the latest effects, and a send Android refuses gets its own warning line.</li>
+ * <li>{@code sent}: passed on to the pad. The line is written before the send runs. Messages
+ * that come faster than one send go out as one report with the latest effects, so an earlier
+ * one may never reach the pad, and a send Android refuses gets its own warning line.</li>
  * <li>{@code held (no pad ready)}: no pad takes effects right now (still checking, two pads, or
  * a check failed). The effect is kept, and goes out if a pad passes its checks later on.</li>
  * <li>{@code dropped (unknown mode, trigger off)}: a mode TriggerEffect.fromHost doesn't pass on,
@@ -25,11 +26,13 @@ import com.limelight.LimeLog;
  * (TriggerRules).</li>
  * </ul>
  * A line that would repeat a trigger's last one isn't logged, so a game that sends the same effect
- * every frame logs it once. At most 10 lines go out in a second, counted from the second's first
- * line. Past that, changes are only counted. With the game's next message after that second, a
- * repeat too, or when the stream ends, one line says how many weren't logged, and each trigger's
- * last change in that time is logged with its own time. So the log always ends on what each
- * trigger got last.
+ * every frame logs it once. Only the last line counts: A, B, then A again logs A twice. At most 10
+ * lines go out in a second, counted from the second's first line. Past that, changes are only
+ * counted. With the game's next message after that second, a repeat too, or when the stream ends,
+ * one line says how many weren't logged, and each trigger's last change in that time is logged
+ * with its own time. So the log always ends on what each trigger got last. The seconds come one
+ * after another and don't overlap, so across the end of one, about 20 lines can fall within
+ * 1000 ms. A flood still logs about 11 lines a second.
  *
  * Nothing about the pad, the PC or the player goes in. DualSenseBluetooth makes one only for a
  * stream with the DualSense switch on. Plain Java and not thread-safe: DualSenseBluetooth calls it
