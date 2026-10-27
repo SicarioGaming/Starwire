@@ -335,7 +335,9 @@ public class AsyncDecodeTest {
             int sent = 0;
             int frames = 0;
             List<EncodedFrame> all = stream;
-            long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+            // The decoder frees input buffers only as fast as it decodes, so feeding the whole
+            // stream gets the same limit as decoding it
+            long deadline = SystemClock.uptimeMillis() + DECODE_WAIT_MS;
             while (sent < all.size() && SystemClock.uptimeMillis() < deadline) {
                 adapter.drainNoRenderReleaseQueue(decoder, release);
                 int in = adapter.dequeueInputIndex(5000);
