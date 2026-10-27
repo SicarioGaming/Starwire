@@ -590,11 +590,27 @@ static class StarwireUsbTunnelTests
         FakeClock clock = new FakeClock();
         UsbReadLimiter limiter = new UsbReadLimiter(clock);
         long start = clock.Now;
-        bool four = limiter.WaitTurn(start) && limiter.WaitTurn(start) && limiter.WaitTurn(start) && limiter.WaitTurn(start);
-        Check("4 reads of the pairings file in a second go ahead", four);
-        Check("a 5th doesn't, with no time to wait", !limiter.WaitTurn(start));
+        bool three = limiter.WaitTurn(start) && limiter.WaitTurn(start) && limiter.WaitTurn(start);
+        Check("BINDs get 3 reads of the pairings file in a second", three);
+        // Before the fix BINDs got all 4, so connections sending BINDs could hold up the pairing
+        // check after an unpair, and the menu
+        Check("  not a 4th, with no time to wait", !limiter.WaitTurn(start));
         Check("  nor with 999 ms to wait", !limiter.WaitTurn(start + 999) && clock.Now == start);
-        Check("  and goes ahead once a second has passed, after waiting exactly that", limiter.WaitTurn(start + 1000) && clock.Now == start + 1000);
+        Check("the 4th is kept for the pairing check and the menu: it goes ahead at once", limiter.WaitTurnFirst(start) && clock.Now == start);
+        Check("  and a 5th read doesn't, with no time to wait", !limiter.WaitTurnFirst(start));
+        Check("a BIND goes ahead once a second has passed, after waiting exactly that", limiter.WaitTurn(start + 1000) && clock.Now == start + 1000);
+        Check("the pairing check waits for the oldest read to leave the second, no longer", limiter.WaitTurn(clock.Now) && limiter.WaitTurn(clock.Now)
+            && limiter.WaitTurnFirst(clock.Now) && limiter.WaitTurnFirst(start + 2000) && clock.Now == start + 2000);
+
+        clock = new FakeClock();
+        limiter = new UsbReadLimiter(clock);
+        start = clock.Now;
+        limiter.WaitTurn(start);
+        limiter.WaitTurn(start);
+        limiter.WaitTurn(start);
+        int asked = 0;
+        Check("a BIND whose connection was closed while it waited stops waiting, and takes no read", !limiter.WaitTurn(start + 5000, () => ++asked > 1)
+            && clock.Now == start + 1000 && limiter.WaitTurn(clock.Now) && limiter.WaitTurn(clock.Now) && limiter.WaitTurn(clock.Now));
     }
 
     static string PairingsFolder(string name)
@@ -630,8 +646,11 @@ static class StarwireUsbTunnelTests
         Check("K_usb is wiped when the helper is done with it", Eq(key.UsbKey, new byte[32]));
         Check("each BIND read the file again", reader.Reads == 3);
         UsbBindKey tooMany = reader.ForBind(DeviceId, clock.Now, out problem);
-        UsbBindKey fifth = reader.ForBind(DeviceId, clock.Now, out problem);
-        Check("a 5th read in the same second has to wait: with no time left, the BIND gets nothing", tooMany != null && fifth == null
+        Check("after the menu's read and 2 BINDs in a second, a 3rd BIND has to wait: with no time left, it gets nothing", tooMany == null
+            && reader.Reads == 3);
+        List<UsbPairingLine> check = reader.Read(clock.Now, out problem, out late);
+        List<UsbPairingLine> fifth = reader.Read(clock.Now, out problem, out late);
+        Check("  while the pairing check gets the 4th read, and a 5th has to wait", check != null && fifth == null && late
             && reader.Reads == 4);
         Check("reading never changed the file", Eq(File.ReadAllBytes(path), before) && File.GetLastWriteTimeUtc(path) == written);
 
@@ -1903,9 +1922,36 @@ static class StarwireUsbTunnelTests
             rig.AllowPhone(DeviceId, true);
             rig.Clock.Advance(1000);
 
+            // Other hosts send BINDs while the phone is unpaired. Before the fix their reads could
+            // use up all 4 of the second, and the pairing check found none free: the session went on.
             p = rig.Share(PairKey, DeviceId, V["frame.share"], out ack);
             Import(rig, p, pad, 2);
             int plugouts = rig.Driver.Plugouts.Count;
+            rig.Clock.Advance(1000);
+            rig.Store.Remove(DeviceId);
+            int refused = 0;
+            for (int i = 2; i <= 4; i++) {
+                using (TestPhone a = TestPhone.Connect(rig.Port, phoneCert.Certificate, IPAddress.Parse("127.0.0." + i))) {
+                    if (Refusal(a.Bind(ThirdKey, Range(0x30, 8))) == Swut.RefuseNotPaired) {
+                        refused++;
+                    }
+                }
+            }
+            bool fourthBind = rig.Server.Limiter.WaitTurn(rig.Clock.Now);
+            rig.Server.Recheck();
+            rig.Server.Tick();
+            end = p.ReadNotKeepalive();
+            Check("unpaired while other hosts' BINDs take this second's reads: they get 3, and the pairing check still ends the session (END 5)",
+                refused == 3 && !fourthBind && Swut.Code(end, Swut.TEnd) == Swut.EndUnpaired && rig.Idle()
+                && rig.Driver.Plugouts.Count == plugouts + 1);
+            p.Dispose();
+            rig.Store.Put(Pairing(DeviceId, PairKey, "Test phone"));
+            rig.AllowPhone(DeviceId, true);
+            rig.Clock.Advance(1000);
+
+            p = rig.Share(PairKey, DeviceId, V["frame.share"], out ack);
+            Import(rig, p, pad, 2);
+            plugouts = rig.Driver.Plugouts.Count;
             rig.Clock.Advance(7999);
             rig.Server.Tick();
             Check("7.999 s without a word from the phone: still shared", rig.Server.Sharing != null && Swut.IsKeepalive(p.Read()));
@@ -1999,7 +2045,8 @@ static class StarwireUsbTunnelTests
         o.Port = 0;
         o.PairingsFile = pairings;
         o.TlsContainer = Container("service");
-        o.Clock = new FakeClock();
+        FakeClock clock = new FakeClock();
+        o.Clock = clock;
         o.Random = Seeded(15);
         o.AutoTick = false;
         o.WatchFiles = false;
@@ -2013,6 +2060,18 @@ static class StarwireUsbTunnelTests
         List<UsbPhone> phones = service.Phones(out why);
         Check("the menu lists the paired phone, without Allow USB", phones != null && phones.Count == 1 && phones[0].Line.Name == "Test phone"
             && !phones[0].Allowed);
+        // Before the fix BINDs could take all 4 reads of a second, and the menu's read waited
+        clock.Advance(1000);
+        long at = clock.Now;
+        int binds = 0;
+        for (int i = 0; i < 4; i++) {
+            if (o.Limiter.WaitTurn(clock.Now)) {
+                binds++;
+            }
+        }
+        Check("the menu's read of the paired phones doesn't wait behind BINDs: they get 3 reads a second, it gets the 4th at once",
+            binds == 3 && service.Phones(out why) != null && clock.Now == at);
+        clock.Advance(1000);
         Check("ticking Allow USB for it", service.SetAllowed(phones[0].Line, true, out why) && service.Phones(out why)[0].Allowed);
         service.SetOn(true);
         Check("turned on, it listens and says so", service.On && service.Server != null && service.Status().StartsWith("USB sharing is on", StringComparison.Ordinal));

@@ -256,9 +256,11 @@ Rules for the helper:
   on a volume that can't swap files) fails, so pairing and unpairing fail. The helper's tests
   check that the receiver can still pair and unpair while the helper reads the file over and
   over.
-- **At most 4 reads a second**, in all. A BIND that comes when they're used up waits its turn,
-  within its 10 s. So a host that sends BINDs back to back can't keep the file open, or make the
-  helper decrypt keys, as often as it likes.
+- **At most 4 reads a second**, in all, and BINDs get 3 of them. The 4th is kept for the
+  sharing phone's pairing check and the helper's menu, so connections that keep sending BINDs
+  can't hold up an unpair. A BIND that comes when its 3 are used up waits its turn, within its
+  10 s, and stops waiting if its connection is closed. So a host that sends BINDs back to back
+  can't keep the file open, or make the helper decrypt keys, as often as it likes.
 - **Only the one key.** It finds deviceId's line in constant time and decrypts only that line's
   key (`MicPairingStore.Load` decrypts every line's). With no such line, it decrypts a dummy key
   instead, one it encrypted itself at start, and checks the MAC against a random key, so an

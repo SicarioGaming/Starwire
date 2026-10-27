@@ -44,13 +44,17 @@ sealed class UsbSystemClock : IUsbClock
 }
 
 // ---------------------------------------------------------------- reading the pairings file
-// At most 4 reads of the pairings file a second, in all. A read that comes when they're used up
-// waits its turn, until its deadline.
+// At most 4 reads of the pairings file a second, in all. BINDs get 3 of them: the 4th is kept for
+// the sharing phone's pairing check and the menu, so connections that keep sending BINDs can't
+// hold those up. A read that comes when its share is used up waits its turn, until its deadline,
+// or until the connection it's for is gone.
 sealed class UsbReadLimiter
 {
     public const int PerSecond = 4;
+    public const int ForBinds = 3;
     readonly IUsbClock clock;
-    readonly Queue<long> recent = new Queue<long>();
+    // When each read of the last second went ahead, oldest first
+    readonly List<long> recent = new List<long>();
     readonly object gate = new object();
 
     public UsbReadLimiter(IUsbClock clock)
@@ -58,21 +62,42 @@ sealed class UsbReadLimiter
         this.clock = clock;
     }
 
-    // True when a read may go ahead now; false if its turn wouldn't come before the deadline
+    // For a BIND: true when its read may go ahead now; false if its turn wouldn't come before the
+    // deadline, or once gone says the connection was closed
+    public bool WaitTurn(long deadline, Func<bool> gone)
+    {
+        return WaitTurn(deadline, ForBinds, gone);
+    }
+
     public bool WaitTurn(long deadline)
     {
+        return WaitTurn(deadline, ForBinds, null);
+    }
+
+    // For the pairing check and the menu, which may take any of the 4
+    public bool WaitTurnFirst(long deadline)
+    {
+        return WaitTurn(deadline, PerSecond, null);
+    }
+
+    bool WaitTurn(long deadline, int share, Func<bool> gone)
+    {
         while (true) {
+            if (gone != null && gone()) {
+                return false;
+            }
             long wait;
             lock (gate) {
                 long now = clock.Now;
-                while (recent.Count > 0 && now - recent.Peek() >= 1000) {
-                    recent.Dequeue();
+                while (recent.Count > 0 && now - recent[0] >= 1000) {
+                    recent.RemoveAt(0);
                 }
-                if (recent.Count < PerSecond) {
-                    recent.Enqueue(now);
+                if (recent.Count < share) {
+                    recent.Add(now);
                     return true;
                 }
-                wait = recent.Peek() + 1000 - now;
+                // Once this read has left the last second, there's room for one more
+                wait = recent[recent.Count - share] + 1000 - now;
                 if (now + wait > deadline) {
                     return false;
                 }
@@ -153,12 +178,12 @@ sealed class UsbPairingReader
         return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.SequentialScan);
     }
 
-    // The device lines, read fresh, once a read's turn comes. A missing file has none. Null, with
-    // the reason, if the file couldn't be read, or late set if the turn didn't come before the
-    // deadline.
+    // For the pairing check and the menu: the device lines, read fresh, once a read's turn comes
+    // (any of the 4 a second). A missing file has none. Null, with the reason, if the file couldn't
+    // be read, or late set if the turn didn't come before the deadline.
     public List<UsbPairingLine> Read(long deadline, out string problem, out bool late)
     {
-        late = !limiter.WaitTurn(deadline);
+        late = !limiter.WaitTurnFirst(deadline);
         if (late) {
             problem = "no read of the pairings file was free in time";
             return null;
@@ -284,15 +309,17 @@ sealed class UsbPairingReader
 
     // For a BIND: works out K_usb from this device's pairing key and wipes the pairing key. With no
     // pairing it decrypts the dummy key instead and hands back a random K_usb, so an unknown device
-    // id and a wrong MAC get the same answer after the same work. Null if the read's turn didn't come
-    // before the deadline.
-    public UsbBindKey ForBind(byte[] deviceId, long deadline, out string problem)
+    // id and a wrong MAC get the same answer after the same work. Its read is one of the 3 a second
+    // BINDs get. Null if the read's turn didn't come before the deadline, or gone said the
+    // connection was closed first.
+    public UsbBindKey ForBind(byte[] deviceId, long deadline, Func<bool> gone, out string problem)
     {
-        bool late;
-        List<UsbPairingLine> lines = Read(deadline, out problem, out late);
-        if (late) {
+        if (!limiter.WaitTurn(deadline, gone)) {
+            problem = gone != null && gone() ? "it was closed while its BIND waited to read the pairings file"
+                : "no read of the pairings file was free in time";
             return null;
         }
+        List<UsbPairingLine> lines = ReadNow(out problem);
         // A file that can't be read has no pairings
         UsbPairingLine line = Find(lines ?? new List<UsbPairingLine>(), deviceId);
         string field = line != null ? line.KeyField : dummyField;
@@ -323,6 +350,11 @@ sealed class UsbPairingReader
         key.KeyField = paired ? field : null;
         key.Name = paired ? line.Name : null;
         return key;
+    }
+
+    public UsbBindKey ForBind(byte[] deviceId, long deadline, out string problem)
+    {
+        return ForBind(deviceId, deadline, null, out problem);
     }
 }
 
@@ -1009,6 +1041,7 @@ sealed class UsbTunnelServer : IDisposable
     public UsbTunnelOptions Options { get { return options; } }
     public IUsbClock Clock { get { return clock; } }
     public UsbPairingReader Pairings { get { return pairings; } }
+    public UsbReadLimiter Limiter { get { return limiter; } }
     public UsbAllowList AllowList { get { return allowList; } }
     public UsbWaitingRoom Room { get { return room; } }
     public byte[] Fingerprint { get { return identity.Fingerprint; } }
