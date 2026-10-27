@@ -28,16 +28,27 @@ import com.limelight.binding.input.dualsense.TriggerStrength;
 final class DualSenseSettings {
     static final int REQUEST_NEARBY_DEVICES = 0x6473;  // "ds"
     // How long Test holds its effect before turning it off
-    private static final long TEST_HOLD_MS = 10_000;
+    static final long TEST_HOLD_MS = 10_000;
+
+    /** Makes the checker: DualSenseBluetooth.forSettings, or one with a fake link in the JVM tests. */
+    interface CheckerFactory {
+        DualSenseBluetooth create(Activity activity, int strength, DualSenseBluetooth.StatusListener listener);
+    }
 
     private final PreferenceFragment fragment;
+    private final CheckerFactory checkers;
     private CheckBoxPreference toggle;
     private Preference status;
     private DualSenseBluetooth checker;
     private boolean testSent;
 
     DualSenseSettings(PreferenceFragment fragment) {
+        this(fragment, DualSenseBluetooth::forSettings);
+    }
+
+    DualSenseSettings(PreferenceFragment fragment, CheckerFactory checkers) {
         this.fragment = fragment;
+        this.checkers = checkers;
     }
 
     void attach() {
@@ -144,8 +155,7 @@ final class DualSenseSettings {
         }
         testSent = false;
         DualSenseBluetooth[] started = new DualSenseBluetooth[1];
-        started[0] = DualSenseBluetooth.forSettings(fragment.getActivity(), strength,
-                next -> onStatus(started[0], next));
+        started[0] = checkers.create(fragment.getActivity(), strength, next -> onStatus(started[0], next));
         checker = started[0];
         checker.start();
         show(DualSenseStatus.CHECKING);

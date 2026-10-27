@@ -23,6 +23,9 @@ import java.util.Map;
  * the host's trigger messages. Each DualSense that connects is checked again; anything that fails
  * leaves the pad on today's path, with the reason in the log and in Settings. One DualSense at a
  * time: with two, both stay on today's path. Rumble and the light bar never come here.
+ *
+ * The JVM tests run it with a fake link (LinkFactory) on the main looper, so its checks, timeouts
+ * and fallbacks are tested without a device or a clock.
  */
 public final class DualSenseBluetooth {
     /** The status, on the main thread. */
@@ -30,16 +33,25 @@ public final class DualSenseBluetooth {
         void onStatus(DualSenseStatus status);
     }
 
+    /** Makes the Bluetooth link: Android's in the app, a fake in the JVM tests. */
+    public interface LinkFactory {
+        HidHostLink create(Context context);
+    }
+
+    private static final LinkFactory ANDROID_LINK = BluetoothHidHostLink::new;
+
     // How long to wait for Android's HID service, and for the pad to show in its list after
     // Android shows it as a controller (guesses; nobody has timed either with a pad)
-    private static final long LINK_TIMEOUT_MS = 5000;
-    private static final long PAD_RETRY_MS = 1500;
+    static final long LINK_TIMEOUT_MS = 5000;
+    static final long PAD_RETRY_MS = 1500;
 
     private final Context context;
     private final boolean inStream;
     private final TriggerRules rules;
     private final int strength;
     private final StatusListener listener;
+    private final LinkFactory linkFactory;
+    // Null when the tests give a looper to run on
     private final HandlerThread thread;
     private final Handler worker;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -50,7 +62,7 @@ public final class DualSenseBluetooth {
     private final Runnable syncGame = this::syncGame;
     private boolean syncPosted;
 
-    private BluetoothHidHostLink link;
+    private HidHostLink link;
     private boolean linkReady;
     private DualSenseSession session;
     private int sessionDevice = -1;
@@ -59,43 +71,76 @@ public final class DualSenseBluetooth {
     private boolean stopped;
 
     private DualSenseBluetooth(Context context, boolean inStream, TriggerPreset preset, int strength,
-                               StatusListener listener) {
+                               StatusListener listener, LinkFactory linkFactory, Looper looper) {
         this.context = context.getApplicationContext();
         this.inStream = inStream;
         this.rules = new TriggerRules(preset);
         this.strength = strength;
         this.listener = listener;
-        this.thread = new HandlerThread("DualSense");
-        this.thread.start();
-        this.worker = new Handler(thread.getLooper());
+        this.linkFactory = linkFactory;
+        if (looper == null) {
+            this.thread = new HandlerThread("DualSense");
+            this.thread.start();
+            looper = this.thread.getLooper();
+        }
+        else {
+            this.thread = null;
+        }
+        this.worker = new Handler(looper);
     }
 
     /** For a stream, or null when the switch is off. Call start() next. */
     public static DualSenseBluetooth forStream(Context context, PreferenceConfiguration prefs) {
+        return forStream(context, prefs, ANDROID_LINK, null);
+    }
+
+    /**
+     * forStream with another link, run on the given looper (null: its own thread). For the JVM
+     * tests.
+     */
+    public static DualSenseBluetooth forStream(Context context, PreferenceConfiguration prefs,
+                                               LinkFactory links, Looper looper) {
         if (!prefs.dualSenseEffects) {
             return null;
         }
-        return new DualSenseBluetooth(context, true, prefs.dualSenseTriggerPreset, prefs.dualSenseTriggerStrength, null);
+        return new DualSenseBluetooth(context, true, prefs.dualSenseTriggerPreset, prefs.dualSenseTriggerStrength,
+                null, links, looper);
     }
 
     /** For Settings: finds the pad without sending anything, and sends only on test(). */
     public static DualSenseBluetooth forSettings(Context context, int strength, StatusListener listener) {
-        return new DualSenseBluetooth(context, false, TriggerPreset.NONE, strength, listener);
+        return forSettings(context, strength, listener, ANDROID_LINK, null);
+    }
+
+    /** forSettings with another link, run on the given looper. For the JVM tests. */
+    public static DualSenseBluetooth forSettings(Context context, int strength, StatusListener listener,
+                                                 LinkFactory links, Looper looper) {
+        return new DualSenseBluetooth(context, false, TriggerPreset.NONE, strength, listener, links, looper);
+    }
+
+    /** Where things stand. Read it on the worker's thread (the JVM tests give theirs). */
+    public DualSenseStatus status() {
+        return status;
     }
 
     /** The checks before the hidden calls, then the link. */
     public void start() {
-        boolean modern = Build.VERSION.SDK_INT >= DualSenseChecks.MIN_SDK;
-        DualSenseStatus before = DualSenseChecks.beforeConnect(true, Build.VERSION.SDK_INT,
+        int sdk = Build.VERSION.SDK_INT;
+        boolean modern = sdk >= DualSenseChecks.MIN_SDK;
+        HidHostLink candidate = modern ? linkFactory.create(context) : null;
+        DualSenseStatus before = DualSenseChecks.beforeConnect(true, sdk,
                 modern && BluetoothHidHostLink.hasPermission(context),
-                modern && new BluetoothHidHostLink(context).bluetoothOn());
+                candidate != null && candidate.bluetoothOn());
         worker.post(() -> {
+            if (stopped) {
+                return;
+            }
             if (before != DualSenseStatus.READY) {
                 setStatus(before);
                 return;
             }
             setStatus(DualSenseStatus.CHECKING);
-            link = new BluetoothHidHostLink(context);
+            link = candidate;
             if (!link.open(() -> worker.post(this::onLinkReady))) {
                 setStatus(DualSenseStatus.NO_HID_SERVICE);
                 return;
@@ -109,10 +154,20 @@ public final class DualSenseBluetooth {
      * a touchpad that Android shows apart from its pad doesn't.
      */
     public void onController(int deviceId, InputDevice device, boolean gamepad) {
-        if (device == null || !gamepad || !PadMatcher.isDualSense(device.getVendorId(), device.getProductId())) {
+        if (device == null) {
             return;
         }
-        String address = PadMatcher.addressFrom(safeToString(device), device.getDescriptor());
+        onController(deviceId, device.getVendorId(), device.getProductId(), safeToString(device),
+                device.getDescriptor(), gamepad);
+    }
+
+    /** onController with what it reads from the InputDevice: its IDs, its text and descriptor. */
+    void onController(int deviceId, int vendorId, int productId, String description, String descriptor,
+                      boolean gamepad) {
+        if (!gamepad || !PadMatcher.isDualSense(vendorId, productId)) {
+            return;
+        }
+        String address = PadMatcher.addressFrom(description, descriptor);
         worker.post(() -> {
             if (stopped) {
                 return;
@@ -229,7 +284,9 @@ public final class DualSenseBluetooth {
                         .putString(PreferenceConfiguration.DUALSENSE_LAST_STATUS_PREF_STRING, status.name())
                         .apply();
             }
-            thread.quitSafely();
+            if (thread != null) {
+                thread.quitSafely();
+            }
         });
     }
 

@@ -174,6 +174,12 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private boolean overlayTriggeredByRemoteBack = false;
 
     public ControllerHandler(Activity activityContext, NvConnection conn, GameGestures gestures, PreferenceConfiguration prefConfig) {
+        this(activityContext, conn, gestures, prefConfig, DualSenseBluetooth.forStream(activityContext, prefConfig));
+    }
+
+    // With the DualSense code given, or null for none: the JVM tests give one with a fake link
+    ControllerHandler(Activity activityContext, NvConnection conn, GameGestures gestures, PreferenceConfiguration prefConfig,
+                      DualSenseBluetooth dualSense) {
         this.activityContext = activityContext;
         this.conn = conn;
         this.gestures = gestures;
@@ -222,7 +228,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         this.sceManager = new SceManager(activityContext);
         this.sceManager.start();
 
-        this.dualSense = DualSenseBluetooth.forStream(activityContext, prefConfig);
+        this.dualSense = dualSense;
         if (this.dualSense != null) {
             this.dualSense.start();
         }
@@ -1186,7 +1192,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     }
 
     // A new controller: kept, and shown to the DualSense code, which checks it on every connect
-    private void addInputDeviceContext(int deviceId, InputDeviceContext context) {
+    void addInputDeviceContext(int deviceId, InputDeviceContext context) {
         inputDeviceContexts.put(deviceId, context);
         if (dualSense != null) {
             dualSense.onController(deviceId, context.inputDevice, context.hasJoystickAxes);

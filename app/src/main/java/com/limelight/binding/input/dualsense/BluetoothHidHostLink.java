@@ -35,14 +35,9 @@ import java.util.Set;
  * Hidden calls can change with any Android or Bluetooth update, which is why DualSenseSession
  * checks the link on every connect and falls back to today's path. Android 12 and newer only.
  */
-public final class BluetoothHidHostLink implements HidHost {
+public final class BluetoothHidHostLink implements HidHostLink {
     /** BluetoothProfile.HID_HOST, which the public API doesn't name. */
     static final int HID_HOST_PROFILE = 4;
-
-    /** Called on the main thread once the service answered. No answer means no call: callers time out. */
-    public interface Listener {
-        void onLinkReady();
-    }
 
     private final Context context;
     private final BluetoothAdapter adapter;
@@ -62,7 +57,7 @@ public final class BluetoothHidHostLink implements HidHost {
                 && context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
     }
 
-    /** The device has Bluetooth and it's on. */
+    @Override
     @SuppressLint("MissingPermission") // isEnabled needs no runtime permission
     public boolean bluetoothOn() {
         try {
@@ -76,6 +71,7 @@ public final class BluetoothHidHostLink implements HidHost {
      * Asks for the service. The listener hears back on the main thread. False if Android said no
      * at once; the listener isn't called then.
      */
+    @Override
     public boolean open(Listener listener) {
         if (adapter == null) {
             return false;
@@ -115,6 +111,7 @@ public final class BluetoothHidHostLink implements HidHost {
         return proxy != null;
     }
 
+    @Override
     public void close() {
         closed = true;
         BluetoothProfile p = proxy;
