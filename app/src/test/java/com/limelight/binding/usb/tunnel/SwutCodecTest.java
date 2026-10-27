@@ -79,6 +79,27 @@ public class SwutCodecTest {
         assertTrue(doc.contains("K_usb   = HKDF(no salt, ikm = K_pair, info = \"starwire-usb/1 auth\" || deviceId)"));
     }
 
+    // The script that wrote the file (check-tools.sh runs it) starts from the same fixed inputs as these tests
+    @Test
+    public void theVectorsScriptUsesTheSameInputs() throws Exception {
+        String script = RepoFiles.read(".github/tools/vectors/make-swut-v1-vectors.sh").replace("\r\n", "\n");
+        Map<String, byte[]> inputs = new LinkedHashMap<>();
+        inputs.put("PAIR_KEY", SwutVectors.PAIR_KEY);
+        inputs.put("DEVICE_ID", SwutVectors.DEVICE_ID);
+        inputs.put("HELPER_NONCE", SwutVectors.HELPER_NONCE);
+        inputs.put("PHONE_NONCE", SwutVectors.PHONE_NONCE);
+        inputs.put("OTHER_PHONE_NONCE", SwutVectors.OTHER_PHONE_NONCE);
+        inputs.put("I_X", SwutVectors.PHONE_X);
+        inputs.put("I_Y", SwutVectors.PHONE_Y);
+        inputs.put("R_X", SwutVectors.HELPER_X);
+        inputs.put("R_Y", SwutVectors.HELPER_Y);
+        inputs.put("DEV", SwutVectors.DEVICE_DESCRIPTOR);
+        inputs.put("REPORT", SwutVectors.REPORT);
+        for (Map.Entry<String, byte[]> e : inputs.entrySet()) {
+            assertTrue(e.getKey() + " isn't the script's", script.contains("\n" + e.getKey() + "=" + hex(e.getValue()) + "\n"));
+        }
+    }
+
     // Each line made here from the fixed inputs, compared with the file; and no line goes unchecked
     @Test
     public void everyVectorLineIsReproduced() throws Exception {

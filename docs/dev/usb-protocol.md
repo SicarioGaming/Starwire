@@ -653,8 +653,11 @@ the phone's exporter. And it isn't encrypted or authenticated:
 
 `app/src/test/resources/swut-v1-vectors.txt` and `windows/tests/vectors/swut-v1-vectors.txt` are
 the same file (SHA-256 `B955594038A2A423525024796861A3F43748799C8E10E4260DEA9F6EAE60A085`, LF line
-endings, never changed by Git). Each line is `name=hex`. An openssl script wrote it from these
-fixed inputs, apart from the app's code, and the app's codec reproduces every line:
+endings, never changed by Git). Each line is `name=hex`.
+`.github/tools/vectors/make-swut-v1-vectors.sh` wrote it with openssl (3.2 or later, for
+deterministic ECDSA) and xxd from the fixed inputs below, apart from the app's code, and the
+app's codec reproduces every line. `check-tools.sh` runs it, and the device rules' script below,
+and compares what they write with both copies of each file. The inputs:
 
 | Input | Value |
 |---|---|
