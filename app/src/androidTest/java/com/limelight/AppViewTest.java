@@ -16,6 +16,7 @@ import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.limelight.computers.ComputerDatabaseManager;
+import com.limelight.computers.ComputerManagerService;
 import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.testing.IgnorePcUpdates;
 import com.limelight.testing.TestFiles;
@@ -280,6 +281,112 @@ public class AppViewTest {
                 }
             });
         }
+    }
+
+    // When its PC drops off the network the game screen says "lost connection" and closes. The
+    // other tests ignore the PC's updates, as the polls and the emulators' network pick when that
+    // happens. This one closes the screen on purpose, the way the polls do: the PC is offline and
+    // the app list poller passes that on. The main thread is asked to answer every quarter second
+    // until the screen is gone. On fold-z-36 (2026-10-27) a closing game screen didn't take the
+    // window's focus change for 5 s, Android called the app not responding, and nothing said
+    // where the main thread was. If it doesn't answer in 2.5 s, this logs its stack.
+    @Test
+    public void aLostPcClosesTheScreen() throws Exception {
+        try (ActivityScenario<AppView> scenario = ActivityScenario.launch(cachedPc())) {
+            AppView[] screen = new AppView[1];
+            scenario.onActivity(activity -> screen[0] = activity);
+
+            // The screen's service connection gives it the PC and its app list poller
+            boolean[] connected = new boolean[1];
+            long deadline = SystemClock.uptimeMillis() + 30_000;
+            while (true) {
+                onMain(() -> connected[0] = field(screen[0], "computer") != null
+                        && field(screen[0], "poller") != null);
+                if (connected[0]) {
+                    break;
+                }
+                assertTrue("the game screen didn't get its PC in 30 s", SystemClock.uptimeMillis() < deadline);
+                SystemClock.sleep(250);
+            }
+
+            // A network change can set the PC back to checking in between, so this goes on until
+            // the screen starts to close
+            boolean[] closing = new boolean[1];
+            deadline = SystemClock.uptimeMillis() + 30_000;
+            while (true) {
+                onMain(() -> {
+                    closing[0] = screen[0].isFinishing();
+                    if (!closing[0]) {
+                        IgnorePcUpdates.setIgnoring(screen[0], false);
+                        ((ComputerDetails) field(screen[0], "computer")).state = ComputerDetails.State.OFFLINE;
+                        ((ComputerManagerService.ApplistPoller) field(screen[0], "poller")).pollNow();
+                    }
+                });
+                if (closing[0]) {
+                    break;
+                }
+                assertTrue("the game screen stayed open 30 s with its PC offline", SystemClock.uptimeMillis() < deadline);
+                SystemClock.sleep(250);
+            }
+
+            // Paused, stopped and destroyed, with the main thread answering all the while
+            boolean[] destroyed = new boolean[1];
+            deadline = SystemClock.uptimeMillis() + 30_000;
+            while (true) {
+                onMain(() -> destroyed[0] = screen[0].isDestroyed());
+                if (destroyed[0]) {
+                    break;
+                }
+                assertTrue("the game screen wasn't gone 30 s after it started to close",
+                        SystemClock.uptimeMillis() < deadline);
+                SystemClock.sleep(250);
+            }
+        }
+    }
+
+    // Runs this on the main thread and waits for it, without waiting for the main thread to go
+    // idle first as ActivityScenario does. If the main thread hasn't run it in 2.5 s this logs
+    // where the main thread is: Android calls an app that hasn't taken its input in 5 s not
+    // responding, and can end the run before a test fails. Anything it throws is thrown here, as
+    // thrown on the main thread it would end the app.
+    private static void onMain(Runnable task) throws InterruptedException {
+        java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+        Throwable[] thrown = new Throwable[1];
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            try {
+                task.run();
+            }
+            catch (Throwable t) {
+                thrown[0] = t;
+            }
+            finally {
+                done.countDown();
+            }
+        });
+        if (!done.await(2500, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+            String stack = mainThreadStack();
+            android.util.Log.w("AppViewTest", "the main thread hasn't answered for 2.5 s. It's at:" + stack);
+            if (!done.await(60, java.util.concurrent.TimeUnit.SECONDS)) {
+                fail("the main thread hasn't answered for a minute. It was at:" + stack);
+            }
+        }
+        if (thrown[0] != null) {
+            throw new AssertionError(thrown[0]);
+        }
+    }
+
+    // The main thread's stack, its first 100 frames
+    private static String mainThreadStack() {
+        Thread main = android.os.Looper.getMainLooper().getThread();
+        StringBuilder stack = new StringBuilder(" (").append(main.getState()).append(")");
+        StackTraceElement[] frames = main.getStackTrace();
+        for (int i = 0; i < Math.min(100, frames.length); i++) {
+            stack.append("\n    at ").append(frames[i]);
+        }
+        if (frames.length > 100) {
+            stack.append("\n    (").append(frames.length - 100).append(" more)");
+        }
+        return stack.toString();
     }
 
     @Test
