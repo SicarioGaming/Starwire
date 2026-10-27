@@ -300,8 +300,8 @@ public class AppViewTest {
             boolean[] connected = new boolean[1];
             long deadline = SystemClock.uptimeMillis() + 30_000;
             while (true) {
-                onMain(() -> connected[0] = field(screen[0], "computer") != null
-                        && field(screen[0], "poller") != null);
+                onMain("while the screen opens", () -> connected[0] =
+                        field(screen[0], "computer") != null && field(screen[0], "poller") != null);
                 if (connected[0]) {
                     break;
                 }
@@ -314,7 +314,7 @@ public class AppViewTest {
             boolean[] closing = new boolean[1];
             deadline = SystemClock.uptimeMillis() + 30_000;
             while (true) {
-                onMain(() -> {
+                onMain("while its PC goes offline", () -> {
                     closing[0] = screen[0].isFinishing();
                     if (!closing[0]) {
                         IgnorePcUpdates.setIgnoring(screen[0], false);
@@ -333,7 +333,7 @@ public class AppViewTest {
             boolean[] destroyed = new boolean[1];
             deadline = SystemClock.uptimeMillis() + 30_000;
             while (true) {
-                onMain(() -> destroyed[0] = screen[0].isDestroyed());
+                onMain("while the screen closes", () -> destroyed[0] = screen[0].isDestroyed());
                 if (destroyed[0]) {
                     break;
                 }
@@ -346,10 +346,11 @@ public class AppViewTest {
 
     // Runs this on the main thread and waits for it, without waiting for the main thread to go
     // idle first as ActivityScenario does. If the main thread hasn't run it in 2.5 s this logs
-    // where the main thread is: Android calls an app that hasn't taken its input in 5 s not
-    // responding, and can end the run before a test fails. Anything it throws is thrown here, as
-    // thrown on the main thread it would end the app.
-    private static void onMain(Runnable task) throws InterruptedException {
+    // where the main thread is, and which step of the test it was: Android calls an app that
+    // hasn't taken its input in 5 s not responding, and can end the run before a test fails. A
+    // slow first frame while the screen opens isn't the screen closing. Anything it throws is
+    // thrown here, as thrown on the main thread it would end the app.
+    private static void onMain(String step, Runnable task) throws InterruptedException {
         java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
         Throwable[] thrown = new Throwable[1];
         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
@@ -365,9 +366,10 @@ public class AppViewTest {
         });
         if (!done.await(2500, java.util.concurrent.TimeUnit.MILLISECONDS)) {
             String stack = mainThreadStack();
-            android.util.Log.w("AppViewTest", "the main thread hasn't answered for 2.5 s. It's at:" + stack);
+            android.util.Log.w("AppViewTest", "the main thread hasn't answered for 2.5 s " + step
+                    + ". It's at:" + stack);
             if (!done.await(60, java.util.concurrent.TimeUnit.SECONDS)) {
-                fail("the main thread hasn't answered for a minute. It was at:" + stack);
+                fail("the main thread hasn't answered for a minute " + step + ". It was at:" + stack);
             }
         }
         if (thrown[0] != null) {
