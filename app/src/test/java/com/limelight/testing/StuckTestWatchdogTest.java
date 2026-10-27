@@ -3,6 +3,9 @@ package com.limelight.testing;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import android.os.Handler;
+import android.os.Looper;
+
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.Description;
@@ -49,16 +52,25 @@ public class StuckTestWatchdogTest {
     private static final class Recorder implements StuckTestWatchdog.Actions {
         final List<String> events = new ArrayList<>();
         String details = "";
+        boolean reportsFail;
+        boolean finishingFails;
 
         @Override
         public void report(Description test, String summary, String details) {
             events.add("report " + test.getMethodName() + ": " + summary);
             this.details = details;
+            if (reportsFail) {
+                // As Binder does with a report too big to send
+                throw new IllegalStateException("couldn't send the report");
+            }
         }
 
         @Override
         public void finishActivities() {
             events.add("finish activities");
+            if (finishingFails) {
+                throw new IllegalStateException("couldn't finish them");
+            }
         }
 
         @Override
@@ -158,5 +170,47 @@ public class StuckTestWatchdogTest {
         watchdog.testRunFinished(null);
         scheduler.runDue();
         assertEquals(new ArrayList<String>(), recorder.events);
+    }
+
+    // The watchdog runs on a timer thread, where anything thrown ends the app's process at once:
+    // the activities would stay open, and the run would only say "Process crashed"
+    @Test
+    public void aReportThatFailsStillLetsTheWatchdogGoOn() {
+        recorder.reportsFail = true;
+        watchdog.testStarted(FIRST);
+        scheduler.runDue();
+        assertEquals(List.of(
+                "report first: stuck for 120 s; its activities were finished so the run could go on",
+                "finish activities"), recorder.events);
+        scheduler.runDue();
+        assertEquals("end process", recorder.events.get(recorder.events.size() - 1));
+    }
+
+    @Test
+    public void activitiesThatCantBeFinishedStillEndTheProcessLater() {
+        recorder.finishingFails = true;
+        watchdog.testStarted(FIRST);
+        scheduler.runDue();
+        scheduler.runDue();
+        assertEquals("end process", recorder.events.get(recorder.events.size() - 1));
+    }
+
+    // A stuck main thread can have thousands of messages waiting. The report goes to logcat and
+    // through Binder to the run's output, so it keeps to the first ones and says how many it left
+    @Test
+    public void aLongQueueIsCutShortInTheReport() {
+        Handler handler = new Handler(Looper.getMainLooper());
+        Runnable nothing = () -> { };
+        for (int i = 0; i < 2000; i++) {
+            handler.postDelayed(nothing, 3_600_000);
+        }
+        try {
+            String details = StuckTestWatchdog.threads(null);
+            assertTrue("report is " + details.length() + " characters", details.length() < 32_000);
+            assertTrue(details, details.contains(" more lines"));
+        }
+        finally {
+            handler.removeCallbacks(nothing);
+        }
     }
 }

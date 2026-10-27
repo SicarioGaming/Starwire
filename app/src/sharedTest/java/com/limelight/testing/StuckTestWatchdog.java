@@ -9,7 +9,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
 import android.util.Log;
-import android.util.StringBuilderPrinter;
+import android.util.Printer;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
@@ -50,6 +50,10 @@ public class StuckTestWatchdog extends RunListener {
     static final String STATUS_KEY = "stuck";
     static final long DEFAULT_STUCK_MS = 90_000;
     static final long GRACE_MS = 30_000;
+    // How much of each part of a report goes in: under 100 KB in all
+    static final int MAX_QUEUE_LINES = 100;
+    static final int MAX_FRAMES = 100;
+    static final int MAX_LINE_CHARS = 300;
 
     /** Runs a task later; the tests hand in one they run by hand. */
     interface Scheduler {
@@ -139,9 +143,14 @@ public class StuckTestWatchdog extends RunListener {
             thread = testThread;
             cancel = scheduler.schedule(() -> stillStuck(description), graceMs);
         }
-        actions.report(description, "stuck for " + seconds(stuckMs) + " s; its activities were finished so the run could go on",
-                threads(thread));
-        actions.finishActivities();
+        report(description, "stuck for " + seconds(stuckMs) + " s; its activities were finished so the run could go on",
+                thread);
+        try {
+            actions.finishActivities();
+        }
+        catch (Throwable t) {
+            Log.e(TAG, description + ": couldn't finish its activities", t);
+        }
     }
 
     private void stillStuck(Description description) {
@@ -152,16 +161,30 @@ public class StuckTestWatchdog extends RunListener {
             }
             thread = testThread;
         }
-        actions.report(description, "still stuck " + seconds(graceMs) + " s after its activities were finished: the main "
-                + "thread is blocked, so the process was ended", threads(thread));
+        report(description, "still stuck " + seconds(graceMs) + " s after its activities were finished: the main "
+                + "thread is blocked, so the process was ended", thread);
         actions.endProcess();
+    }
+
+    // This runs on the timer's thread, where anything thrown ends the app's process at once, before
+    // the activities are finished, and the run would only say "Process crashed". A report too big
+    // for Binder throws, for one.
+    private void report(Description description, String summary, Thread testThread) {
+        try {
+            actions.report(description, summary, threads(testThread));
+        }
+        catch (Throwable t) {
+            Log.e(TAG, description + ": " + summary + " (couldn't report what the threads were doing)", t);
+        }
     }
 
     private static long seconds(long ms) {
         return ms / 1000;
     }
 
-    // The main thread's state, stack and waiting messages, then the test thread's stack
+    // The main thread's state, stack and waiting messages, then the test thread's stack. A stuck
+    // main thread can have thousands of messages waiting, and the report goes to logcat and through
+    // Binder (about 1 MB at a time, shared), so it keeps to the first lines of each part.
     static String threads(Thread testThread) {
         StringBuilder report = new StringBuilder();
         Looper mainLooper = Looper.getMainLooper();
@@ -169,8 +192,9 @@ public class StuckTestWatchdog extends RunListener {
         report.append("Main thread (").append(main.getState()).append("):\n");
         appendStack(report, main.getStackTrace());
         report.append("Main thread's message queue:\n");
-        mainLooper.dump(new StringBuilderPrinter(report), "  ");
-        report.append('\n');
+        LimitedPrinter queue = new LimitedPrinter(report, MAX_QUEUE_LINES);
+        mainLooper.dump(queue, "  ");
+        queue.sayWhatWasLeftOut();
         if (testThread != null && testThread != main) {
             report.append("Test thread ").append(testThread.getName()).append(" (").append(testThread.getState()).append("):\n");
             appendStack(report, testThread.getStackTrace());
@@ -179,8 +203,41 @@ public class StuckTestWatchdog extends RunListener {
     }
 
     private static void appendStack(StringBuilder report, StackTraceElement[] stack) {
-        for (StackTraceElement frame : stack) {
-            report.append("    at ").append(frame).append('\n');
+        int shown = Math.min(stack.length, MAX_FRAMES);
+        for (int i = 0; i < shown; i++) {
+            report.append("    at ").append(clip(String.valueOf(stack[i]))).append('\n');
+        }
+        if (stack.length > shown) {
+            report.append("    ... and ").append(stack.length - shown).append(" more frames\n");
+        }
+    }
+
+    private static String clip(String line) {
+        return line.length() <= MAX_LINE_CHARS ? line : line.substring(0, MAX_LINE_CHARS) + "...";
+    }
+
+    // Keeps the first lines it's given and counts the rest
+    private static final class LimitedPrinter implements Printer {
+        private final StringBuilder out;
+        private final int maxLines;
+        private int lines;
+
+        LimitedPrinter(StringBuilder out, int maxLines) {
+            this.out = out;
+            this.maxLines = maxLines;
+        }
+
+        @Override
+        public void println(String x) {
+            if (lines++ < maxLines) {
+                out.append(clip(x)).append('\n');
+            }
+        }
+
+        void sayWhatWasLeftOut() {
+            if (lines > maxLines) {
+                out.append("  ... and ").append(lines - maxLines).append(" more lines\n");
+            }
         }
     }
 
