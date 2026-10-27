@@ -10,14 +10,16 @@
 #   patterns-file  extra extended regexes, one per line, matched without case (default
 #                  private/privacy-patterns.txt, which git ignores, so the patterns never get published).
 #                  Lines starting with # are comments. "allow <commit> <path>" accepts a known hit in that
-#                  commit and file, for things that are already public anyway.
+#                  commit and file, for things that are already public anyway. Without it, it stops.
 #
 # It looks only at commits that new-tip has and public-tip doesn't, and skips upstream ones (anything
 # reachable from refs/remotes/moonlightx, artemide, turnip, nightjar or vplus, the forks Starwire takes
 # commits from; set UPSTREAM_REMOTES to change the list).
 # It only reads the repo: no network, no changes, and the same input always gives the same output.
 # Findings say where something is, never what matched, so the output is safe to paste.
-# Exit 0 = clean, 1 = something to fix, 2 = usage error.
+# Exit 0 = clean, 1 = something to fix, 2 = usage error, or a step failed and nothing is known.
+# It fails closed: if a step can't run (no patterns file, a temporary folder it can't write in, a git
+# or awk that fails), it says so and exits 2. Only a check that ran to the end says "clean".
 #
 # What it checks:
 #  1. every new commit (merges too) and the tag, if new-tip is one, is by the publishing identity
@@ -34,8 +36,10 @@
 #
 # Needs bash, git, GNU grep and awk (all in Git for Windows).
 
-set -u
+set -Eeuo pipefail
 export LC_ALL=C
+failed_line=""
+trap 'failed_line=$LINENO' ERR
 
 ID_OK=${PUBLISH_IDENTITY:-SicarioGaming <stayf8dop@gmail.com>}
 UPSTREAM=${UPSTREAM_REMOTES:-moonlightx artemide turnip nightjar vplus}
@@ -91,42 +95,62 @@ if [ "$OLD" != - ]; then
   git rev-parse -q --verify "$OLD^{commit}" >/dev/null || { echo "not a commit: $OLD" >&2; exit 2; }
   not+=("$OLD")
 fi
+if [ ! -f "$PATTERNS" ] || [ ! -r "$PATTERNS" ]; then
+  echo "error: can't read the patterns file $PATTERNS, so the private patterns can't be checked." >&2
+  echo "Give the path to private/privacy-patterns.txt, which is only in the clone you publish from." >&2
+  exit 2
+fi
+
+# From here on, a step that fails stops the check with an error, and only the end says "clean"
+tmp="" finished=""
+on_exit() {
+  local status=$?
+  [ -z "$tmp" ] || rm -rf "$tmp"
+  if [ -z "$finished" ]; then
+    echo "error: check-publish.sh stopped${failed_line:+ at line $failed_line}, because a step failed (see above)." >&2
+    echo "The check didn't finish, so it isn't clean. Fix that and run it again." >&2
+    exit 2
+  fi
+  exit $status
+}
+trap on_exit EXIT
+
 skipped_up="" up_refs=()
 for r in $UPSTREAM; do
-  if [ -n "$(git for-each-ref --count=1 "refs/remotes/$r/")" ]; then not+=("--remotes=$r"); up_refs+=("--remotes=$r")
+  refs=$(git for-each-ref --count=1 "refs/remotes/$r/")
+  if [ -n "$refs" ]; then not+=("--remotes=$r"); up_refs+=("--remotes=$r")
   else skipped_up="$skipped_up $r"; fi
 done
 [ -z "$skipped_up" ] || echo "note: no refs for upstream remote(s)$skipped_up, so their commits are checked too"
 
-tmp=$(mktemp -d) || exit 2
-trap 'rm -rf "$tmp"' EXIT
+tmp=$(mktemp -d)
 : > "$tmp/out"
 
 git rev-list "$NEW" --not "${not[@]}" > "$tmp/commits"
-echo "checking $(wc -l < "$tmp/commits" | tr -d ' ') new commit(s) in $NEW"
+count=$(wc -l < "$tmp/commits")
+echo "checking ${count//[[:space:]]/} new commit(s) in $NEW"
+new_type=$(git cat-file -t "$NEW")
+new_id=$(git rev-parse "$NEW")
 
 # Private patterns and allow entries
 : > "$tmp/patterns"; : > "$tmp/allow"
-if [ -f "$PATTERNS" ]; then
-  n=0
-  while IFS= read -r p || [ -n "$p" ]; do
-    n=$((n + 1)); p=${p%$'\r'}
-    case "$p" in ''|'#'*) continue ;; esac
-    if [ "${p#allow }" != "$p" ]; then
-      read -r a_commit a_path <<< "${p#allow }"
-      if full=$(git rev-parse -q --verify "${a_commit:-x}^{commit}") && [ -n "$a_path" ]; then
-        printf '%s\t%s\n' "$full" "$a_path" >> "$tmp/allow"
-      else
-        echo "note: ignoring allow line $n, which doesn't name a commit here and a path"
-      fi
-      continue
+n=0
+while IFS= read -r p || [ -n "$p" ]; do
+  n=$((n + 1)); p=${p%$'\r'}
+  case "$p" in ''|'#'*) continue ;; esac
+  if [ "${p#allow }" != "$p" ]; then
+    read -r a_commit a_path <<< "${p#allow }"
+    if full=$(git rev-parse -q --verify "${a_commit:-x}^{commit}") && [ -n "$a_path" ]; then
+      printf '%s\t%s\n' "$full" "$a_path" >> "$tmp/allow"
+    else
+      echo "note: ignoring allow line $n, which doesn't name a commit here and a path"
     fi
-    printf '%s\t%s\n' "$n" "$p" >> "$tmp/patterns"
-  done < "$PATTERNS"
-  echo "private patterns: $(wc -l < "$tmp/patterns" | tr -d ' ') from $PATTERNS"
-else
-  echo "note: no patterns file at $PATTERNS, so only the built-in checks run"
-fi
+    continue
+  fi
+  printf '%s\t%s\n' "$n" "$p" >> "$tmp/patterns"
+done < "$PATTERNS"
+count=$(wc -l < "$tmp/patterns")
+echo "private patterns: ${count//[[:space:]]/} from $PATTERNS"
 
 # --- 1. identity and UTC dates ---------------------------------------------------------------------
 # picks gets "commit TAB verdict" for each commit whose message ends with a cherry-pick line: ok, or
@@ -146,14 +170,16 @@ if [ -s "$tmp/commits" ]; then
       if [ ${#up_refs[@]} -gt 0 ] && git cat-file -e "$up^{commit}" 2>/dev/null &&
          left=$(git rev-list -n 1 "$up" --not "${up_refs[@]}") && [ -z "$left" ]; then
         verdict=author
-        [ "$(author_of "$c")" = "$(author_of "$up")" ] && verdict=ok
+        ours=$(author_of "$c"); theirs=$(author_of "$up")
+        [ "$ours" != "$theirs" ] || verdict=ok
       fi
       printf '%s\t%s\n' "$c" "$verdict"
     done > "$tmp/picks"
   git log --no-walk=unsorted --stdin --format='%H%x09%an <%ae>%x09%cn <%ce>%x09%ad%x09%cd' \
       --date=format:%z < "$tmp/commits" |
     awk -F'\t' -v ok="$ID_OK" -v picks="$tmp/picks" '
-      BEGIN { while ((getline p < picks) > 0) { split(p, x, "\t"); pick[x[1]] = x[2] } }
+      BEGIN { while ((r = (getline p < picks)) > 0) { split(p, x, "\t"); pick[x[1]] = x[2] }
+              if (r < 0) { print "awk: can'"'"'t read " picks > "/dev/stderr"; exit 2 } }
       { id = substr($1, 1, 10); v = ($1 in pick) ? pick[$1] : ""
         why = ""
         if (v == "upstream") why = ", and its cherry-pick line names no upstream commit"
@@ -164,8 +190,8 @@ if [ -s "$tmp/commits" ]; then
         if ($5 != "+0000") print "timezone: " id " committer date is not +0000"
       }' >> "$tmp/out"
 fi
-if [ "$(git cat-file -t "$NEW")" = tag ]; then
-  tagger=$(git cat-file tag "$NEW" | sed -n 's/^tagger //p' | head -n 1)
+if [ "$new_type" = tag ]; then
+  tagger=$(git cat-file tag "$NEW" | sed -n '1,/^$/s/^tagger //p')
   tag_id=${tagger% * *}; tag_zone=${tagger##* }
   [ "$tag_id" = "$ID_OK" ] || echo "identity: tag $NEW tagger is not $ID_OK" >> "$tmp/out"
   [ "$tag_zone" = "+0000" ] || echo "timezone: tag $NEW date is not +0000" >> "$tmp/out"
@@ -180,8 +206,8 @@ fixture='(^|/)(test|tests|androidTest|testdata|fixtures?|__tests__)/|Tests?[.](j
     git -c core.quotePath=false log --no-walk=unsorted --stdin -p --cc --no-renames --diff-filter=d \
         --text --no-color --no-ext-diff --no-textconv --format='%x01C %H%n%B%x01E' < "$tmp/commits"
   fi
-  if [ "$(git cat-file -t "$NEW")" = tag ]; then
-    printf '\001C %s\n' "$(git rev-parse "$NEW")"
+  if [ "$new_type" = tag ]; then
+    printf '\001C %s\n' "$new_id"
     git cat-file tag "$NEW" | sed '1,/^$/d'
     printf '\001E\n'
   fi
@@ -207,7 +233,8 @@ touch "$tmp/idx" "$tmp/txt" "$tmp/paths"
 # Prints "check: commit path:line [rule]" once per commit, file and rule, with a count of extra lines.
 report() { # check rule  (line numbers of txt on stdin)
   awk -F'\t' -v check="$1" -v rule="$2" -v allowf="$tmp/allow" '
-    BEGIN { while ((getline a < allowf) > 0) { split(a, x, "\t"); allow[x[1] "\t" x[2]] = 1 } }
+    BEGIN { while ((r = (getline a < allowf)) > 0) { split(a, x, "\t"); allow[x[1] "\t" x[2]] = 1 }
+            if (r < 0) { print "awk: can'"'"'t read " allowf > "/dev/stderr"; exit 2 } }
     NR == FNR { want[$1] = 1; next }
     (FNR in want) && !(($1 "\t" $2) in allow) {
       k = $1 "\t" $2
@@ -218,13 +245,14 @@ report() { # check rule  (line numbers of txt on stdin)
                    (more[k] ? " and " more[k] " more line(s)" : "") } }
   ' - "$tmp/idx" >> "$tmp/out"
 }
-rule() { # check rule grep-flags regex
-  grep -n -a $3 -E -e "$4" "$tmp/txt" | cut -d: -f1 | report "$1" "$2"
+rule() { # check rule grep-flags regex  (grep's exit 1 is "no match"; 2 is an error)
+  { grep -n -a $3 -E -e "$4" "$tmp/txt" || [ $? -eq 1 ]; } | cut -d: -f1 | report "$1" "$2"
 }
 
 # --- 2. files that must never be public ------------------------------------------------------------
 awk -F'\t' -v allowf="$tmp/allow" '
-  BEGIN { while ((getline a < allowf) > 0) { split(a, x, "\t"); allow[x[1] "\t" x[2]] = 1 } }
+  BEGIN { while ((r = (getline a < allowf)) > 0) { split(a, x, "\t"); allow[x[1] "\t" x[2]] = 1 }
+          if (r < 0) { print "awk: can'"'"'t read " allowf > "/dev/stderr"; exit 2 } }
   !(($1 "\t" $2) in allow) && ($2 ~ /(^|\/)(keystore|local)\.properties$|\.(jks|keystore|p12|pfx|pem|key|bks)$|(^|\/)id_(rsa|dsa|ecdsa|ed25519)$|(^|\/)\.env(\.|$)|^private\/|^docs\/release\/reddit/) {
     print "forbidden file: " substr($1, 1, 10) " " $2 }' "$tmp/paths" | sort -u >> "$tmp/out"
 
@@ -242,7 +270,8 @@ rule "local path" "user folder" "-i" '[A-Za-z]:[\\/]+(Users|Documents and Settin
 
 # Private IPv4 host addresses (not network ranges like 192.168.0.0/16 or .0/.255), outside test files
 awk -F'\t' -v txt="$tmp/txt" '
-  { getline s < txt; if ($4 == 1) next
+  { if ((getline s < txt) <= 0) { print "awk: can'"'"'t read line " NR " of " txt > "/dev/stderr"; exit 2 }
+    if ($4 == 1) next
     while (match(s, /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
       a = substr(s, RSTART, RLENGTH); pre = substr(s, RSTART - 1, 1); post = substr(s, RSTART + RLENGTH, 2)
       s = substr(s, RSTART + RLENGTH)
@@ -259,14 +288,16 @@ while IFS=$'\t' read -r n p; do
 done < "$tmp/patterns"
 
 # --- 4. placeholders left in public text ------------------------------------------------------------
-git grep -n -I -E 'DELAYTBD|(^|[^A-Za-z0-9_])TBD([^A-Za-z0-9_]|$)|<release date>' "$NEW" -- \
-    README.md docs windows/README.md .github/release-notes 2>/dev/null |
+{ git grep -n -I -E 'DELAYTBD|(^|[^A-Za-z0-9_])TBD([^A-Za-z0-9_]|$)|<release date>' "$NEW" -- \
+    README.md docs windows/README.md .github/release-notes || [ $? -eq 1 ]; } |
   sed -e 's/^[^:]*://' -e 's/^\([^:]*:[0-9]*\):.*/placeholder: \1/' >> "$tmp/out"
 
 if [ -s "$tmp/out" ]; then
   sort "$tmp/out" | awk -v max=$MAX_LINES '{ if (NR <= max) print; n = NR }
     END { if (n > max) print "... and " n - max " more" }'
   echo "FAIL: fix the lines above before pushing"
+  finished=yes
   exit 1
 fi
 echo "clean"
+finished=yes

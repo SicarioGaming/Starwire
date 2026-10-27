@@ -799,6 +799,53 @@ fi
 rm -rf "$vectors_tmp"
 ok "the USB tunnel's vectors and device rules' cases are what their scripts write"
 
+# 18. check-publish.sh fails closed: when a step can't run, it says so, exits 2 and never says
+# "clean". With C: full, its awk couldn't write a temporary file and it said "clean". Here: a
+# temporary folder it can't write in, an awk that fails, a git that fails at the last step, and
+# no patterns file. The commit it checks is clean, so only the failure can stop it.
+begin
+work="$(mktemp -d)"
+repo="$work/repo"
+git init -q "$repo"
+base=$(mk "" "$pub" "$pub" "the public tip" "Start")
+git -C "$repo" update-ref refs/heads/main "$base"
+tip=$(mk "$base" "$pub" "$pub" "a new line" "Add a line")
+echo 'planted-private-word' > "$work/patterns.txt"
+: > "$work/a-file"
+mkdir "$work/mktemp" "$work/awk" "$work/git"
+# A mktemp that names a folder nothing can be written in, as on a full disk
+printf '%s\n' '#!/usr/bin/env bash' "echo '$work/a-file/tmp.made-up'" > "$work/mktemp/mktemp"
+printf '%s\n' '#!/usr/bin/env bash' 'echo "awk: fatal: made up for the test" >&2' 'exit 2' > "$work/awk/awk"
+printf '%s\n' '#!/usr/bin/env bash' \
+    'if [ "$1" = grep ]; then echo "fatal: made up for the test" >&2; exit 128; fi' \
+    "exec '$(command -v git)' \"\$@\"" > "$work/git/git"
+chmod +x "$work/mktemp/mktemp" "$work/awk/awk" "$work/git/git"
+publish_with() {  # expected exit code, what's wrong, the patterns file, then NAME=value settings
+    local expected=$1 what=$2 patterns=$3 status
+    shift 3
+    set +e
+    published=$(cd "$repo" && env "$@" PUBLISH_IDENTITY="$me" UPSTREAM_REMOTES=moonlightx \
+        bash "$HERE/check-publish.sh" main "$tip" "$patterns" 2>&1)
+    status=$?
+    set -e
+    if [ "$expected" = 0 ] && { [ $status -ne 0 ] || ! grep -qx 'clean' <<< "$published"; }; then
+        printf '%s\n' "$published" >&2
+        fail "check-publish.sh on a clean commit: exit $status (expected 0 and \"clean\")"
+    elif [ "$expected" = 2 ] && { [ $status -ne 2 ] || grep -qx 'clean' <<< "$published" ||
+                                  ! grep -q '^error: ' <<< "$published"; }; then
+        printf '%s\n' "$published" >&2
+        fail "check-publish.sh with $what: exit $status (expected 2, an error and no \"clean\")"
+    fi
+}
+publish_with 0 "nothing wrong" "$work/patterns.txt"
+publish_with 2 "TMPDIR naming a file" "$work/patterns.txt" TMPDIR="$work/a-file"
+publish_with 2 "a temporary folder it can't write in" "$work/patterns.txt" PATH="$work/mktemp:$PATH"
+publish_with 2 "an awk that fails" "$work/patterns.txt" PATH="$work/awk:$PATH"
+publish_with 2 "a git that fails at the placeholder search" "$work/patterns.txt" PATH="$work/git:$PATH"
+publish_with 2 "no patterns file" "$work/no-such-patterns.txt"
+rm -rf "$work"
+ok "check-publish.sh stops with an error, never \"clean\", when a step fails or the patterns file is missing"
+
 if [ $failures -ne 0 ]; then
     echo "$failures problem(s)" >&2
     exit 1
