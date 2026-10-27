@@ -18,6 +18,46 @@
 
 ---
 
+## Update (28 Oct)
+
+0.3.0 is out now ([download](https://github.com/SicarioGaming/Starwire/releases/tag/v0.3.0)). Back opens the stream menu now, there's a Brightness item and a vibration strength setting, and a round of fixes, multi-touch mode among them. There are also two Experimental parts to try, both off until you turn them on: DualSense trigger effects and sharing a USB device from your phone with the PC. If you try them, a [GitHub issue](https://github.com/SicarioGaming/Starwire/issues) saying what happened helps a lot.
+
+<details open>
+<summary><b>Release notes for 0.3.0</b></summary>
+
+**Updating from 0.2.1:** install the new APK over 0.2.1. On the PC, the microphone receiver hasn't changed, so keep it as it is. The USB helper is new, and only needed for USB devices.
+
+**Two things work differently after the update:**
+
+- **Back opens the stream menu** instead of ending the stream, and Back again closes it. To leave, use Disconnect or Quit Session in the menu, or turn it off in Settings → In-stream menu.
+- **A tap near the left edge goes to the game.** The brightness slider is now the Brightness item in the stream menu, and a swipe in from the left edge can open it once you pick that in Settings → In-stream menu → Left edge swipe action.
+
+**Experimental, off by default:**
+
+- **DualSense trigger effects** (Settings → Controllers → DualSense): needs Android 12 or newer and a DualSense paired over Bluetooth. You get the game's own adaptive trigger effects from a host that sends them, or one of four presets.
+- **USB devices** (Settings → Controllers): shares one wired device plugged into your phone or tablet with the PC. Needs a 64-bit ARM device with Android 9 or newer, the microphone receiver with that device paired, the PC's [USB helper](windows/USB-HELPER.md) and usbip-win2's driver, version 0.9.8.1.
+
+**What's new in 0.3.0:**
+
+- Back opens the menu, on by default. The idea is from Artemis, via Artemide.
+- A Brightness item in the stream menu, and a Left edge swipe action setting. From Moonlight X.
+- Controller vibration strength, 0 to 100% of the game's rumble.
+- Shortcuts for Windows' virtual desktops on the stream menu's Shortcuts page.
+- Quit Session asks first. From Moonlight X.
+- "Display on the PC" is now called Virtual display.
+
+**Fixes**
+
+- Multi-touch mode sent the PC mouse clicks instead of touches. Now each finger is a touch of its own.
+- A button or key you held when you opened the stream menu no longer stays pressed on the PC.
+- With gesture navigation, the last setting scrolls clear of the gesture bar. From Moonlight X.
+- If you change the bitrate twice in a row, your latest choice wins.
+- On Android 5.0 and 5.1, the encrypted microphone's code refuses a damaged packet instead of throwing an error.
+
+**Not tried yet** (TO CONFIRM after the device tests): Starwire's trigger effects on a real DualSense, a game's effects through the host, sharing a USB device from a phone, and the PC's USB helper with the real driver. A separate test app changed the light bar and played four trigger effects on a DualSense with my RedMagic Astra (Android 16). Everything else new is checked by tests on a computer, and hasn't been tried in a stream yet.
+
+</details>
+
 ## Update (23 Oct)
 
 Hey everyone - thank you so much for giving Starwire a chance, and for all of the meaningful feedback I've received thus far. I may never beat the "AI/Vibecoded Slop" allegations fully, but I promise to keep trying with my chin up haha.
@@ -28,7 +68,7 @@ In the longer-term pipeline (0.4.0), I noticed a lot of users are connecting fro
 
 Aside from that, here are the release notes for 0.2.1, which is out now ([download](https://github.com/SicarioGaming/Starwire/releases/tag/v0.2.1)):
 
-<details open>
+<details>
 <summary><b>Release notes for 0.2.1</b></summary>
 
 **Following u/rambo3349's code review (already live on GitHub):**
