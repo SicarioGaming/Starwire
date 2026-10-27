@@ -32,9 +32,11 @@ This product uses usbipdcpp (https://github.com/yunsmall/usbipdcpp), licensed un
 The exporter listens on 127.0.0.1, and every app on the phone can reach 127.0.0.1. So, as in V+,
 Starwire binds its own socket to a free local port first, authorises that exact source port in
 native code, then connects. The patched accept loop uses the authorisation once and closes every
-other connection. Starwire's socket has `SO_REUSEADDR` off, so on Linux no other socket can bind
-the same port while it's authorised. A JVM test checks the option is off; no other app has tried
-it on a device.
+other connection. Starwire also takes it only from 127.0.0.1, not the rest of 127.0.0.0/8, which
+is the phone too and where another app could bind the same port number. Starwire's socket has
+`SO_REUSEADDR` off, so on Linux no other socket can bind the same port on 127.0.0.1 while it's
+authorised. A JVM test checks the option is off, and a device test checks a connection from
+127.0.0.2 is closed, but neither has been tried against another app on a device.
 
 ## Tests
 
