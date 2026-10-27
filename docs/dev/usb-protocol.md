@@ -274,7 +274,8 @@ Rules for the helper:
 
 Rules for Starwire:
 
-- It waits up to 10 s for HELLO and 10 s for BIND_ACK.
+- It waits up to 10 s for HELLO, 10 s from BIND for BIND_ACK, and 10 s from SHARE for SHARE_ACK.
+  With no HELLO or BIND_ACK in time it just closes. With no SHARE_ACK in time it sends END 9.
 - It picks the highest version both sides speak. If there's none, it closes and says which side
   needs updating.
 - It reads K_pair from its own pairing store for this PC, works out K_usb and wipes K_pair. It
@@ -283,6 +284,9 @@ Rules for Starwire:
   device is shared and the exporter isn't started. Anyone in the middle can send a REFUSE, so its
   reason is shown as a hint only. For REFUSE 4 the hint is to tick **Allow USB** for this phone
   in the helper's menu on the PC.
+- If the phone's exporter can't take the device after BIND_ACK, Starwire can't connect to it
+  after SHARE_ACK 0, or its connection closes, Starwire sends END 2, as when the device is
+  unplugged.
 
 ### Allow USB, per phone
 
@@ -338,9 +342,10 @@ the relay starts. With any other status it closes the session.
 that direction. Frames don't have to line up with USB/IP's messages.
 
 **KEEPALIVE** (both): the frame header, type 8, length 0. From SHARE_ACK on, each side sends one
-when it has sent nothing for 1 s. A side that has heard nothing for 8 s closes the connection
-without an END, since the other side isn't answering, and the device goes back as below. Starwire
-then offers to share it again.
+when it has sent nothing for 1 s, Starwire also while it connects to its exporter. A side that
+has heard nothing for 8 s closes the connection without an END, since the other side isn't
+answering, and the device goes back as below. Starwire then offers to share it again. Before
+SHARE_ACK neither side sends one, and one that comes earlier is out of order (see "Frames").
 
 **END** (both):
 
