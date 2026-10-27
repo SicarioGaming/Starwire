@@ -149,9 +149,9 @@ steps and the checksums for each version.
   audio packet instead of refusing it. These versions get AES-GCM from Android's old copy of
   BouncyCastle, which reports a bad packet in a different way. Starwire only sends audio, so
   streams weren't affected, but the on-device test failed on Android 5.0. In that same run,
-  Android 5.0 sealed every packet to the same bytes as newer versions. JVM tests now run the
-  shared test vectors through AES-GCM the way Android 5.0 and 5.1 do it. Not yet rerun on an
-  Android 5.0 or 5.1 emulator.
+  Android 5.0 matched every line of the shared test vectors. JVM tests now run the shared test
+  vectors through a stand-in for how Android 5.0 and 5.1 report a bad packet. The fix hasn't
+  been run on Android 5.0 yet, and no test has run on Android 5.1.
 
 ## [0.2.1] - 2026-10-23
 

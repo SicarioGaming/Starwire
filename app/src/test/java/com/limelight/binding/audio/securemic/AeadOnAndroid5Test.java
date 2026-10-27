@@ -23,6 +23,9 @@ import javax.crypto.spec.SecretKeySpec;
  * BouncyCastle's way), so the JVM catches what SecureMicDeviceTest found on the API 21 emulator:
  * every AES-GCM line of the shared vectors comes out the same, and a forged packet is refused
  * with -1. It used to throw "mac check in GCM failed" instead.
+ *
+ * Android5Gcm is an unsigned crypto provider. OpenJDK builds such as Temurin, which CI uses, load
+ * it. Oracle's own JDK only loads signed providers, so these tests would fail there.
  */
 public class AeadOnAndroid5Test {
     private static final Provider ANDROID_5 = Android5Gcm.provider();
