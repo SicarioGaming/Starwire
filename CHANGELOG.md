@@ -145,6 +145,13 @@ steps and the checksums for each version.
   holding Select on a controller, the three-finger tap and the left edge swipe. Holding Select
   always let go of controller buttons, but not of keys. Tested in JVM tests only. Not yet tried
   on a device.
+- On Android 5.0 and 5.1, the encrypted microphone's code threw an error on a forged or damaged
+  audio packet instead of refusing it. These versions get AES-GCM from Android's old copy of
+  BouncyCastle, which reports a bad packet in a different way. Starwire only sends audio, so
+  streams weren't affected, but the on-device test failed on Android 5.0. In that same run,
+  Android 5.0 sealed every packet to the same bytes as newer versions. JVM tests now run the
+  shared test vectors through AES-GCM the way Android 5.0 and 5.1 do it. Not yet rerun on an
+  Android 5.0 or 5.1 emulator.
 
 ## [0.2.1] - 2026-10-23
 
