@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.view.InputDevice;
+import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -375,6 +376,39 @@ public class GameBrightnessTest {
         // The next one goes to the game again
         tapTheMiddle();
         assertTrue("the next tap wasn't a click on the PC: " + pc.sent, clicked());
+    }
+
+    // The navigation bar's Back button and the back gesture
+    private void pressSystemBack() {
+        long downTime = SystemClock.uptimeMillis();
+        for (int action : new int[] {KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP}) {
+            game.dispatchKeyEvent(new KeyEvent(downTime, SystemClock.uptimeMillis(), action, KeyEvent.KEYCODE_BACK,
+                    0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0,
+                    KeyEvent.FLAG_FROM_SYSTEM | KeyEvent.FLAG_VIRTUAL_HARD_KEY, InputDevice.SOURCE_KEYBOARD));
+        }
+        idle();
+    }
+
+    @Test
+    public void backClosesTheSliderTheSwipeOpenedBeforeItOpensTheMenu() {
+        // Back opens the stream menu, as it does by default, and Back again closes it. With the
+        // slider up from the swipe, Back closes the slider first, as a touch on the stream does.
+        openStreamScreenWithTheSwipeOn(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        // onCreate finished the stream screen, which had no game to stream. Forget that, so a
+        // finish from Back shows.
+        shadowOf(game).resetIsFinishing();
+        swipeInFromTheLeftEdge();
+        assertTrue(showing());
+
+        pressSystemBack();
+        assertFalse("Back left the slider up", showing());
+        assertEquals("Back opened the menu with the slider still up", View.GONE, menu.getVisibility());
+        assertFalse("Back ended the stream", game.isFinishing());
+
+        // The next Back opens the menu
+        pressSystemBack();
+        assertEquals("the next Back didn't open the menu", View.VISIBLE, menu.getVisibility());
+        assertFalse(game.isFinishing());
     }
 
     @Test

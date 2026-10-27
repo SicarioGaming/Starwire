@@ -27,7 +27,8 @@ steps and the checksums for each version.
   Win+Ctrl+Right (previous and next desktop) side by side, then Win+Tab (Task View), on the
   Shortcuts page. Checked by tests, not yet tried in a stream.
 - **Back opens the menu,** on by default. Back (the navigation bar's button or the back gesture)
-  now opens the stream menu instead of ending the stream, and Back again closes it. To leave, use
+  now opens the stream menu instead of ending the stream, and Back again closes it. With the
+  brightness slider up from the left edge swipe, Back closes the slider first. To leave, use
   Disconnect or Quit Session in the menu. A short press of a TV remote's Back opens the menu too,
   where it used to end the stream; holding it still opens the menu as before. A switch in
   **Settings → In-stream menu** turns it off, and Back ends the stream again. A mouse right-click

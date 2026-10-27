@@ -4356,6 +4356,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     @Override
     public void onBackPressed() {
         if (prefConfig != null && prefConfig.backOpensMenu && overlayMenuView != null) {
+            // The brightness slider the left edge swipe opened closes first, as a touch on the
+            // stream closes it. Opened from the menu, the slider takes Back itself.
+            if (brightnessSliderView != null && brightnessSliderView.isShowing()) {
+                brightnessSliderView.hide();
+                return;
+            }
             toggleOverlayMenu();
             return;
         }
