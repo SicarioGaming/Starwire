@@ -35,9 +35,13 @@ public final class TriggerRules {
         return gameTookOver;
     }
 
-    /** The host's 0x5503 message. Ignored with the OFF preset. */
+    /**
+     * The host's 0x5503 message. Ignored with the OFF preset, and when it names neither trigger:
+     * the game hasn't set one, so the preset plays on.
+     */
     public void onGameMessage(HostTriggerMessage message) {
-        if (preset == TriggerPreset.OFF || message == null) {
+        if (preset == TriggerPreset.OFF || message == null
+                || (message.triggers & (HostTriggerMessage.RIGHT_TRIGGER | HostTriggerMessage.LEFT_TRIGGER)) == 0) {
             return;
         }
         gameTookOver = true;

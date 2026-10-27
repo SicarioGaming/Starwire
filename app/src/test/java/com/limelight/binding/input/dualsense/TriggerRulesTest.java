@@ -56,6 +56,17 @@ public class TriggerRulesTest {
     }
 
     @Test
+    public void aMessageThatNamesNoTriggerChangesNothing() {
+        // Neither bit set: the game hasn't set a trigger, so the preset plays on
+        TriggerRules rules = new TriggerRules(TriggerPreset.GUN_CLICK);
+        rules.onGameMessage(game(0x00, 0x21, FEEDBACK, 0x25, WEAPON));
+        rules.onGameMessage(game(0xF3, 0x21, FEEDBACK, 0x25, WEAPON));
+        assertFalse(rules.gameTookOver());
+        assertEquals(TriggerPreset.GUN_CLICK.effect(), rules.right());
+        assertEquals(TriggerPreset.GUN_CLICK.effect(), rules.left());
+    }
+
+    @Test
     public void offBeatsTheGameAndThePreset() {
         TriggerRules rules = new TriggerRules(TriggerPreset.OFF);
         rules.onGameMessage(game(0x0C, 0x21, FEEDBACK, 0x25, WEAPON));
