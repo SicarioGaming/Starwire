@@ -8,6 +8,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import android.hardware.usb.UsbDevice;
 
@@ -29,6 +30,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * UsbExporter's rules, with the native exporter, the device and the socket stood in for: the
@@ -262,8 +265,8 @@ public class UsbExporterTest {
     private static final Object BLOCKED = new Object();
 
     // Runs task on another thread and returns what it returned, or BLOCKED once that thread waits
-    // for a lock the calling thread holds. In these tests the exporter's is the only lock that
-    // thread can meet. No clock: it watches the thread until it has finished or is blocked.
+    // for a lock the calling thread holds, which in these tests is the exporter's. No clock: it
+    // watches the thread until it has finished or is blocked by the caller.
     private static Object onAnotherThread(List<Thread> started, Callable<Object> task) {
         Object[] result = new Object[1];
         Thread t = new Thread(() -> {
@@ -277,8 +280,7 @@ public class UsbExporterTest {
         started.add(t);
         t.start();
         while (true) {
-            Thread.State state = t.getState();
-            if (state == Thread.State.TERMINATED) {
+            if (t.getState() == Thread.State.TERMINATED) {
                 try {
                     t.join();
                 }
@@ -287,10 +289,45 @@ public class UsbExporterTest {
                 }
                 return result[0];
             }
-            if (state == Thread.State.BLOCKED) {
+            if (blockedBy(Thread.currentThread(), t)) {
                 return BLOCKED;
             }
             Thread.yield();
+        }
+    }
+
+    // Whether thread is blocked on a lock that owner holds. A BLOCKED state alone doesn't say
+    // whose lock it is: a thread whose task has returned is BLOCKED for a moment as it ends, while
+    // it takes its own Thread object's monitor, which Thread.start() holds as the thread starts.
+    // A short task can get there before its starter has left start(). ThreadMXBean names the
+    // lock's owner, and leaves out a thread that is ending. While the caller watches here it
+    // can't let go of its own locks, so once this is true of the caller it stays true. These
+    // tests compile against android.jar, which has no java.lang.management, so it's reached by
+    // reflection: they run on a full JDK.
+    private static boolean blockedBy(Thread owner, Thread thread) {
+        try {
+            Object threads = Class.forName("java.lang.management.ManagementFactory")
+                    .getMethod("getThreadMXBean").invoke(null);
+            Object info = Class.forName("java.lang.management.ThreadMXBean")
+                    .getMethod("getThreadInfo", long.class).invoke(threads, thread.threadId());
+            if (info == null) {
+                return false;
+            }
+            Class<?> infoClass = Class.forName("java.lang.management.ThreadInfo");
+            return infoClass.getMethod("getThreadState").invoke(info) == Thread.State.BLOCKED
+                    && (long) infoClass.getMethod("getLockOwnerId").invoke(info) == owner.threadId();
+        }
+        catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        }
+        catch (InterruptedException e) {
+            throw new AssertionError(e);
         }
     }
 
@@ -640,6 +677,101 @@ public class UsbExporterTest {
             t.join();
         }
         assertNull("current() waited for the stop, or still gave the device", during[0]);
+    }
+
+    // The two tests above see a wait through onAnotherThread, so its rule has tests of its own.
+    // A thread whose task has returned takes its own Thread object's monitor as it ends, and is
+    // BLOCKED while another thread holds it. That isn't waiting for the caller.
+    // currentDoesntWaitForAStopUnderWay failed that way now and then (once on CI, 27 Oct 2026):
+    // current() returned at once, and its thread got there before its starter had let go of that
+    // monitor. Here a third thread holds it, so the thread stays BLOCKED until the test lets go
+    @Test
+    public void aThreadThatIsEndingIsntWaitingForTheCaller() throws Exception {
+        CountDownLatch go = new CountDownLatch(1);
+        AtomicBoolean returned = new AtomicBoolean();
+        Thread ending = new Thread(() -> {
+            await(go);
+            returned.set(true);
+        });
+        ending.start();
+        CountDownLatch held = new CountDownLatch(1);
+        CountDownLatch letGo = new CountDownLatch(1);
+        Thread holder = new Thread(() -> {
+            synchronized (ending) {
+                held.countDown();
+                await(letGo);
+            }
+        });
+        holder.start();
+        held.await();
+        go.countDown();
+        Thread.State state;
+        while (true) {
+            boolean taskReturned = returned.get();
+            state = ending.getState();
+            if (taskReturned && (state == Thread.State.BLOCKED || state == Thread.State.TERMINATED)) {
+                break;
+            }
+            Thread.yield();
+        }
+        boolean counted = blockedBy(Thread.currentThread(), ending);
+        letGo.countDown();
+        holder.join();
+        ending.join();
+        assumeTrue("this JVM ends a thread without taking its Thread object's monitor, so the moment "
+                + "never comes", state == Thread.State.BLOCKED);
+        assertFalse("a thread that had finished its task counted as waiting for the caller", counted);
+    }
+
+    // A lock another thread holds doesn't count either
+    @Test
+    public void anotherThreadsLockIsntTheCallers() throws Exception {
+        Object lock = new Object();
+        CountDownLatch held = new CountDownLatch(1);
+        CountDownLatch letGo = new CountDownLatch(1);
+        Thread holder = new Thread(() -> {
+            synchronized (lock) {
+                held.countDown();
+                await(letGo);
+            }
+        });
+        holder.start();
+        held.await();
+        AtomicBoolean entered = new AtomicBoolean();
+        Thread waiting = new Thread(() -> {
+            synchronized (lock) {
+                entered.set(true);
+            }
+        });
+        waiting.start();
+        while (!blockedBy(holder, waiting)) {
+            Thread.yield();
+        }
+        boolean counted = blockedBy(Thread.currentThread(), waiting);
+        letGo.countDown();
+        holder.join();
+        waiting.join();
+        assertTrue(entered.get());
+        assertFalse("a lock another thread holds counted as the caller's", counted);
+    }
+
+    // A lock the caller holds does count
+    @Test
+    public void theCallersLockCounts() throws Exception {
+        Object lock = new Object();
+        List<Thread> started = new ArrayList<>();
+        Object during;
+        synchronized (lock) {
+            during = onAnotherThread(started, () -> {
+                synchronized (lock) {
+                    return "entered";
+                }
+            });
+        }
+        for (Thread t : started) {
+            t.join();
+        }
+        assertSame(BLOCKED, during);
     }
 
     // An Export from an earlier share never reaches the exporter of the device shared now
