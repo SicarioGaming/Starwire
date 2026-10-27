@@ -854,12 +854,7 @@ sealed class UsbTlsIdentity : IDisposable
     // SslStream on Windows 11). Windows' TLS has no ChaCha20-Poly1305 for a server there.
     public static bool SessionOk(SslStream ssl, out string why)
     {
-        bool tls13 = ssl.SslProtocol == Tls13;
-        bool tls12 = ssl.SslProtocol == SslProtocols.Tls12;
-        bool aes = ssl.CipherAlgorithm == CipherAlgorithmType.Aes128 || ssl.CipherAlgorithm == CipherAlgorithmType.Aes256;
-        if (!(tls13 || tls12) || !aes || ssl.HashStrength != 0 || (tls12 && (int) ssl.KeyExchangeAlgorithm != EcdheExchange)) {
-            why = "the TLS session isn't TLS 1.3, or TLS 1.2 with ECDHE and AES-GCM (" + ssl.SslProtocol + ", "
-                + ssl.CipherAlgorithm + ", hash strength " + ssl.HashStrength + ", key exchange " + (int) ssl.KeyExchangeAlgorithm + ")";
+        if (!CipherSuiteOk(ssl.SslProtocol, ssl.CipherAlgorithm, ssl.HashStrength, (int) ssl.KeyExchangeAlgorithm, out why)) {
             return false;
         }
         if (!IsP256(ssl.RemoteCertificate)) {
@@ -869,6 +864,27 @@ sealed class UsbTlsIdentity : IDisposable
         why = null;
         return true;
     }
+
+    // The cipher-suite rules on the negotiated values alone, so they can be tested without a live
+    // handshake: TLS 1.3, or TLS 1.2 with ECDHE and AES-GCM. .NET Framework can't choose Windows'
+    // cipher suites, so the helper checks the one the handshake chose. SslStream reports a hash
+    // strength of 0 only for AEAD suites (GCM): a CBC suite has 160 or more. Windows' TLS has no
+    // ChaCha20-Poly1305 for a server there.
+    public static bool CipherSuiteOk(SslProtocols protocol, CipherAlgorithmType cipher, int hashStrength, int keyExchange, out string why)
+    {
+        bool tls13 = protocol == Tls13;
+        bool tls12 = protocol == SslProtocols.Tls12;
+        bool aes = cipher == CipherAlgorithmType.Aes128 || cipher == CipherAlgorithmType.Aes256;
+        if (!(tls13 || tls12) || !aes || hashStrength != 0 || (tls12 && keyExchange != EcdheExchange)) {
+            why = "the TLS session isn't TLS 1.3, or TLS 1.2 with ECDHE and AES-GCM (" + protocol + ", "
+                + cipher + ", hash strength " + hashStrength + ", key exchange " + keyExchange + ")";
+            return false;
+        }
+        why = null;
+        return true;
+    }
+
+    public const int EcdheExchangeValue = EcdheExchange;
 
     public void Dispose()
     {
@@ -1079,7 +1095,8 @@ sealed class UsbTunnelOptions
     public int KeepaliveEveryMs = 1000;
     public int SilentForMs = 8000;
     public int WatchEveryMs = 10000;
-    // The socket's send timeout, so no write to a phone that stopped reading blocks for longer
+    // The send timeout of the phone's socket and the driver's, so no write to a side that stopped
+    // reading blocks for longer. 0 turns it off: the tests do, so teardown must never depend on it.
     public int WriteTimeoutMs = 8000;
     // At the end of a session, how long it waits to send END before closing the socket anyway
     public int TeardownWriteMs = 2000;
@@ -1090,6 +1107,12 @@ sealed class UsbTunnelOptions
     public UsbReadLimiter Limiter;
     // For the tests: runs on a connection's thread right after it got its place in the waiting room
     public Action<UsbWaitingRoom.Ticket> AfterAdmit = null;
+    // For the tests: runs just before the connection leaves the waiting room for its session, so a
+    // test can make the ticket look timed out and check a valid BIND past its deadline gets no ACK
+    public Action<UsbWaitingRoom.Ticket> BeforeLeave = null;
+    // For the tests: the K_usb bytes right after BIND_ACK was written, so a test can check they
+    // were wiped and aren't kept for the session's life
+    public Action<byte[]> AfterBindAck = null;
 }
 
 sealed class UsbTunnelServer : IDisposable
@@ -1109,6 +1132,7 @@ sealed class UsbTunnelServer : IDisposable
     FileSystemWatcher watcher;
     UsbTunnelSession sharing;
     volatile bool stopping;
+    int ticking;
     int port;
 
     // Something the menu shows changed: listening, a device shared or given back
@@ -1194,13 +1218,26 @@ sealed class UsbTunnelServer : IDisposable
             try {
                 string folder = Path.GetDirectoryName(Path.GetFullPath(options.PairingsFile));
                 if (Directory.Exists(folder)) {
+                    // Only the two files matter: the pairings file and the Allow USB list. Watching
+                    // the whole folder would fire on the helper's own log, which is in it too, and
+                    // that feedback would keep queueing rechecks.
+                    string pairingsName = Path.GetFileName(options.PairingsFile);
+                    string allowName = Path.GetFileName(allowList.FilePath);
                     watcher = new FileSystemWatcher(folder);
                     watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size;
-                    FileSystemEventHandler changed = delegate { Recheck(); };
+                    FileSystemEventHandler changed = delegate(object sender, FileSystemEventArgs e) {
+                        if (Watched(e.Name, pairingsName, allowName)) {
+                            Recheck();
+                        }
+                    };
                     watcher.Changed += changed;
                     watcher.Created += changed;
                     watcher.Deleted += changed;
-                    watcher.Renamed += delegate { Recheck(); };
+                    watcher.Renamed += delegate(object sender, RenamedEventArgs e) {
+                        if (Watched(e.Name, pairingsName, allowName) || Watched(e.OldName, pairingsName, allowName)) {
+                            Recheck();
+                        }
+                    };
                     watcher.EnableRaisingEvents = true;
                 }
             }
@@ -1259,14 +1296,33 @@ sealed class UsbTunnelServer : IDisposable
     // and the 10 s pairing check. Runs a few times a second, or when the tests call it.
     public void Tick()
     {
-        room.Sweep();
-        List<UsbTunnelSession> all;
-        lock (gate) {
-            all = new List<UsbTunnelSession>(sessions);
+        // A Tick that starts while the last is still running is skipped, so rechecks queued close
+        // together (several file events, or a timer tick during a recheck) don't pile up on the
+        // thread pool
+        if (Interlocked.Exchange(ref ticking, 1) != 0) {
+            return;
         }
-        foreach (UsbTunnelSession s in all) {
-            s.Tick();
+        try {
+            room.Sweep();
+            List<UsbTunnelSession> all;
+            lock (gate) {
+                all = new List<UsbTunnelSession>(sessions);
+            }
+            foreach (UsbTunnelSession s in all) {
+                s.Tick();
+            }
         }
+        finally {
+            Interlocked.Exchange(ref ticking, 0);
+        }
+    }
+
+    // One of the files a change should recheck: the pairings file or the Allow USB list, not the
+    // helper's own log, which shares their folder
+    static bool Watched(string name, string pairingsName, string allowName)
+    {
+        return name != null && (string.Equals(name, pairingsName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, allowName, StringComparison.OrdinalIgnoreCase));
     }
 
     // Checks again now whether each sharing phone is still paired and allowed (the files changed,
@@ -1406,7 +1462,7 @@ sealed class UsbTunnelServer : IDisposable
             options.Random(nonce);
             byte[] hello = Swut.Hello(nonce, Swut.LowestVersion, Swut.HighestVersion);
             SslStream bound = ssl;
-            SwutStream frames = new SwutStream(ssl, clock, delegate { return ReferenceEquals(bound.RemoteCertificate, peer); });
+            SwutStream frames = new SwutStream(ssl, clock, SameCertificate(bound, peer));
             frames.Write(hello);
             byte[] frame = frames.ReadFrame();
             if (frame == null) {
@@ -1420,7 +1476,9 @@ sealed class UsbTunnelServer : IDisposable
             }
             byte[] deviceId = Swut.BindDeviceId(frame);
             string problem;
-            key = pairings.ForBind(deviceId, ticket.Deadline, out problem);
+            // Once this connection is gone from the waiting room (pushed out or timed out), its
+            // BIND stops waiting for a pairing-file read and takes none
+            key = pairings.ForBind(deviceId, ticket.Deadline, delegate { return room.IsGone(ticket); }, out problem);
             if (key == null) {
                 Log("closed a connection from " + address + ": " + problem);
                 return;
@@ -1439,6 +1497,13 @@ sealed class UsbTunnelServer : IDisposable
             byte[] ack = Swut.BindAck(key.UsbKey, hello, phoneFingerprint, identity.Fingerprint, frame);
             // From here TLS protects the session; only the key field is kept, to notice a new pairing
             key.Wipe();
+            if (options.AfterBindAck != null) {
+                options.AfterBindAck(key.UsbKey);
+            }
+            if (options.BeforeLeave != null) {
+                options.BeforeLeave(ticket);
+            }
+            // A connection pushed out or timed out while its BIND was validated gets no session
             if (!room.Leave(ticket)) {
                 Log("closed a connection from " + address + ": its 10 s for BIND ran out");
                 return;
@@ -1485,6 +1550,14 @@ sealed class UsbTunnelServer : IDisposable
     static bool PeerCertificateOk(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors)
     {
         return UsbTlsIdentity.IsP256(certificate);
+    }
+
+    // The session's renegotiation guard, wired into SwutStream: after every read it checks TLS
+    // still has the certificate BIND was made over. SslStream on .NET Framework lets the phone
+    // renegotiate TLS 1.2 and hands back another certificate object; this notices that.
+    internal static Func<bool> SameCertificate(SslStream bound, X509Certificate peer)
+    {
+        return delegate { return ReferenceEquals(bound.RemoteCertificate, peer); };
     }
 
     void Refuse(UsbWaitingRoom.Ticket ticket, SslStream ssl, SwutStream frames, int reason, IPAddress address)
@@ -1543,6 +1616,8 @@ sealed class UsbTunnelSession
     readonly ManualResetEvent finished = new ManualResetEvent(false);
     readonly object attachGate = new object();
     int ending;
+    int ticking;
+    int failedChecks;
     volatile bool shareSeen, shareAcked, recheck;
     long lastWatch;
     volatile string deviceName;
@@ -1576,6 +1651,8 @@ sealed class UsbTunnelSession
 
     public string DeviceName { get { return deviceName; } }
     public bool Attached { get { return attached; } }
+    // For the tests: the relay is blocked writing to a driver that stopped reading
+    public bool RelaySending { get { UsbRelay r = relay; return r != null && r.Sending; } }
     public long LastHeard { get { return frames.LastHeard; } }
     public bool Ending { get { return Thread.VolatileRead(ref ending) != 0; } }
 
@@ -1677,7 +1754,7 @@ sealed class UsbTunnelSession
     void StartRelay(SwutShare share)
     {
         check = new UsbipStreamCheck(share);
-        relay = new UsbRelay(options.RelayPeerOk, server.Log);
+        relay = new UsbRelay(options.RelayPeerOk, server.Log, options.WriteTimeoutMs);
         relay.Start(FromDriver, DriverClosed);
         attachThread = new Thread(delegate() { server.Safely("the attach", delegate { AttachNow(share.BusId); }); });
         attachThread.IsBackground = true;
@@ -1781,37 +1858,45 @@ sealed class UsbTunnelSession
         }
     }
 
-    // The time-driven rules, a few times a second
+    // The time-driven rules, a few times a second. It never waits on a write to the phone or on
+    // the driver: the pairing check comes first (a stuck session must still notice an unpair), the
+    // KEEPALIVE is sent only if the write lock is free right now, and a Tick that starts while the
+    // last is still running is skipped, so a blocked write can't pile Ticks up on the thread pool.
     public void Tick()
     {
-        if (Ending) {
+        if (Ending || Interlocked.Exchange(ref ticking, 1) != 0) {
             return;
         }
-        long now = clock.Now;
-        if (!shareSeen && now >= shareDeadline) {
-            server.Log(PhoneName + ": no SHARE within " + options.ShareWithinMs / 1000 + " s");
-            End(Silent, 0, false);
-            return;
-        }
-        if (!shareAcked) {
-            return;
-        }
-        if (now - frames.LastHeard >= options.SilentForMs) {
-            server.Log(PhoneName + ": nothing heard for " + options.SilentForMs / 1000 + " s");
-            End(Silent, 0, false);
-            return;
-        }
-        if (now - frames.LastSent >= options.KeepaliveEveryMs) {
-            try {
-                frames.Write(Swut.Keepalive());
-            }
-            catch (Exception) {
+        try {
+            long now = clock.Now;
+            if (!shareSeen && now >= shareDeadline) {
+                server.Log(PhoneName + ": no SHARE within " + options.ShareWithinMs / 1000 + " s");
                 End(Silent, 0, false);
                 return;
             }
+            if (!shareAcked) {
+                return;
+            }
+            if (now - frames.LastHeard >= options.SilentForMs) {
+                server.Log(PhoneName + ": nothing heard for " + options.SilentForMs / 1000 + " s");
+                End(Silent, 0, false);
+                return;
+            }
+            // The pairing check first, before any write: an unpair must end a stuck session
+            if (recheck || now - Interlocked.Read(ref lastWatch) >= options.WatchEveryMs) {
+                CheckPairing(now);
+                if (Ending) {
+                    return;
+                }
+            }
+            // KEEPALIVE only if the write lock is free now: a relay thread stuck writing to a phone
+            // that stopped reading holds it, and the Tick must not wait behind that
+            if (now - frames.LastSent >= options.KeepaliveEveryMs) {
+                frames.TryWrite(Swut.Keepalive(), 0);
+            }
         }
-        if (recheck || now - Interlocked.Read(ref lastWatch) >= options.WatchEveryMs) {
-            CheckPairing(now);
+        finally {
+            Interlocked.Exchange(ref ticking, 0);
         }
     }
 
@@ -1830,10 +1915,20 @@ sealed class UsbTunnelSession
         recheck = false;
         Interlocked.Exchange(ref lastWatch, now);
         if (lines == null) {
+            // Fail closed: an unreadable pairings file twice in a row ends the session, as an
+            // unreadable Allow USB list does, rather than keeping a phone whose pairing can't be
+            // confirmed any longer
+            failedChecks++;
+            if (failedChecks >= 2) {
+                server.Log(PhoneName + ": couldn't check its pairing twice in a row (" + problem + "); ending the session");
+                End(Swut.EndUnpaired, 0, true);
+                return;
+            }
             server.Log(PhoneName + ": couldn't check its pairing (" + problem + "). Trying again in "
                 + options.WatchEveryMs / 1000 + " s.");
             return;
         }
+        failedChecks = 0;
         UsbPairingLine line = UsbPairingReader.Find(lines, DeviceId);
         if (line == null || line.KeyField != keyField) {
             server.Log(PhoneName + ": its pairing was removed or changed");

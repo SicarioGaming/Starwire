@@ -540,17 +540,29 @@ sealed class UsbRelay : IDisposable
     readonly Action<string> log;
     readonly TcpListener listener;
     readonly object writing = new object();
+    readonly int sendTimeoutMs;
     public readonly int Port;
     volatile bool accepting = true;
     volatile bool closed;
-    Socket driver;
+    // Volatile, so CloseDriver can read it without the write lock: a SendToDriver blocked on a
+    // driver that stopped reading holds that lock, and closing the socket is what unblocks it
+    volatile Socket driver;
     Action<byte[], int> fromDriver;
     Action driverClosed;
+    // True while a SendToDriver holds the write lock in Send: the tests watch it to know when the
+    // relay is actually blocked writing to a driver that stopped reading
+    public volatile bool Sending;
 
-    public UsbRelay(PeerCheck peerOk, Action<string> log)
+    public UsbRelay(PeerCheck peerOk, Action<string> log) : this(peerOk, log, 0)
+    {
+    }
+
+    // sendTimeoutMs bounds each write to the driver (0: no bound, for the tests)
+    public UsbRelay(PeerCheck peerOk, Action<string> log, int sendTimeoutMs)
     {
         this.peerOk = peerOk;
         this.log = log;
+        this.sendTimeoutMs = sendTimeoutMs;
         listener = new TcpListener(IPAddress.Loopback, 0);
         listener.ExclusiveAddressUse = true;
         listener.Start(1);
@@ -621,6 +633,8 @@ sealed class UsbRelay : IDisposable
                 continue;
             }
             s.NoDelay = true;
+            // So no write blocks forever on a driver that stopped reading
+            s.SendTimeout = sendTimeoutMs;
             lock (writing) {
                 if (closed) {
                     Quietly(s.Close);
@@ -666,20 +680,24 @@ sealed class UsbRelay : IDisposable
             if (driver == null) {
                 throw new SocketException(10057);   // WSAENOTCONN
             }
-            int at = 0;
-            while (at < m.Length) {
-                at += driver.Send(m, at, m.Length - at, SocketFlags.None);
+            Sending = true;
+            try {
+                int at = 0;
+                while (at < m.Length) {
+                    at += driver.Send(m, at, m.Length - at, SocketFlags.None);
+                }
+            }
+            finally {
+                Sending = false;
             }
         }
     }
 
-    // Drops the driver's connection, if there's one; the driver then gives up on the device
+    // Drops the driver's connection, if there's one; the driver then gives up on the device. It
+    // never takes the write lock, so it can't wait behind a write the driver isn't reading.
     public void CloseDriver()
     {
-        Socket s;
-        lock (writing) {
-            s = driver;
-        }
+        Socket s = driver;
         if (s != null) {
             Quietly(delegate { s.Shutdown(SocketShutdown.Both); });
             Quietly(s.Close);

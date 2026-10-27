@@ -96,11 +96,15 @@ static class StarwireUsbTunnelTests
             phoneCert = UsbTlsIdentity.Create(Container("phone"), Seeded(7));
             ServerBind();
             ServerWaiting();
+            ServerSweptBind();
             ShareRoundTrip();
             ShareRefusals();
             SessionEnds();
+            FailClosedCheck();
             UsbOff();
             StuckTeardown();
+            DriverStuckTeardown();
+            SecurityChecks();
             BoundedWorkers();
             Service();
         }
@@ -316,6 +320,50 @@ static class StarwireUsbTunnelTests
 
         public void Sleep(int ms)
         {
+        }
+    }
+
+    // A clock whose sleeps block until the test releases them, once the time has come, so a test
+    // can hold a waiting BIND inside the limiter and act while it waits
+    sealed class GateClock : IUsbClock
+    {
+        long now = 1000000;
+        readonly object g = new object();
+        bool released;
+        public volatile int Sleepers;
+
+        public long Now { get { lock (g) { return now; } } }
+
+        public void Advance(long ms)
+        {
+            lock (g) {
+                now += ms;
+                Monitor.PulseAll(g);
+            }
+        }
+
+        public void Release()
+        {
+            lock (g) {
+                released = true;
+                Monitor.PulseAll(g);
+            }
+        }
+
+        public void Sleep(int ms)
+        {
+            lock (g) {
+                long until = now + ms;
+                Sleepers++;
+                try {
+                    while (!(released && now >= until)) {
+                        Monitor.Wait(g, 50);
+                    }
+                }
+                finally {
+                    Sleepers--;
+                }
+            }
         }
     }
 
@@ -1219,6 +1267,13 @@ static class StarwireUsbTunnelTests
         // When set, an attach holds the device but doesn't answer until it's signalled, like a
         // driver that's slow to finish
         public ManualResetEvent Hold;
+        // Reset to make the driver stop reading from the relay, as one stuck mid-transfer would;
+        // set again to let it read
+        public readonly ManualResetEvent Reading = new ManualResetEvent(true);
+        // When > 0, the driver socket's receive buffer is pinned to this, so a paused driver makes
+        // the relay's SendToDriver block after a bounded amount (TCP flow control), not after the
+        // OS has autotuned a buffer big enough to swallow the whole transfer
+        public int ReceiveBufferSize;
 
         public SocketVhci()
         {
@@ -1302,6 +1357,9 @@ static class StarwireUsbTunnelTests
             }
             Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             s.ReceiveTimeout = WaitMs;
+            if (ReceiveBufferSize > 0) {
+                s.ReceiveBufferSize = ReceiveBufferSize;
+            }
             try {
                 s.Connect(IPAddress.Parse(host), int.Parse(service));
                 s.Send(ImportRequest(busId));
@@ -1331,12 +1389,13 @@ static class StarwireUsbTunnelTests
                 Inbox inbox = new Inbox();
                 Received = inbox;
                 Connection = s;
+                ManualResetEvent reading = Reading;
                 Thread t = new Thread(delegate() {
                     byte[] buffer = new byte[65536];
                     try {
                         int n;
                         s.ReceiveTimeout = 0;
-                        while ((n = s.Receive(buffer)) > 0) {
+                        while (reading.WaitOne() && (n = s.Receive(buffer)) > 0) {
                             inbox.Add(buffer, n);
                         }
                     }
@@ -1379,6 +1438,25 @@ static class StarwireUsbTunnelTests
             }
             return b;
         }
+    }
+
+    // An attacher that reports the device attached without ever connecting to the relay, so a test
+    // can check the relay stops accepting once the attach is done (it doesn't rely on the fake
+    // driver, which always connects)
+    sealed class NoConnectAttacher : IUsbAttacher
+    {
+        public volatile int RelayPort;
+        public volatile bool Attached;
+        public bool Ready(out string problem) { problem = null; return true; }
+        public bool Attach(int relayPort, string busId, out object handle, out string problem)
+        {
+            RelayPort = relayPort;
+            handle = new object();
+            problem = null;
+            Attached = true;
+            return true;
+        }
+        public bool Detach(object handle, out string problem) { problem = null; return true; }
     }
 
     // ---------------------------------------------------------------- a phone, as the tests act it
@@ -1523,6 +1601,10 @@ static class StarwireUsbTunnelTests
     }
 
     // ---------------------------------------------------------------- the server, on 127.0.0.1
+    // When set, the next Rig uses this clock for the server instead of its FakeClock (then it's
+    // cleared). For tests that need a clock whose sleeps they control.
+    static IUsbClock NextRigClock;
+
     sealed class Rig : IDisposable
     {
         public FakeClock Clock = new FakeClock();
@@ -1557,7 +1639,8 @@ static class StarwireUsbTunnelTests
             Options.Port = 0;
             Options.PairingsFile = Pairings;
             Options.TlsContainer = Container("helper-" + name);
-            Options.Clock = Clock;
+            Options.Clock = NextRigClock ?? Clock;
+            NextRigClock = null;
             Options.Random = Seeded(12);
             Options.Log = delegate(string s) {
                 lock (Log) {
@@ -1792,6 +1875,37 @@ static class StarwireUsbTunnelTests
             // A reset closes it too; running out of time means it's still open
             return e.SocketErrorCode != SocketError.TimedOut;
         }
+    }
+
+    // A BIND whose connection the waiting room closes while it waits for a pairing-file read must
+    // stop waiting and read the file 0 more times, so dead connections don't use up the 3 reads a
+    // second. Uses a clock whose one sleep the test releases, so it's deterministic.
+    static void ServerSweptBind()
+    {
+        GateClock gate = new GateClock();
+        NextRigClock = gate;
+        using (Rig rig = new Rig("swept")) {
+            long t0 = gate.Now;
+            // Take this second's 3 BIND reads, so the next BIND has to wait for a turn
+            bool three = rig.Server.Limiter.WaitTurn(t0) && rig.Server.Limiter.WaitTurn(t0) && rig.Server.Limiter.WaitTurn(t0);
+            int before = rig.Server.Pairings.Reads;
+            TestPhone a = TestPhone.Connect(rig.Port, phoneCert.Certificate, IPAddress.Parse("127.0.0.2"));
+            byte[] id = Range(0x30, 8);
+            a.LastBind = Swut.Bind(Swut.UsbKey(ThirdKey, id), a.Hello, a.PhoneFp, a.HelperFp, 1, id, Range(0x60, 16));
+            a.Send(a.LastBind);
+            bool waiting = WaitUntil(() => gate.Sleepers == 1);
+            // 10 s pass and the waiting room sweeps the connection while its BIND is still waiting
+            gate.Advance(UsbWaitingRoom.BindWithinMs);
+            int swept = rig.Server.Room.Sweep();
+            bool closed = a.Read() == null;
+            gate.Release();
+            WaitUntil(() => gate.Sleepers == 0);
+            int after = rig.Server.Pairings.Reads;
+            Check("a BIND swept from the waiting room stops waiting and reads the pairings file 0 more times",
+                three && waiting && swept >= 1 && closed && after == before);
+            a.Dispose();
+        }
+        NextRigClock = null;
     }
 
     // The phone answers the driver's import through the tunnel, and the driver attaches
@@ -2096,6 +2210,30 @@ static class StarwireUsbTunnelTests
         }
     }
 
+    // The running pairing check fails closed: one unreadable read of the pairings file keeps the
+    // session (a transient lock), but two in a row end it with END 5, as an unreadable Allow USB
+    // list already does. Deterministic: the test holds the file so the read can't succeed.
+    static void FailClosedCheck()
+    {
+        using (Rig rig = new Rig("failclosed")) {
+            SwutShare pad = Pad();
+            byte[] ack;
+            TestPhone p = rig.Share(PairKey, DeviceId, V["frame.share"], out ack);
+            Import(rig, p, pad, 2);
+            using (FileStream hold = new FileStream(rig.Pairings, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+                rig.Server.Recheck();
+                rig.Server.Tick();
+                Check("one unreadable pairing check keeps the session", rig.Server.SessionCount == 1);
+                rig.Server.Recheck();
+                rig.Server.Tick();
+                byte[] end = p.ReadNotKeepalive();
+                Check("a second unreadable pairing check in a row ends the session: END 5",
+                    end != null && Swut.Code(end, Swut.TEnd) == Swut.EndUnpaired && rig.Idle());
+            }
+            p.Dispose();
+        }
+    }
+
     static void UsbOff()
     {
         Rig rig = new Rig("off");
@@ -2177,52 +2315,283 @@ static class StarwireUsbTunnelTests
         }
     }
 
+    // A session where the DRIVER side stops reading the relay: the phone answers large IN transfers
+    // the driver asked for, but the driver doesn't drain them, so a relay thread is stuck in
+    // SendToDriver holding the relay's write lock. Returns once that thread is blocked.
+    sealed class DriverStuck : IDisposable
+    {
+        public TestPhone Phone;
+        SocketVhci driver;
+        volatile bool stop;
+        int attempted, done;
+        Thread flood;
+
+        public static DriverStuck Make(Rig rig, SwutShare pad)
+        {
+            byte[] ack;
+            DriverStuck s = new DriverStuck();
+            s.driver = rig.Driver;
+            // Pin a small receive buffer so the paused driver makes SendToDriver block after a
+            // bounded amount, not after the OS autotunes a buffer big enough for the whole transfer
+            rig.Driver.ReceiveBufferSize = 4096;
+            s.Phone = rig.Share(PairKey, DeviceId, V["frame.share"], out ack);
+            if (!Import(rig, s.Phone, pad, 2)) {
+                throw new Exception("the driver-stuck setup couldn't import the device");
+            }
+            TestPhone p = s.Phone;
+            const int n = 8;
+            const int len = 1024 * 1024;
+            // The driver asks for n large IN transfers; the phone reads each request
+            for (uint seq = 10; seq < 10 + n; seq++) {
+                rig.Driver.Send(CmdSubmit(seq, true, 1, len, null, null, 0));
+            }
+            for (int i = 0; i < n; i++) {
+                if (p.ReadData(48) == null) {
+                    throw new Exception("the phone didn't get the driver's request");
+                }
+            }
+            // The driver stops draining the relay, then the phone answers; the relay's SendToDriver
+            // fills the driver socket and blocks, holding the relay's write lock
+            rig.Driver.Reading.Reset();
+            s.flood = new Thread(delegate() {
+                byte[] data = new byte[len];
+                // 128 pieces so each DATA frame is under the 16 KiB payload limit
+                for (uint seq = 10; seq < 10 + n && !s.stop; seq++) {
+                    try {
+                        Interlocked.Increment(ref s.attempted);
+                        p.SendData(RetSubmit(seq, 0, data, 0), 128);
+                        Interlocked.Increment(ref s.done);
+                    }
+                    catch (Exception) {
+                        return;
+                    }
+                }
+            });
+            s.flood.IsBackground = true;
+            s.flood.Start();
+            // Wait until the relay is actually blocked in SendToDriver, holding its write lock (the
+            // driver stopped reading, so Send can't return). A real condition the relay reports,
+            // not a timed guess.
+            if (!WaitUntil(() => { UsbTunnelSession sh = rig.Server.Sharing; return sh != null && sh.RelaySending; })) {
+                throw new Exception("the driver-stuck setup didn't block the relay");
+            }
+            return s;
+        }
+
+        public void Dispose()
+        {
+            stop = true;
+            if (driver != null) {
+                driver.Reading.Set();   // let the fake driver's reader thread exit
+            }
+            if (Phone != null) {
+                Phone.Dispose();
+            }
+            if (flood != null) {
+                flood.Join(WaitMs);
+            }
+        }
+    }
+
     // Teardown must always finish: with the relay's thread stuck writing to a phone that stopped
     // reading, unpairing, Stop sharing and USB off must still detach the device and end the session
     // within a few seconds. Before the fix the end of a session waited behind that stuck write (it
     // held the write lock), so the device stayed attached and Server.Stop took 40 s.
+    //
+    // Send timeouts are off (WriteTimeoutMs = 0), so a socket timeout can never be what finishes
+    // teardown: the stuck write would block forever, and only closing the socket unblocks it. The
+    // wall-clock limit is a failure bound, not a timing assertion; the checks are on the outcome
+    // (the device detached, the session gone), not on how long it took.
     static void StuckTeardown()
     {
         SwutShare pad = Pad();
 
         using (Rig rig = new Rig("stuck-unpair")) {
+            rig.Options.WriteTimeoutMs = 0;
             rig.Options.TeardownWriteMs = 1000;
             using (Stuck s = Stuck.Make(rig, pad)) {
                 int plugouts = rig.Driver.Plugouts.Count;
                 rig.Store.Remove(DeviceId);
                 rig.Server.Recheck();
-                Stopwatch w = Stopwatch.StartNew();
-                rig.Server.Tick();
+                // Move the clock past KEEPALIVE's time, so a Tick now would send one, and run the
+                // Tick off this thread. The pairing check must come first and end the session; if
+                // the KEEPALIVE were sent first it would block on the lock the stuck relay holds
+                // (send timeouts are off), so this Tick would never reach the pairing check.
+                rig.Clock.Advance(rig.Options.KeepaliveEveryMs + 1);
+                // On a worker thread (as the real timer runs it), wrapped as the helper wraps timer
+                // ticks, so a Tick that blocks can't hang this test thread or crash the suite
+                Thread t = new Thread(delegate() { try { rig.Server.Tick(); } catch (Exception) { } });
+                t.IsBackground = true;
+                t.Start();
                 bool done = WaitUntil(() => rig.Server.SessionCount == 0 && rig.Driver.Plugouts.Count == plugouts + 1);
-                Check("unpaired while the relay is stuck writing to the phone: detached and ended within a few seconds ("
-                    + w.ElapsedMilliseconds + " ms)", done && w.ElapsedMilliseconds < 10000 && rig.Driver.Attached == 0);
+                Check("unpaired while the relay is stuck writing to the phone, KEEPALIVE due: pairing check ran first, detached and ended",
+                    done && rig.Driver.Attached == 0);
             }
         }
 
         using (Rig rig = new Rig("stuck-stop")) {
+            rig.Options.WriteTimeoutMs = 0;
             rig.Options.TeardownWriteMs = 1000;
             using (Stuck s = Stuck.Make(rig, pad)) {
                 int plugouts = rig.Driver.Plugouts.Count;
-                Stopwatch w = Stopwatch.StartNew();
-                Check("Stop sharing returns at once, without waiting on the stuck write", rig.Server.StopSharing()
-                    && w.ElapsedMilliseconds < 2000);
+                Check("Stop sharing returns without waiting on the stuck write", rig.Server.StopSharing());
                 bool done = WaitUntil(() => rig.Server.SessionCount == 0 && rig.Driver.Plugouts.Count == plugouts + 1);
-                Check("Stop sharing while the relay is stuck: detached and ended within a few seconds ("
-                    + w.ElapsedMilliseconds + " ms)", done && w.ElapsedMilliseconds < 10000 && rig.Driver.Attached == 0);
+                Check("Stop sharing while the relay is stuck: detached and the session ended", done && rig.Driver.Attached == 0);
             }
         }
 
         using (Rig rig = new Rig("stuck-usboff")) {
+            rig.Options.WriteTimeoutMs = 0;
             rig.Options.TeardownWriteMs = 1000;
             Stuck s = Stuck.Make(rig, pad);
             int plugouts = rig.Driver.Plugouts.Count;
-            Stopwatch w = Stopwatch.StartNew();
             rig.Server.Stop(Swut.EndUsbOff);
-            long took = w.ElapsedMilliseconds;
-            Check("USB off (Server.Stop) returns within a few seconds while the relay is stuck (" + took + " ms)", took < 10000);
-            Check("  and the device is detached and the session gone", rig.Driver.Plugouts.Count == plugouts + 1
-                && rig.Driver.Attached == 0 && rig.Server.SessionCount == 0);
+            Check("USB off (Server.Stop) while the relay is stuck: it returned, the device is detached and the session gone",
+                rig.Driver.Plugouts.Count == plugouts + 1 && rig.Driver.Attached == 0 && rig.Server.SessionCount == 0);
             s.Dispose();
+        }
+    }
+
+    // The matching case the review found broke teardown: the DRIVER side stops reading the relay
+    // (a large IN transfer it doesn't drain), so a relay thread is stuck in SendToDriver holding
+    // the relay's write lock. Unpair, Stop sharing and USB off must still detach within the failure
+    // bound. Before the fix CloseDriver took that same lock, so teardown deadlocked and Server.Stop
+    // took 40 s. Send timeouts are off, so only closing the driver socket can unblock it.
+    static void DriverStuckTeardown()
+    {
+        SwutShare pad = Pad();
+
+        using (Rig rig = new Rig("drv-unpair")) {
+            rig.Options.WriteTimeoutMs = 0;
+            rig.Options.TeardownWriteMs = 1000;
+            using (DriverStuck s = DriverStuck.Make(rig, pad)) {
+                int plugouts = rig.Driver.Plugouts.Count;
+                rig.Store.Remove(DeviceId);
+                rig.Server.Recheck();
+                rig.Server.Tick();
+                bool done = WaitUntil(() => rig.Server.SessionCount == 0 && rig.Driver.Plugouts.Count == plugouts + 1);
+                Check("unpaired while the relay is stuck in SendToDriver (driver not reading): detached and ended",
+                    done && rig.Driver.Attached == 0);
+            }
+        }
+
+        using (Rig rig = new Rig("drv-stop")) {
+            rig.Options.WriteTimeoutMs = 0;
+            rig.Options.TeardownWriteMs = 1000;
+            using (DriverStuck s = DriverStuck.Make(rig, pad)) {
+                int plugouts = rig.Driver.Plugouts.Count;
+                Check("Stop sharing returns while the driver side is stuck", rig.Server.StopSharing());
+                bool done = WaitUntil(() => rig.Server.SessionCount == 0 && rig.Driver.Plugouts.Count == plugouts + 1);
+                Check("Stop sharing while the driver side is stuck: detached and ended", done && rig.Driver.Attached == 0);
+            }
+        }
+
+        using (Rig rig = new Rig("drv-usboff")) {
+            rig.Options.WriteTimeoutMs = 0;
+            rig.Options.TeardownWriteMs = 1000;
+            DriverStuck s = DriverStuck.Make(rig, pad);
+            int plugouts = rig.Driver.Plugouts.Count;
+            rig.Server.Stop(Swut.EndUsbOff);
+            Check("USB off while the driver side is stuck: returned, detached, session gone",
+                rig.Driver.Plugouts.Count == plugouts + 1 && rig.Driver.Attached == 0 && rig.Server.SessionCount == 0);
+            s.Dispose();
+        }
+    }
+
+    // Checks that had no test failing without them: a wrong-MAC BIND for a paired, not-allowed
+    // phone must get REFUSE 1 (not REFUSE 4, which would leak Allow USB to a host without the key);
+    // a valid BIND whose connection timed out gets no BIND_ACK; the relay takes only the driver's
+    // peer; K_usb is wiped before the session runs; the renegotiation guard compares the
+    // certificate; and the cipher-suite rule rejects CBC and TLS 1.2 without ECDHE.
+    static void SecurityChecks()
+    {
+        // The cipher-suite rule on negotiated values (m7 CBC, m8 ECDHE)
+        string why;
+        Check("TLS 1.3 with AES-GCM is taken",
+            UsbTlsIdentity.CipherSuiteOk(UsbTlsIdentity.Tls13, CipherAlgorithmType.Aes128, 0, 0, out why));
+        Check("TLS 1.2 with ECDHE and AES-GCM is taken",
+            UsbTlsIdentity.CipherSuiteOk(SslProtocols.Tls12, CipherAlgorithmType.Aes256, 0, UsbTlsIdentity.EcdheExchangeValue, out why));
+        Check("a CBC suite (hash strength not 0) is refused",
+            !UsbTlsIdentity.CipherSuiteOk(UsbTlsIdentity.Tls13, CipherAlgorithmType.Aes128, 160, 0, out why));
+        Check("TLS 1.2 without ECDHE is refused",
+            !UsbTlsIdentity.CipherSuiteOk(SslProtocols.Tls12, CipherAlgorithmType.Aes128, 0, 0, out why));
+        Check("TLS 1.1 is refused", !UsbTlsIdentity.CipherSuiteOk(SslProtocols.Tls11, CipherAlgorithmType.Aes128, 0, UsbTlsIdentity.EcdheExchangeValue, out why));
+        Check("a non-AES cipher is refused", !UsbTlsIdentity.CipherSuiteOk(UsbTlsIdentity.Tls13, CipherAlgorithmType.Rc4, 0, 0, out why));
+
+        using (Rig rig = new Rig("sec")) {
+            // m6: a paired phone without Allow USB that sends the wrong key gets REFUSE 1, before
+            // any Allow USB check, so a host without the key can't tell Allow USB's state
+            using (TestPhone p = TestPhone.Connect(rig.Port)) {
+                Check("a wrong-MAC BIND for a paired, not-allowed phone: REFUSE 1, not REFUSE 4",
+                    Refusal(p.Bind(ThirdKey, OtherId)) == Swut.RefuseNotPaired);
+            }
+            rig.Clock.Advance(1000);
+            // m14: K_usb is wiped before the session runs, not kept for its whole life
+            byte[] seen = null;
+            rig.Options.AfterBindAck = k => seen = (byte[]) k.Clone();
+            using (TestPhone p = TestPhone.Connect(rig.Port)) {
+                p.Bind(PairKey, DeviceId);
+                Check("K_usb is wiped right after BIND_ACK", seen != null && Eq(seen, new byte[32]));
+            }
+            rig.Options.AfterBindAck = null;
+            rig.Clock.Advance(1000);
+            // m5: a valid BIND whose connection left the waiting room before BIND_ACK gets no ACK
+            rig.Options.BeforeLeave = t => t.Gone = true;
+            using (TestPhone p = TestPhone.Connect(rig.Port)) {
+                byte[] ack = p.Bind(PairKey, DeviceId);
+                Check("a valid BIND whose connection timed out gets no BIND_ACK", ack == null && rig.Server.SessionCount == 0);
+            }
+            rig.Options.BeforeLeave = null;
+            rig.Clock.Advance(1000);
+            // m3: the renegotiation guard holds while the certificate is unchanged, and fails for
+            // another certificate object (a renegotiation hands back a different one)
+            using (TestPhone p = TestPhone.Connect(rig.Port)) {
+                X509Certificate peer = p.Ssl.RemoteCertificate;
+                Check("the renegotiation guard is true for the same certificate",
+                    UsbTunnelServer.SameCertificate(p.Ssl, peer)());
+                Check("  and false for another certificate object",
+                    !UsbTunnelServer.SameCertificate(p.Ssl, phoneCert.Certificate)());
+            }
+        }
+
+        // m9: the relay takes only the driver's peer. With the peer check refusing every
+        // connection, the driver's connection to the relay is dropped, the import never reaches the
+        // phone, and nothing attaches; the session ends on its own.
+        using (Rig rig = new Rig("sec-relay")) {
+            rig.Options.RelayPeerOk = delegate(IPEndPoint local, IPEndPoint remote, out string w) { w = "not the driver"; return false; };
+            int plugouts = rig.Driver.Plugouts.Count;
+            byte[] ack;
+            using (TestPhone p = rig.Share(PairKey, DeviceId, V["frame.share"], out ack)) {
+                Check("with the relay's peer check refusing, SHARE still gets SHARE_ACK 0 but nothing attaches and the session ends",
+                    Swut.Code(ack, Swut.TShareAck) == Swut.ShareAttaching
+                    && WaitUntil(() => rig.Server.SessionCount == 0) && rig.Driver.Attached == 0 && rig.Driver.Plugouts.Count == plugouts);
+            }
+        }
+
+        // m10: once the attach is done the relay stops accepting. An attacher that attaches without
+        // ever connecting to the relay leaves the relay still listening unless AttachNow stops it;
+        // a connection to the relay port must then be refused.
+        using (Rig rig = new Rig("sec-relaystop")) {
+            NoConnectAttacher att = new NoConnectAttacher();
+            rig.Options.Attacher = att;
+            byte[] ack;
+            using (TestPhone p = rig.Share(PairKey, DeviceId, V["frame.share"], out ack)) {
+                bool attaching = Swut.Code(ack, Swut.TShareAck) == Swut.ShareAttaching;
+                // The session's Attached flips only after AttachNow has called StopAccepting, so
+                // waiting on it avoids racing the stop
+                bool attached = WaitUntil(() => { UsbTunnelSession sh = rig.Server.Sharing; return sh != null && sh.Attached && att.RelayPort != 0; });
+                bool refused = false;
+                try {
+                    using (Socket probe = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)) {
+                        probe.Connect(IPAddress.Loopback, att.RelayPort);
+                    }
+                }
+                catch (SocketException) {
+                    refused = true;
+                }
+                Check("once the attach is done the relay stops accepting (a connection to its port is refused)",
+                    attaching && attached && refused);
+            }
         }
     }
 
@@ -2254,8 +2623,17 @@ static class StarwireUsbTunnelTests
                     rig.Clock.Advance(250);
                 }
             }
-            Check("under a flood of connections the waiting room never holds more than its cap", over == 0 && maxRoom <= UsbWaitingRoom.MaxWaiting);
-            Check("the per-address record stays bounded", rig.Server.Room.Tracked <= 128);
+            // The waiting-room cap also bounds per-connection worker threads: only a connection
+            // that gets a place gets a thread of its own (AcceptLoop), so at most MaxWaiting run
+            Check("under a flood of connections the waiting room never holds more than its cap (so at most "
+                + UsbWaitingRoom.MaxWaiting + " connection threads)", over == 0 && maxRoom <= UsbWaitingRoom.MaxWaiting);
+            // The per-address record is pruned past the grace window, so it stays bounded however
+            // many addresses have connected. After the grace passes and one more connects, only the
+            // recent entries remain, far below the 60 distinct addresses seen.
+            rig.Clock.Advance(UsbWaitingRoom.PerAddressEveryMs + 1);
+            try { RawConnect(rig.Port, "127.0.200.1").Close(); } catch (Exception) { }
+            Check("the per-address record is pruned, not left to grow with the addresses seen",
+                WaitUntil(() => rig.Server.Room.Tracked <= 4));
             // Closing every socket lets each admitted connection's handshake fail and leave the
             // room, so it drains without depending on the sweep's timing
             foreach (Socket sock in sockets) {
