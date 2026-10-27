@@ -173,7 +173,12 @@ verdict instrument-mixed.txt 1 "SKIP com.limelight.devicecheck.MonkeyPreconditio
 verdict instrument-mixed.txt 1 "1 passed, 1 failed, 1 skipped"
 verdict instrument-crash.txt 2 "RUN PROBLEM: Process crashed."
 verdict instrument-none.txt 2 "RUN PROBLEM: no tests ran"
-ok "parse-instrument.sh reads passes, skips, failures, a crash and an empty run"
+# A test the watchdog (StuckTestWatchdog) caught hanging fails, even when it passes after that
+verdict instrument-stuck.txt 2 "FAIL com.limelight.AppViewTest#tileMenuOpensOnIconTiles: stuck for 120 s; its activities were finished so the run could go on"
+verdict instrument-stuck.txt 2 "PASS com.limelight.AppViewTest#offscreenDrawingShowsGpuBitmaps"
+verdict instrument-stuck.txt 2 "FAIL com.limelight.AppViewTest#appListOpensWithoutClosing: the run stopped during this test (still stuck 30 s after its activities were finished: the main thread is blocked, so the process was ended)"
+verdict instrument-stuck.txt 2 "1 passed, 2 failed, 0 skipped, run problem"
+ok "parse-instrument.sh reads passes, skips, failures, a crash, an empty run and stuck tests"
 
 # 8. device-test.sh, against a stand-in for adb (fixtures/fake-adb.sh): it refuses listed
 # devices without sending them anything, stops for a locked screen or an open stream, never
@@ -259,6 +264,12 @@ fake_run 0 -s FAKE-1
 if called "notAnnotation"; then fail "device-test.sh left out @HardwareOnly tests on a real device"; fi
 if ! called "-e notPackage com.limelight.smoke,com.limelight.devicecheck"; then
     fail "device-test.sh didn't run the whole instrumented suite"
+fi
+# Under the watchdog that fails a hanging test instead of letting it stop the run
+watch="-e listener com.limelight.testing.StuckTestWatchdog"
+if ! called "-e notPackage com.limelight.smoke,com.limelight.devicecheck $watch" ||
+   ! called "-e starwire.allowStream false $watch -e starwire.stuckSeconds 300"; then
+    fail "device-test.sh didn't run the suite and the smoke tests under StuckTestWatchdog"
 fi
 fake_run 0 FAKE_ADB_EMULATOR=1 -s FAKE-1 --only com.limelight.ScreenWidthTest,com.limelight.StringsTest
 hw="-e notAnnotation com.limelight.testing.HardwareOnly"

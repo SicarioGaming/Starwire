@@ -31,7 +31,10 @@
 # size and being recreated, and the paired PC's games), pull their screenshots, check the Hide PC
 # cursor setting is what it was, then look for crashes and ANRs from the app since the start.
 # Smoke tests that need the PC skip, and say why, when there's no paired PC or it isn't online.
-# On an emulator, tests marked @HardwareOnly (com.limelight.testing) are left out.
+# On an emulator, tests marked @HardwareOnly (com.limelight.testing) are left out. Every test runs
+# under a watchdog (com.limelight.testing.StuckTestWatchdog): one that hangs for 90 seconds (a
+# smoke test, which may wait for the PC and a stream: 5 minutes) fails with what the app's main
+# thread was doing, and the run goes on to the next test.
 #
 # Exit codes: 0 all good; 1 a test failed or the cursor setting changed; 2 a crash, an ANR, or a
 # test run that didn't finish; 3 an install failed; 4 a device problem (not connected, locked, a
@@ -228,6 +231,7 @@ test_device() {
     # annotation class runs everything: the runner only logs that it can't find it.)
     local skip=()
     if [ "$emulator" = yes ]; then skip=(-e notAnnotation com.limelight.testing.HardwareOnly); fi
+    local watch=(-e listener com.limelight.testing.StuckTestWatchdog)
 
     # The smoke tests need the screen on and unlocked; this never wakes or unlocks it. (Each
     # dumpsys is read whole first: grep -q stopping early would fail the pipe under pipefail.)
@@ -280,7 +284,7 @@ test_device() {
     local verdict which=(-e notPackage com.limelight.smoke,com.limelight.devicecheck)
     if [ -n "$only" ]; then which=(-e class "$only"); fi
     if [ "$suite" = 1 ]; then
-        run_instrument suite "$SUITE_TIMEOUT" "${which[@]}" ${skip[@]+"${skip[@]}"}
+        run_instrument suite "$SUITE_TIMEOUT" "${which[@]}" ${skip[@]+"${skip[@]}"} "${watch[@]}"
         verdict=$?
         [ $verdict = 1 ] && failed=1
         [ $verdict = 2 ] && crashed=1
@@ -299,7 +303,7 @@ test_device() {
     for test in $(grep -E '^(PASS|SKIP|FAIL) ' "$DIR/smoke-list-results.txt" | awk '{print $2}'); do
         i=$((i + 1))
         run_instrument "smoke-$i" "$SMOKE_TIMEOUT" -e class "$test" -e starwire.allowStream "$allow_stream" \
-            ${skip[@]+"${skip[@]}"}
+            ${skip[@]+"${skip[@]}"} "${watch[@]}" -e starwire.stuckSeconds 300
         verdict=$?
         [ $verdict = 1 ] && failed=1
         [ $verdict = 2 ] && crashed=1
