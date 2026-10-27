@@ -722,6 +722,29 @@ if [ $status -ne 0 ]; then
 fi
 ok "check-version.sh tells good release tags and version bumps from bad ones"
 
+# 16. The USB tunnel's shared files are what their scripts in vectors/ write
+# (docs/dev/usb-protocol.md, "Test vectors"), so the PC helper's side and later reviewers can make
+# them again. The vectors need OpenSSL 3.2 or later (deterministic ECDSA), which not every runner
+# has, so without it that half is skipped with a note.
+begin
+vectors_tmp=$(mktemp -d)
+bash "$HERE/vectors/make-swut-v1-policy.sh" "$vectors_tmp/policy.txt"
+for copy in windows/tests/vectors/swut-v1-policy.txt app/src/test/resources/swut-v1-policy.txt; do
+    cmp -s "$vectors_tmp/policy.txt" "$copy" || fail "make-swut-v1-policy.sh doesn't write $copy"
+done
+openssl_version=$(openssl version 2>/dev/null || true)
+if [[ "$openssl_version" =~ ^OpenSSL\ ([0-9]+)\.([0-9]+) ]] &&
+        { [ "${BASH_REMATCH[1]}" -gt 3 ] || { [ "${BASH_REMATCH[1]}" -eq 3 ] && [ "${BASH_REMATCH[2]}" -ge 2 ]; }; }; then
+    bash "$HERE/vectors/make-swut-v1-vectors.sh" "$vectors_tmp/swut.txt" "$vectors_tmp/work"
+    for copy in windows/tests/vectors/swut-v1-vectors.txt app/src/test/resources/swut-v1-vectors.txt; do
+        cmp -s "$vectors_tmp/swut.txt" "$copy" || fail "make-swut-v1-vectors.sh doesn't write $copy"
+    done
+else
+    echo "skipped: remaking swut-v1-vectors.txt (needs OpenSSL 3.2 or later, found: ${openssl_version:-none})"
+fi
+rm -rf "$vectors_tmp"
+ok "the USB tunnel's vectors and device rules' cases are what their scripts write"
+
 if [ $failures -ne 0 ]; then
     echo "$failures problem(s)" >&2
     exit 1
