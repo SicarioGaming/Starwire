@@ -84,9 +84,10 @@ public class TriggerRulesTest {
     }
 
     @Test
-    public void theGamesDebugModesBecomeOff() {
-        // 0xFC to 0xFE leave a trigger stuck until the pad is reset (Nielk1's gist)
-        for (int mode = 0xFC; mode <= 0xFE; mode++) {
+    public void theGamesDebugAndUnknownModesBecomeOff() {
+        // 0xFC to 0xFE leave a trigger stuck until the pad is reset (Nielk1's gist); nobody knows
+        // what the modes outside the gist's list do
+        for (int mode : new int[] {0xFC, 0xFD, 0xFE, 0x00, 0x7F, 0xFB, 0xFF}) {
             TriggerRules rules = new TriggerRules(TriggerPreset.NONE);
             rules.onGameMessage(game(0x0C, mode, "01020304050607080900", mode, "01020304050607080900"));
             assertEquals(TriggerEffect.off(), rules.right());
@@ -102,7 +103,7 @@ public class TriggerRulesTest {
                 continue;
             }
             int mode = effect.mode();
-            assertTrue(preset + " sends mode " + mode, TriggerEffect.isSafeMode(mode));
+            assertTrue(preset + " sends mode " + mode, TriggerEffect.isKnownMode(mode));
             assertTrue(preset + " sends mode " + mode, mode == TriggerEffect.MODE_OFF || mode == TriggerEffect.MODE_FEEDBACK
                     || mode == TriggerEffect.MODE_WEAPON || mode == TriggerEffect.MODE_VIBRATION);
         }

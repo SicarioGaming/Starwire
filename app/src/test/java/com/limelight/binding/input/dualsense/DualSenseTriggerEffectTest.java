@@ -124,9 +124,10 @@ public class DualSenseTriggerEffectTest {
     }
 
     @Test
-    public void hostEffectsPassThroughExceptTheDebugModes() {
+    public void hostEffectsPassThroughOnlyInTheKnownModes() {
         // SDL testcontroller.c:526-527, "Resistance and vibration when trigger is pulled":
-        // the older mode 0x06 with 15, 63, 128. A host sends whatever the game wrote, so it passes as is.
+        // the older mode 0x06 with 15, 63, 128. A host sends whatever the game wrote, so a known
+        // mode passes as is.
         byte[] params = {15, 63, (byte) 128, 0, 0, 0, 0, 0, 0, 0};
         assertBytes("06 0f 3f 80 00 00 00 00 00 00 00", TriggerEffect.fromHost(0x06, params, 0));
 
@@ -134,14 +135,28 @@ public class DualSenseTriggerEffectTest {
         System.arraycopy(params, 0, padded, 4, 10);
         assertEquals(TriggerEffect.fromHost(0x06, params, 0), TriggerEffect.fromHost(0x06, padded, 4));
 
-        // GIST lines 59-64: 0xFC to 0xFE break the trigger until the pad's reset button is pressed
-        for (int mode = 0xFC; mode <= 0xFE; mode++) {
-            assertFalse(TriggerEffect.isSafeMode(mode));
-            assertSame(TriggerEffect.off(), TriggerEffect.fromHost(mode, params, 0));
+        // GIST's TriggerEffectType: the official four, three unofficial ones, the older simple
+        // and limited forms, then the debug modes 0xFC to 0xFE, which break the trigger until the
+        // pad's reset button is pressed
+        int[] known = {0x05, 0x21, 0x25, 0x26, 0x22, 0x23, 0x27, 0x01, 0x02, 0x06, 0x11, 0x12};
+        int allowed = 0;
+        for (int mode = 0; mode <= 0xFF; mode++) {
+            boolean listed = false;
+            for (int k : known) {
+                listed |= k == mode;
+            }
+            assertEquals(String.format("mode 0x%02x", mode), listed, TriggerEffect.isKnownMode(mode));
+            TriggerEffect effect = TriggerEffect.fromHost(mode, params, 0);
+            if (listed) {
+                allowed++;
+                assertEquals(mode, effect.mode());
+            }
+            else {
+                assertSame(String.format("mode 0x%02x", mode), TriggerEffect.off(), effect);
+            }
         }
-        assertTrue(TriggerEffect.isSafeMode(0xFB));
-        assertTrue(TriggerEffect.isSafeMode(0xFF));
-        assertEquals(0xFF, TriggerEffect.fromHost(0xFF, params, 0).mode());
+        assertEquals(12, allowed);
+        assertTrue("only the low byte counts", TriggerEffect.isKnownMode(0x121));
     }
 
     @Test

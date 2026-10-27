@@ -144,15 +144,16 @@ public final class TriggerEffect {
 
     /**
      * A block exactly as a host sent it, which is how games' own effects arrive. A host copies the
-     * game's bytes without looking at them, so any mode can come in. The firmware's debug modes,
-     * 0xFC to 0xFE, leave a trigger broken until the pad is reset (per the gist), so those become
-     * Off. Any other mode passes through as sent.
+     * game's bytes without looking at them, and the network in between can't be trusted, so any
+     * mode can come in. Only the modes the gist lists pass through as sent (isKnownMode); any
+     * other becomes Off. That keeps out the firmware's debug modes, 0xFC to 0xFE, which leave a
+     * trigger broken until the pad is reset (per the gist), and modes nobody has described.
      *
      * @param parameters ten parameter bytes, read from offset
      */
     public static TriggerEffect fromHost(int mode, byte[] parameters, int offset) {
         int m = mode & 0xFF;
-        if (!isSafeMode(m)) {
+        if (!isKnownMode(m)) {
             return OFF;
         }
         byte[] b = new byte[SIZE];
@@ -161,10 +162,20 @@ public final class TriggerEffect {
         return new TriggerEffect(b);
     }
 
-    /** False for the firmware's debug modes, 0xFC to 0xFE, which Starwire must never send. */
-    public static boolean isSafeMode(int mode) {
-        int m = mode & 0xFF;
-        return m < 0xFC || m > 0xFE;
+    /**
+     * True for the modes in the gist's TriggerEffectType but its debug ones: the official off,
+     * feedback, weapon and vibration (0x05, 0x21, 0x25, 0x26), the unofficial bow, galloping and
+     * machine (0x22, 0x23, 0x27), and the older simple and limited forms (0x01, 0x02, 0x06, 0x11,
+     * 0x12). Only the low byte counts.
+     */
+    public static boolean isKnownMode(int mode) {
+        switch (mode & 0xFF) {
+            case 0x01: case 0x02: case 0x05: case 0x06: case 0x11: case 0x12:
+            case 0x21: case 0x22: case 0x23: case 0x25: case 0x26: case 0x27:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /** The mode byte, 0 to 255. */

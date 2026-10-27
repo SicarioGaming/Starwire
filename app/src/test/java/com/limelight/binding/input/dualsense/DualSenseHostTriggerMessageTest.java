@@ -134,10 +134,14 @@ public class DualSenseHostTriggerMessageTest {
     }
 
     @Test
-    public void debugModesFromTheHostBecomeOff() {
-        // A game (or a hostile network) could send 0xFC to 0xFE, which break the trigger until a reset
+    public void debugAndUnknownModesFromTheHostBecomeOff() {
+        // A game (or a hostile network) could send 0xFC to 0xFE, which break the trigger until a
+        // reset, or a mode nobody has described
         byte[] params = new byte[10];
         HostTriggerMessage message = HostTriggerMessage.fromCallback(0, 0x0C, 0xFC, 0xFE, params, 0, params, 0);
+        assertSame(TriggerEffect.off(), message.left);
+        assertSame(TriggerEffect.off(), message.right);
+        message = HostTriggerMessage.fromCallback(0, 0x0C, 0x7F, 0xFF, params, 0, params, 0);
         assertSame(TriggerEffect.off(), message.left);
         assertSame(TriggerEffect.off(), message.right);
     }
