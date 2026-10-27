@@ -9,12 +9,17 @@ is the contract between the two sides: the app's tunnel
 (`windows/StarwireUsbHelper.cs`). Both are to be tested against the same vectors file, byte for
 byte.
 
-**Status.** Written before the code. It has had one security review (Rv-1, first round), whose
-findings are fixed here, but not its second round or the maintainer's sign-off, so it can still
-change. Only the frames, keys and MACs exist so far (`SwutCodec.java`), checked by the app's JVM
-tests against the vectors. The device rules' cases are written, but no code decides them yet.
-There's no tunnel, no helper, no relay and no device rules in code, no device has gone through
-any of it, and nothing here has been tried on Windows.
+**Status.** Written before the code, and still ahead of the maintainer's sign-off, so it can still
+change. The frames, keys and MACs exist (`SwutCodec.java`), checked by the app's JVM tests against
+the vectors. On this branch the helper's side is in code too (`windows/`): the TLS server, BIND
+against the receiver's pairings, the per-phone Allow USB list, the device rules, the relay and the
+USB/IP checks, and each way a session ends. Its tests run on Windows against the shared vectors and
+device rules' cases, and drive the whole path over 127.0.0.1 with a fake driver and a test phone.
+It has not talked to a real phone, attached a real device, or run against the real usbip-win2
+driver. Starwire's own end of the tunnel lives on `feature/usb-tunnel`; this branch doesn't carry
+it. The contract text here has drifted from that branch's copy (the waiting-room rule and the split
+of the pairing-file reads below); the two are to be reconciled on `feature/usb-tunnel`, which holds
+the canonical contract.
 
 ## In plain words
 
