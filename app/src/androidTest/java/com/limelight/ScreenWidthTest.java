@@ -17,6 +17,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.limelight.computers.ComputerDatabaseManager;
 import com.limelight.nvstream.http.ComputerDetails;
+import com.limelight.testing.TestFiles;
 import com.limelight.utils.CacheHelper;
 
 import org.junit.After;
@@ -221,7 +222,7 @@ public class ScreenWidthTest {
                 android.graphics.Bitmap.Config.ARGB_8888);
         root.draw(new android.graphics.Canvas(bitmap));
         try (java.io.FileOutputStream out = new java.io.FileOutputStream(
-                new java.io.File(activity.getExternalFilesDir(null), name + ".png"))) {
+                TestFiles.file(activity, name + ".png"))) {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
         }
         catch (java.io.IOException e) {

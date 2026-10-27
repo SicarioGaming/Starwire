@@ -20,6 +20,7 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
 import androidx.test.runner.lifecycle.Stage;
 import com.limelight.computers.ComputerDatabaseManager;
 import com.limelight.nvstream.http.ComputerDetails;
+import com.limelight.testing.TestFiles;
 import com.limelight.utils.CacheHelper;
 import org.junit.After;
 import org.junit.Before;
@@ -431,7 +432,7 @@ public class AppViewTest {
         root.layout(0, 0, width, height);
         android.graphics.Bitmap bitmap = drawToBitmap(root, width, height);
         try (java.io.FileOutputStream out = new java.io.FileOutputStream(
-                new java.io.File(activity.getExternalFilesDir(null), fileName))) {
+                TestFiles.file(activity, fileName))) {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
         }
         catch (java.io.IOException e) {

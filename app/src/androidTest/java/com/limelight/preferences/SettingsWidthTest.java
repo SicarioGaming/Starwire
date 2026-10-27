@@ -13,6 +13,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.limelight.R;
+import com.limelight.testing.TestFiles;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -60,7 +61,7 @@ public class SettingsWidthTest {
                 android.graphics.Bitmap.Config.ARGB_8888);
         root.draw(new android.graphics.Canvas(bitmap));
         try (java.io.FileOutputStream out = new java.io.FileOutputStream(
-                new java.io.File(activity.getExternalFilesDir(null), name))) {
+                TestFiles.file(activity, name))) {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
         }
         catch (java.io.IOException e) {

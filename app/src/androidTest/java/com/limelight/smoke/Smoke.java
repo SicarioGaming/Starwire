@@ -35,6 +35,7 @@ import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.nvstream.http.NvApp;
 import com.limelight.nvstream.http.NvHTTP;
 import com.limelight.nvstream.http.PairingManager;
+import com.limelight.testing.TestFiles;
 import com.limelight.utils.SessionResumeManager;
 
 import org.junit.Assume;
@@ -64,7 +65,7 @@ final class Smoke {
     final Context target = InstrumentationRegistry.getInstrumentation().getTargetContext();
     final String pkg = target.getPackageName();
     final UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
-    private final File shots = new File(target.getExternalFilesDir(null), "smoke");
+    private final File shots = TestFiles.file(target, "smoke");
 
     Smoke() {
         shots.mkdirs();
