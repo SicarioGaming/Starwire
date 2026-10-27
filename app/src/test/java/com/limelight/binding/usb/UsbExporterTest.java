@@ -536,6 +536,35 @@ public class UsbExporterTest {
     }
 
     // ---------------------------------------------------------------- the review's fixes
+    // Where the APK has no exporter library for this ABI (x86_64 in a release), loading it is an
+    // UnsatisfiedLinkError. It comes back as an IOException, so start() gives the device back and
+    // stops listening for its unplug instead of crashing. The JVM has no such library either.
+    @Test
+    public void aMissingExporterLibraryIsAnIOExceptionAndTheDeviceGoesBack() throws Exception {
+        UsbExporter.RealNatives real = new UsbExporter.RealNatives();
+        try {
+            real.speed(42);
+            fail("loaded an exporter library");
+        }
+        catch (IOException expected) {
+            assertTrue(String.valueOf(expected.getCause()), expected.getCause() instanceof UnsatisfiedLinkError);
+        }
+        real.revoke(1, 50123);
+
+        FakeWatch heard = new FakeWatch();
+        UsbExporter withoutLibrary = new UsbExporter(real, Socket::new, Runnable::run, gone::add, heard);
+        FakeDevice pad = device("pad");
+        try {
+            withoutLibrary.start(pad, false);
+            fail("exported");
+        }
+        catch (IOException expected) {
+        }
+        assertTrue(pad.closed);
+        assertNull(withoutLibrary.current());
+        assertFalse("still listening for its unplug", heard.on);
+    }
+
     // The unplug watch belongs to the export: it starts with it and stops with it, always under
     // the lock that guards which device is shared
     @Test

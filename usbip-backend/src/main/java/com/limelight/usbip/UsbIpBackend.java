@@ -72,21 +72,18 @@ public final class UsbIpBackend implements AutoCloseable {
 
     public static boolean isSupported() {
         if (Build.VERSION.SDK_INT < 28) return false;
-        boolean is64Bit = android.os.Process.is64Bit();
         // Match the running process, including 32-bit apps on a 64-bit-capable device.
-        return isSupported(Build.VERSION.SDK_INT, is64Bit,
-                is64Bit ? Build.SUPPORTED_64_BIT_ABIS : Build.SUPPORTED_32_BIT_ABIS);
+        return isSupported(Build.VERSION.SDK_INT, android.os.Process.is64Bit(), System.getProperty("os.arch"));
     }
 
     // Starwire builds the exporter for 64-bit ARM only (usbip-backend/build.gradle), and for x86_64
-    // in debug builds, where the device tests call the native layer directly. A 32-bit process has
-    // no exporter library to load, so ARMv7 isn't supported here.
-    static boolean isSupported(int sdkInt, boolean is64Bit, String[] processAbis) {
-        if (sdkInt < 28 || !is64Bit || processAbis == null) return false;
-        for (String abi : processAbis) {
-            if ("arm64-v8a".equals(abi)) return true;
-        }
-        return false;
+    // in debug builds, where the device tests call the native layer directly. So this goes by the
+    // process's own instruction set (os.arch, the kernel's name for it), not the ABIs the device
+    // lists: an x86_64 emulator or Chromebook lists arm64-v8a too, for the ARM apps it translates,
+    // but Starwire runs there as x86_64, and a release has no x86_64 exporter to load. A 32-bit
+    // process has none either, so ARMv7 isn't supported here.
+    static boolean isSupported(int sdkInt, boolean is64Bit, String processArch) {
+        return sdkInt >= 28 && is64Bit && "aarch64".equals(processArch);
     }
 
     public synchronized Future<Export> export(UsbDevice device) {

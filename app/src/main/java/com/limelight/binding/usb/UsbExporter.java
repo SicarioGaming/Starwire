@@ -224,7 +224,10 @@ public final class UsbExporter {
         });
     }
 
-    /** Android 9 or later on 64-bit ARM, the only builds with the exporter's library. */
+    /**
+     * Android 9 or later, in a 64-bit ARM process: the only builds with the exporter's library.
+     * Not on an x86_64 emulator or Chromebook, even one that runs ARM apps.
+     */
     public static boolean isSupported() {
         return UsbIpBackend.isSupported();
     }
@@ -502,9 +505,11 @@ public final class UsbExporter {
         }
     }
 
-    // The native layer reports failures as IOExceptions it doesn't declare
+    // The native layer reports failures as IOExceptions it doesn't declare. A build without the
+    // exporter's library for this ABI throws UnsatisfiedLinkError, an Error, which comes back as
+    // an IOException too, so start() still gives the device back.
     static final class RealNatives implements Natives {
-        private static IOException wrap(Exception e) {
+        private static IOException wrap(Throwable e) {
             return e instanceof IOException ? (IOException) e : new IOException(e);
         }
 
@@ -515,7 +520,7 @@ public final class UsbExporter {
                 NativeUsbIp.load();
                 return NativeUsbIp.start();
             }
-            catch (Exception e) {
+            catch (Exception | LinkageError e) {
                 throw wrap(e);
             }
         }
@@ -525,7 +530,7 @@ public final class UsbExporter {
             try {
                 return NativeUsbIp.localPort(handle);
             }
-            catch (Exception e) {
+            catch (Exception | LinkageError e) {
                 throw wrap(e);
             }
         }
@@ -535,14 +540,19 @@ public final class UsbExporter {
             try {
                 NativeUsbIp.authorizeLocalConnection(handle, sourcePort);
             }
-            catch (Exception e) {
+            catch (Exception | LinkageError e) {
                 throw wrap(e);
             }
         }
 
         @Override
         public void revoke(long handle, int sourcePort) {
-            NativeUsbIp.revokeLocalConnection(handle, sourcePort);
+            try {
+                NativeUsbIp.revokeLocalConnection(handle, sourcePort);
+            }
+            catch (LinkageError e) {
+                // Without the library nothing was authorised
+            }
         }
 
         @Override
@@ -550,7 +560,7 @@ public final class UsbExporter {
             try {
                 return NativeUsbIp.bind(handle, fd);
             }
-            catch (Exception e) {
+            catch (Exception | LinkageError e) {
                 throw wrap(e);
             }
         }
@@ -560,7 +570,7 @@ public final class UsbExporter {
             try {
                 NativeUsbIp.unbind(handle, busId);
             }
-            catch (Exception e) {
+            catch (Exception | LinkageError e) {
                 throw wrap(e);
             }
         }
@@ -570,7 +580,7 @@ public final class UsbExporter {
             try {
                 NativeUsbIp.stop(handle);
             }
-            catch (Exception e) {
+            catch (Exception | LinkageError e) {
                 throw wrap(e);
             }
         }
@@ -581,7 +591,7 @@ public final class UsbExporter {
                 NativeUsbIp.load();
                 return NativeUsbIp.speed(fd);
             }
-            catch (Exception e) {
+            catch (Exception | LinkageError e) {
                 throw wrap(e);
             }
         }
@@ -591,7 +601,7 @@ public final class UsbExporter {
             try {
                 return NativeUsbIp.reportDescriptor(fd, iface, length);
             }
-            catch (Exception e) {
+            catch (Exception | LinkageError e) {
                 throw wrap(e);
             }
         }

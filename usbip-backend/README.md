@@ -21,8 +21,10 @@ This product uses usbipdcpp (https://github.com/yunsmall/usbipdcpp), licensed un
   its own encrypted tunnel to its own PC helper ([usb-protocol.md](../docs/dev/usb-protocol.md)).
 - **Changed for Starwire:** the app's NDK and minimum Android version, the C++ library linked in
   statically, 64-bit ARM only in a release (x86_64 too in a debug build, for the emulators' tests),
-  no ARMv7, and CMake 3.31.6. Two native calls are Starwire's own: the device's speed and a HID
-  interface's report descriptor, which Starwire's device rules read before anything is exported.
+  no ARMv7, and CMake 3.31.6. `UsbIpBackend.isSupported` goes by the process's own instruction set,
+  so an x86_64 device that runs ARM apps isn't offered an exporter its APK doesn't have. Two
+  native calls are Starwire's own: the device's speed and a HID interface's report descriptor,
+  which Starwire's device rules read before anything is exported.
 - **Starwire's own code on top:** `UsbExporter`, `UsbDeviceRules` and `UsbPermission` in
   `app/src/main/java/com/limelight/binding/usb/`. They share one device at a time, after the
   device rules, through one exporter that listens only while that device is shared.

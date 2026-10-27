@@ -20,7 +20,8 @@ steps and the checksums for each version.
   Starwire's device rules. They decide before anything is shared: pads, wheels, sticks and audio
   devices pass, keyboards and mice need your yes, and hubs, storage, network adapters,
   vendor-specific devices (wired Xbox pads among them, for now) and USB 3 devices are refused, with
-  the reason. One device at a time, on Android 9 or later on 64-bit ARM. Only tested on a
+  the reason. One device at a time, on Android 9 or later on 64-bit ARM phones and tablets: x86_64
+  Chromebooks and emulators don't get it, even ones that run ARM apps. Only tested on a
   computer, against the rules' shared cases: no USB device has been shared through it on a phone
   or tablet yet, and nothing in the app starts it until the stream menu gets its USB item. The
   APK carries the exporter for 64-bit ARM (and x86_64 in debug builds), and its licences are in
