@@ -26,11 +26,20 @@ public class UsbPermissionTest {
     @Test
     public void anAnswerCountsOnceAndOnlyForItsOwnDevice() {
         UsbPermission.Answer answer = new UsbPermission.Answer("/dev/bus/usb/001/002");
-        assertNull("another action", answer.take("com.limelight.USB_PERMISSION", "/dev/bus/usb/001/002", true));
-        assertNull("another device", answer.take(UsbPermission.ACTION, "/dev/bus/usb/001/003", true));
-        assertNull("no device", answer.take(UsbPermission.ACTION, null, true));
-        assertEquals(Boolean.FALSE, answer.take(UsbPermission.ACTION, "/dev/bus/usb/001/002", false));
-        assertNull("only once", answer.take(UsbPermission.ACTION, "/dev/bus/usb/001/002", true));
+        assertNull("another action", answer.take("com.limelight.USB_PERMISSION", "/dev/bus/usb/001/002", true, true));
+        assertNull("another device", answer.take(UsbPermission.ACTION, "/dev/bus/usb/001/003", true, true));
+        assertNull("no device", answer.take(UsbPermission.ACTION, null, true, true));
+        assertEquals(Boolean.FALSE, answer.take(UsbPermission.ACTION, "/dev/bus/usb/001/002", false, true));
+        assertNull("only once", answer.take(UsbPermission.ACTION, "/dev/bus/usb/001/002", true, true));
+    }
+
+    // Before Android 13 another app can reach the receiver, so its "granted" alone isn't enough
+    @Test
+    public void aGrantedAnswerCountsOnlyWhenAndroidHasThePermission() {
+        UsbPermission.Answer answer = new UsbPermission.Answer("/dev/bus/usb/001/002");
+        assertEquals(Boolean.FALSE, answer.take(UsbPermission.ACTION, "/dev/bus/usb/001/002", true, false));
+        UsbPermission.Answer real = new UsbPermission.Answer("/dev/bus/usb/001/002");
+        assertEquals(Boolean.TRUE, real.take(UsbPermission.ACTION, "/dev/bus/usb/001/002", true, true));
     }
 
     // UsbDriverService claims the devices whose permission comes back on its own action, so

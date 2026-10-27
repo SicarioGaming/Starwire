@@ -42,8 +42,10 @@ public final class UsbPermission {
             @Override
             public void onReceive(Context c, Intent intent) {
                 UsbDevice answered = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                // Before Android 13 the receiver can't be unexported, so another app could send a
+                // "granted": the answer counts only if Android agrees
                 Boolean granted = answer.take(intent.getAction(), answered == null ? null : answered.getDeviceName(),
-                        intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false));
+                        intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false), usb.hasPermission(device));
                 if (granted != null) {
                     app.unregisterReceiver(this);
                     callback.onResult(device, granted);
@@ -55,6 +57,8 @@ public final class UsbPermission {
             app.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
         }
         else {
+            // There is no flag to pass before Android 13 (lint doesn't see the version check)
+            //noinspection UnspecifiedRegisterReceiverFlag
             app.registerReceiver(receiver, filter);
         }
         try {
@@ -88,13 +92,16 @@ public final class UsbPermission {
             this.deviceName = deviceName;
         }
 
-        /** The answer for this request, or null when the broadcast isn't it (or it came already). */
-        synchronized Boolean take(String action, String answeredDevice, boolean granted) {
+        /**
+         * The answer for this request, or null when the broadcast isn't it (or it came already).
+         * A "granted" only counts when Android has the permission too.
+         */
+        synchronized Boolean take(String action, String answeredDevice, boolean granted, boolean hasPermission) {
             if (answered || !ACTION.equals(action) || deviceName == null || !deviceName.equals(answeredDevice)) {
                 return null;
             }
             answered = true;
-            return granted;
+            return granted && hasPermission;
         }
     }
 }
