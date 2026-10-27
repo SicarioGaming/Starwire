@@ -169,6 +169,7 @@ public class DualSenseBluetoothTest {
         dualSense.onHostTriggers(7, 0x0C, 0x21, 0x25, new byte[9], WEAPON);
         idle();
         assertEquals(1, link.calls.size());
+        assertEquals("not logged either", Collections.emptyList(), log.effects());
     }
 
     @Test
@@ -190,6 +191,7 @@ public class DualSenseBluetoothTest {
         idle();
         assertEquals(2, link.calls.size());
         assertEquals(1, link.closes);
+        assertEquals("nothing logged after the stop", Collections.emptyList(), log.effects());
     }
 
     @Test

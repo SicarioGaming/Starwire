@@ -134,6 +134,43 @@ public class TriggerEffectLogTest {
     }
 
     @Test
+    public void theLimitsSecondEndsOneSecondAfterItsFirstLine() {
+        // The second starts with the first line, at 200 ms, not at the stream's start
+        for (int force = 0; force < 10; force++) {
+            rightResistance(200 + force, force);
+        }
+        rightResistance(1199, 10);
+        assertEquals("still in that second", 10, lines.size());
+
+        // 1000 ms after the first line, a new second: what was held back, then the change
+        rightResistance(1200, 11);
+        assertEquals(Arrays.asList(resistanceLine(1199, 10), resistanceLine(1200, 11)),
+                lines.subList(10, lines.size()));
+
+        // That second's 10 lines with nothing held back, then a change 1000 ms after its first
+        for (int force = 12; force < 20; force++) {
+            rightResistance(1200 + force, force);
+        }
+        rightResistance(2200, 20);
+        assertEquals(21, lines.size());
+        assertEquals(resistanceLine(2200, 20), lines.get(20));
+    }
+
+    @Test
+    public void whatTheLimitHeldBackIsLoggedOldestFirst() {
+        for (int force = 0; force < 10; force++) {
+            rightResistance(force, force);
+        }
+        // Held back: L2 first, then R2. Both are logged, so no line counts a lost change
+        log.onGameMessage(START + 20, LEFT, 0x21, 0, FEEDBACK, ZEROS, true, true);
+        rightResistance(30, 10);
+        log.finish();
+        assertEquals(Arrays.asList(
+                "DualSense effect: t=20ms L2 mode=0x21 params=f80300dab62d00000000 sent",
+                resistanceLine(30, 10)), lines.subList(10, lines.size()));
+    }
+
+    @Test
     public void aRepeatOnceTheSecondIsUpLogsWhatTheLimitHeldBack() {
         // 12 R2 changes in 12 ms: the last two are held back
         for (int force = 0; force < 12; force++) {
