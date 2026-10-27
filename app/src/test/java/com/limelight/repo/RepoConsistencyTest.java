@@ -34,6 +34,40 @@ public class RepoConsistencyTest {
         assertTrue("in the app's credits but not the README table: " + missing, missing.isEmpty());
     }
 
+    // The other way round: a project added to the README's Credits table is on the app's Credits
+    // page too (AboutCredits says to change both together, and only the check above was here)
+    @Test
+    public void readmeCreditsAreInTheApp() throws Exception {
+        Set<String> app = new HashSet<>();
+        for (AboutCredits.Credit c : AboutCredits.ALL) {
+            app.add("[" + c.project + "](" + c.url + ")");
+        }
+        Pattern link = Pattern.compile("\\[[^\\]]+\\]\\([^)]+\\)");
+        List<String> missing = new ArrayList<>();
+        int rows = 0;
+        boolean inCredits = false;
+        for (String line : RepoFiles.read("README.md").split("\n")) {
+            line = line.trim();
+            if (line.startsWith("## ")) {
+                inCredits = line.equals("## Credits");
+                continue;
+            }
+            if (!inCredits || !line.startsWith("| [")) {
+                continue;
+            }
+            rows++;
+            // The Project column, which can link more than one (Apollo / Sunshine)
+            Matcher m = link.matcher(line.substring(0, line.indexOf(" | ")));
+            while (m.find()) {
+                if (!app.contains(m.group())) {
+                    missing.add(m.group());
+                }
+            }
+        }
+        assertTrue("no rows found in the README's Credits table", rows > 0);
+        assertTrue("in the README's Credits table but not the app's: " + missing, missing.isEmpty());
+    }
+
     @Test
     public void everyImpactKeyIsARealSetting() throws Exception {
         String prefs = RepoFiles.read("app/src/main/res/xml/preferences.xml");
