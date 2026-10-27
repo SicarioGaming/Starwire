@@ -81,7 +81,7 @@ public class UsbDeviceRulesTest {
             }
         }
         assertTrue(wrong.size() + " of " + names.size() + " cases decided wrongly: " + wrong, wrong.isEmpty());
-        assertEquals("cases in swut-v1-policy.txt", 63, names.size());
+        assertEquals("cases in swut-v1-policy.txt", 103, names.size());
     }
 
     // Starwire reads report descriptors only after the checks before them: a device they refuse

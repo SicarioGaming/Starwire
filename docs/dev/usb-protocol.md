@@ -685,7 +685,7 @@ change to the protocol.
 ### The device rules' cases
 
 `app/src/test/resources/swut-v1-policy.txt` and `windows/tests/vectors/swut-v1-policy.txt` are
-the same file too (SHA-256 `1ACFA0A186B4BF0F68E90317897CDAE9AFC83D38BECE590B55003DCB793599B4`,
+the same file too (SHA-256 `2EC55B710F7FB46D2BE00B38103DC25F118B4C213CA14F710D68D42DE4CADB4B`,
 LF line endings, never changed by Git). Each case is two lines: `<case>.share=` a whole SHARE
 frame in hex, and `<case>.want=` the decision the device rules reach for it: `allow`, `ask`, or
 `refuse` and the rule. `.github/tools/vectors/make-swut-v1-policy.sh` wrote it from descriptors
@@ -693,7 +693,10 @@ written out by hand, each case changing one thing in the same test pad (its `pad
 vectors' `frame.share`, byte for byte). The cases cover each class code check, IADs, endpoints,
 the ways descriptors can fail to read, and the report descriptors that parsers can read
 differently: an extended usage, a Usage Page after the Usage, two Usages, Delimiter, Push and
-Pop, long items and nesting.
+Pop, long items and nesting. The cases after `report_deepest` came from a review of Starwire's
+rules on 27 Oct 2026, one for each check it found no case for: mice, pointers and keypads, the
+other pads and pages, Telephony, the endpoints each class may have, the descriptors' lengths and
+places, and reserved items and tags.
 
 `SwutPolicyCasesTest` checks that both copies are the same, that every SHARE in it is well formed,
 and that every rule a SHARE can break has a case. `UsbDeviceRulesTest` checks that Starwire's
