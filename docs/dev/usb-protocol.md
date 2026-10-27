@@ -12,9 +12,9 @@ byte.
 **Status.** Written before the code. It has had one security review (Rv-1, first round), whose
 findings are fixed here, but not its second round or the maintainer's sign-off, so it can still
 change. The frames, keys and MACs exist (`SwutCodec.java`), checked by the app's JVM tests
-against the vectors, and Starwire's copy of the device rules (`UsbDeviceRules.java`) decides
-every one of their cases there too. The exporter (`UsbExporter.java`) applies them before it
-exports anything. On this branch there's no tunnel, helper or relay in code, no device has gone
+against the vectors. Starwire's copy of the device rules (`UsbDeviceRules.java`) decides every
+one of their cases in those tests too, and the exporter (`UsbExporter.java`) applies them before
+it exports anything. The helper's device rules and its relay aren't in code, no device has gone
 through any of it, and nothing here has been tried on Windows.
 
 ## In plain words

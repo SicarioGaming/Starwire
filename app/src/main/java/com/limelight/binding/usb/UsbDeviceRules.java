@@ -522,7 +522,7 @@ public final class UsbDeviceRules {
                 else if (tag == 1 || tag == 2) {   // Usage Minimum and Maximum
                     range = true;
                 }
-                else if (tag == 6 || tag > 9) {    // Delimiter and the reserved tags
+                else if (tag == 6 || tag > 9) {    // reserved tag 6, Delimiter (0xA) and the reserved tags
                     throw unreadable();
                 }
             }
