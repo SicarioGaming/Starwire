@@ -498,9 +498,10 @@ public class AppViewTest {
 
     // Null when this device's GPU can draw a GPU bitmap offscreen the way drawToBitmap does, else
     // why it can't. It tries a 1x1 drawing with the same Android calls and nothing of the app's.
-    // Google's lean ATD image (Android 11) can't: the GPU drawing comes back empty (logcat:
-    // "ThreadedRenderer: Error reading image: -30001!", that is no buffer came back) and all its
-    // screenshots are black, so it seems to draw nothing with the GPU at all.
+    // Google's lean ATD images can't: Google's page on Gradle Managed Devices says they turn
+    // hardware rendering off. On the atd-30 leg (Android 11) the GPU drawing came back empty
+    // (logcat: "ThreadedRenderer: Error reading image: -30001!", that is no buffer came back) and
+    // every screenshot was black (this check itself not tried there yet).
     private static String whyGpuCantDrawOffscreen() {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) {
             // drawToBitmap doesn't use the GPU there
