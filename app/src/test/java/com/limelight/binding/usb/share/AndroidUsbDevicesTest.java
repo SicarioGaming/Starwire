@@ -24,6 +24,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowApplication;
 import org.robolectric.shadows.ShadowUsbManager;
 
 import java.lang.reflect.Proxy;
@@ -46,16 +47,26 @@ public class AndroidUsbDevicesTest {
 
     // Android's own classes, made the way its USB service makes them (their constructors are hidden)
     static UsbDevice pad(String name, String product) throws Exception {
+        return hid(name, product, 0, 0);
+    }
+
+    // A boot keyboard
+    static UsbDevice keyboard(String name, String product) throws Exception {
+        return hid(name, product, 1, 1);
+    }
+
+    // One HID interface, with an interrupt endpoint each way
+    static UsbDevice hid(String name, String product, int subclass, int protocol) throws Exception {
         UsbEndpoint in = UsbEndpoint.class.getConstructor(int.class, int.class, int.class, int.class)
                 .newInstance(0x81, 3, 64, 4);
         UsbEndpoint out = UsbEndpoint.class.getConstructor(int.class, int.class, int.class, int.class)
                 .newInstance(0x02, 3, 64, 4);
-        UsbInterface hid = UsbInterface.class.getConstructor(int.class, int.class, String.class, int.class,
-                int.class, int.class).newInstance(0, 0, null, 0x03, 0, 0);
-        UsbInterface.class.getMethod("setEndpoints", Parcelable[].class).invoke(hid, (Object) new Parcelable[] {in, out});
+        UsbInterface iface = UsbInterface.class.getConstructor(int.class, int.class, String.class, int.class,
+                int.class, int.class).newInstance(0, 0, null, 0x03, subclass, protocol);
+        UsbInterface.class.getMethod("setEndpoints", Parcelable[].class).invoke(iface, (Object) new Parcelable[] {in, out});
         UsbConfiguration config = UsbConfiguration.class.getConstructor(int.class, String.class, int.class, int.class)
                 .newInstance(1, null, 0x80, 250);
-        UsbConfiguration.class.getMethod("setInterfaces", Parcelable[].class).invoke(config, (Object) new Parcelable[] {hid});
+        UsbConfiguration.class.getMethod("setInterfaces", Parcelable[].class).invoke(config, (Object) new Parcelable[] {iface});
         Class<?> builder = Class.forName("android.hardware.usb.UsbDevice$Builder");
         Object b = builder.getConstructor(String.class, int.class, int.class, int.class, int.class, int.class,
                 String.class, String.class, String.class, UsbConfiguration[].class, String.class, boolean.class,
@@ -144,6 +155,22 @@ public class AndroidUsbDevicesTest {
         devices.stop();
         broadcast(UsbManager.ACTION_USB_DEVICE_ATTACHED, pad, false);
         assertEquals(2, events.size());
+    }
+
+    // From Android 13 on, other apps can't send to it at all, the permission answer included
+    @Test
+    public void itsReceiverIsntOpenToOtherApps() {
+        listen();
+        List<ShadowApplication.Wrapper> mine = new ArrayList<>();
+        for (ShadowApplication.Wrapper w : shadowOf(RuntimeEnvironment.getApplication()).getRegisteredReceivers()) {
+            if (w.intentFilter.hasAction(AndroidUsbDevices.ACTION_PERMISSION)) {
+                mine.add(w);
+            }
+        }
+        assertEquals(1, mine.size());
+        assertEquals(Context.RECEIVER_NOT_EXPORTED,
+                mine.get(0).flags & (Context.RECEIVER_EXPORTED | Context.RECEIVER_NOT_EXPORTED));
+        assertTrue(mine.get(0).intentFilter.hasAction(UsbManager.ACTION_USB_DEVICE_DETACHED));
     }
 
     @Test

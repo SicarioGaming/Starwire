@@ -19,10 +19,7 @@ import com.limelight.binding.input.touch.RelativeTouchContext;
 import com.limelight.binding.input.touch.TrackpadContext;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
 import com.limelight.binding.input.driver.UsbDriverService;
-import com.limelight.binding.usb.share.AndroidUsbDevices;
-import com.limelight.binding.usb.share.UsbShareBackends;
-import com.limelight.binding.usb.share.UsbShareController;
-import com.limelight.binding.usb.share.UsbShareText;
+import com.limelight.binding.usb.share.StreamUsbShare;
 import com.limelight.binding.usb.share.UsbShareTunnel;
 import com.limelight.binding.input.evdev.EvdevListener;
 import com.limelight.binding.input.touch.TouchContext;
@@ -251,9 +248,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     // The encrypted microphone's problems already told this stream
     private final java.util.Set<Integer> micStatusesShown = new java.util.HashSet<>();
     // Sharing a wired USB device with the PC (Experimental), while the stream runs
-    private UsbShareController usbShare;
-    private java.util.concurrent.ExecutorService usbShareWorker;
-    private AlertDialog usbConfirmDialog;
+    private StreamUsbShare usbShare;
     private boolean reportedCrash;
 
     private WifiManager.WifiLock highPerfWifiLock;
@@ -452,6 +447,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // Initialize overlay menu view (setup will be done after controllerHandler is initialized)
         overlayMenuView = findViewById(R.id.overlayMenuView);
         overlayMenuView.setFlipFaceButtons(prefConfig.flipFaceButtons);
+        usbShare = new StreamUsbShare(this, overlayMenuView);
 
         floatingMenuButton = findViewById(R.id.floatingMenuButton);
         // Kept within the window, as the drag always was
@@ -2712,77 +2708,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     // The stream menu's USB devices, when the setting is on and this build and phone can share
     private void startUsbSharing() {
-        UsbShareBackends.Factory backends = UsbShareBackends.get();
-        if (!prefConfig.usbShare || usbShare != null || backends == null || !backends.isSupported()) {
-            return;
-        }
-        Handler main = new Handler(getMainLooper());
-        usbShareWorker = java.util.concurrent.Executors.newCachedThreadPool(r -> new Thread(r, "UsbShare"));
-        usbShare = new UsbShareController(this, new AndroidUsbDevices(this, this), backends,
-                new UsbShareTunnel.Target(getIntent().getStringExtra(EXTRA_HOST), getIntent().getStringExtra(EXTRA_PC_UUID)),
-                new UsbShareController.Ui() {
-                    @Override
-                    public void onChanged() {
-                        overlayMenuView.refreshUsbDevices();
-                    }
-
-                    @Override
-                    public void confirmInput(UsbShareController.Entry device, UsbShareController.Answer answer) {
-                        confirmUsbInput(device.name, answer);
-                    }
-
-                    @Override
-                    public void cancelConfirm() {
-                        if (usbConfirmDialog != null) {
-                            usbConfirmDialog.dismiss();
-                            usbConfirmDialog = null;
-                        }
-                    }
-
-                    @Override
-                    public void showMessage(String message) {
-                        if (!isFinishing()) {
-                            Toast.makeText(Game.this, message, Toast.LENGTH_LONG).show();
-                        }
-                    }
-                }, main::post, usbShareWorker);
-        overlayMenuView.setUsbDevicesShown(true);
-    }
-
-    // A keyboard or mouse is shared only after a yes, every time (docs/dev/usb-protocol.md)
-    private void confirmUsbInput(String name, UsbShareController.Answer answer) {
-        boolean[] answered = {false};
-        usbConfirmDialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.usb_share_confirm_title)
-                .setMessage(getString(R.string.usb_share_confirm_message, name))
-                .setPositiveButton(R.string.usb_share_confirm_share, (d, which) -> {
-                    answered[0] = true;
-                    answer.onAnswer(true);
-                })
-                .setNegativeButton(R.string.usb_share_confirm_cancel, null)
-                .setOnDismissListener(d -> {
-                    if (!answered[0]) {
-                        answered[0] = true;
-                        answer.onAnswer(false);
-                    }
-                })
-                .show();
+        usbShare.start(prefConfig.usbShare, new UsbShareTunnel.Target(getIntent().getStringExtra(EXTRA_HOST),
+                getIntent().getStringExtra(EXTRA_PC_UUID)), this);
     }
 
     // Gives a shared USB device back to the phone; the stream is ending or the screen closing
     private void stopUsbSharing(int endReason) {
-        if (usbConfirmDialog != null) {
-            // Its answer would come too late; the share is over
-            usbConfirmDialog.dismiss();
-            usbConfirmDialog = null;
-        }
         if (usbShare != null) {
-            usbShare.close(endReason);
-            usbShare = null;
-            // Lets the share's last work finish (ending the session, giving the device back)
-            usbShareWorker.shutdown();
-            usbShareWorker = null;
-            overlayMenuView.setUsbDevicesShown(false);
+            usbShare.stop(endReason);
         }
     }
 
@@ -3658,20 +3591,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             @Override
             public List<OverlayMenuView.UsbItem> usbDevices() {
-                List<OverlayMenuView.UsbItem> items = new java.util.ArrayList<>();
-                if (usbShare != null) {
-                    for (UsbShareController.Entry e : usbShare.entries()) {
-                        items.add(new OverlayMenuView.UsbItem(e.key, e.name, UsbShareText.detail(Game.this, e)));
-                    }
-                }
-                return items;
+                return usbShare.items();
             }
 
             @Override
             public void onUsbDevice(String key) {
-                if (usbShare != null) {
-                    usbShare.activate(key);
-                }
+                usbShare.choose(key);
             }
 
             @Override
