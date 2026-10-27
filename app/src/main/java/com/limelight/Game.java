@@ -2459,7 +2459,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 if (opensMenuBeforeTouchHandling(isPanZoomMode, mouseMode,
                         event.getActionMasked(), event.getPointerCount())) {
-                    overlayMenuView.show();
+                    openOverlayMenu();
                     return true;
                 }
 
@@ -2553,7 +2553,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         // All fingers up
                         if (event.getEventTime() - threeFingerDownTime < THREE_FINGER_TAP_THRESHOLD) {
                             // This is a 3 finger tap to bring up the overlay menu
-                            runOnUiThread(() -> overlayMenuView.show());
+                            runOnUiThread(() -> openOverlayMenu());
                             return true;
                         }
                     }
@@ -2758,7 +2758,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     edgeSwipeTracking = false;
                     cancelTouches();
                     if (prefConfig.leftEdgeSwipeAction.equals("overlay_menu")) {
-                        overlayMenuView.show();
+                        openOverlayMenu();
                     }
                     else {
                         brightnessSliderView.show();
@@ -2812,7 +2812,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || (event.getFlags() & MotionEvent.FLAG_CANCELED) == 0) &&
                         event.getEventTime() - threeFingerDownTime < THREE_FINGER_TAP_THRESHOLD) {
                     // This is a 3 finger tap to bring up the overlay menu
-                    runOnUiThread(() -> overlayMenuView.show());
+                    runOnUiThread(() -> openOverlayMenu());
                 }
             }
             return true;
@@ -3582,7 +3582,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         controllerHandler.setOverlayMenuListener(new ControllerHandler.OverlayMenuListener() {
             @Override
             public void onOverlayMenuOpen() {
-                runOnUiThread(() -> overlayMenuView.show());
+                // ControllerHandler let go of the controllers' buttons already
+                runOnUiThread(() -> {
+                    releaseKeysDownOnPc();
+                    overlayMenuView.show();
+                });
             }
 
             @Override
@@ -4321,7 +4325,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     // The open menu takes every key and controller event, so a button or key let go of while it's
     // open would stay held on the PC until it's pressed again. Let go of them all first, as
-    // holding the controller's menu button does for controllers.
+    // holding the controller's menu button does for controllers. Every touch and button that
+    // opens the menu comes here, except that hold and a TV remote's Back, which ControllerHandler
+    // runs: their onOverlayMenuOpen lets go of the keys.
     private void openOverlayMenu() {
         if (controllerHandler != null) {
             controllerHandler.releaseAllControllerInput();

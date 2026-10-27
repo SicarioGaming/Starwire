@@ -391,4 +391,13 @@ public class GameBackKeyTest {
         tapTheFloatingButton();
         assertThePcLetGoOfShiftAndW();
     }
+
+    @Test
+    public void keysHeldWhenARemotesBackOpensTheMenuAreLetGo() {
+        openStreamScreen();
+        holdShiftAndW();
+        pressRemoteBack();
+        assertEquals(View.VISIBLE, menu.getVisibility());
+        assertThePcLetGoOfShiftAndW();
+    }
 }

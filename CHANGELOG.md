@@ -133,11 +133,12 @@ steps and the checksums for each version.
   game list, the PC list, per-game settings, the Quick Launch app picker and the Credits and
   Open-source licences pages; no test checks those screens yet. From Moonlight X. Checked by
   tests, not yet tried on a device.
-- A controller button or keyboard key you were holding when you opened the stream menu with the
-  floating button stayed pressed on the PC until you pressed it again. The floating button and
-  Back, which opens the menu now (see Added), let go of both first. A TV remote's Back lets go of
-  controller buttons, as holding Select on a controller always did. Tested in JVM tests only.
-  Not yet tried on a device.
+- A controller button or keyboard key you were holding when you opened the stream menu stayed
+  pressed on the PC until you pressed it again. Every way of opening the menu now lets go of both
+  first: the floating button, Back (which opens the menu now, see Added), a TV remote's Back,
+  holding Select on a controller, the three-finger tap and the left edge swipe. Holding Select
+  always let go of controller buttons, but not of keys. Tested in JVM tests only. Not yet tried
+  on a device.
 
 ## [0.2.1] - 2026-10-23
 
