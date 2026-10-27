@@ -2171,6 +2171,10 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return;
         }
 
+        // "Controller vibration strength" scales the rumble for every path below
+        lowFreqMotor = RumbleStrength.scale(lowFreqMotor, prefConfig.controllerVibrationStrength);
+        highFreqMotor = RumbleStrength.scale(highFreqMotor, prefConfig.controllerVibrationStrength);
+
         for (int i = 0; i < inputDeviceContexts.size(); i++) {
             InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
 
@@ -2243,6 +2247,10 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         if (stopped) {
             return;
         }
+
+        // The trigger motors follow "Controller vibration strength" too
+        leftTrigger = RumbleStrength.scale(leftTrigger, prefConfig.controllerVibrationStrength);
+        rightTrigger = RumbleStrength.scale(rightTrigger, prefConfig.controllerVibrationStrength);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             for (int i = 0; i < inputDeviceContexts.size(); i++) {

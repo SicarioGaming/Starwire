@@ -35,6 +35,13 @@ steps and the checksums for each version.
   goes to the game. The idea comes from Artemis (Yukino Song), via Artemide. Thank you to
   u/Glove5751 for asking for it. Tested in JVM tests only, with a stand-in for the remote. Not yet
   tried on a phone, a tablet or a TV.
+- **Controller vibration strength,** under Controllers: 0 to 100% of the game's rumble, on every
+  controller and on this device when it vibrates in place of one. Audio haptics on the controller
+  follows it too. 0% turns both off, and new installs start at 100%, as before. Checked by unit
+  tests only so far: pads on Starwire's USB driver, pads whose motors Android drives, built-in
+  controls, the on-screen controls and the fallback to this device. No test covers Shield
+  controllers, or audio haptics, which goes through the same code as the game's rumble. It hasn't
+  been tried on a device or felt on a real controller yet, the G8+ included.
 
 ### Changed
 

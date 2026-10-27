@@ -197,6 +197,15 @@
             android:entries="@array/analog_scrolling_names"
             android:entryValues="@array/analog_scrolling_values"
             android:defaultValue="right" />
+        <com.limelight.preferences.SeekBarPreference
+            android:key="seekbar_controller_vibration_strength"
+            android:defaultValue="100"
+            seekbar:min="0"
+            android:max="100"
+            seekbar:step="5"
+            android:summary="@string/summary_seekbar_controller_vibration_strength"
+            android:text="@string/suffix_seekbar_controller_vibration_strength"
+            android:title="@string/title_seekbar_controller_vibration_strength"/>
         <CheckBoxPreference
             android:key="checkbox_vibrate_fallback"
             android:title="@string/title_checkbox_vibrate_fallback"
