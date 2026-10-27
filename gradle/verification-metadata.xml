@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Gradle's dependency verification (docs.gradle.org/current/userguide/dependency_verification.html).
+  For now it checks one library: HiddenApiBypass by LSPosed (Apache-2.0), which the DualSense
+  trigger effects use to reach Android's hidden Bluetooth HID calls. Gradle refuses to build if the
+  files it downloads don't have these SHA-256 hashes. Every other dependency is trusted as it was
+  before this file existed; checking all of them is a separate change.
+
+  The hashes are of the 6.1 files Gradle downloaded from Maven Central (the only one of its
+  repositories that has org.lsposed) for the light-bar test app on 23 October 2026, and the AAR's
+  matches the sha256 in that release's own .module file. RepoConsistencyTest checks that this file
+  and app/build.gradle name the same version.
+-->
+<verification-metadata xmlns="https://schema.gradle.org/dependency-verification"
+                       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                       xsi:schemaLocation="https://schema.gradle.org/dependency-verification https://schema.gradle.org/dependency-verification/dependency-verification-1.3.xsd">
+   <configuration>
+      <verify-metadata>true</verify-metadata>
+      <verify-signatures>false</verify-signatures>
+      <trusted-artifacts>
+         <trust group="^(?!org[.]lsposed[.]hiddenapibypass$).*$" regex="true" reason="Only HiddenApiBypass is checked so far"/>
+      </trusted-artifacts>
+   </configuration>
+   <components>
+      <component group="org.lsposed.hiddenapibypass" name="hiddenapibypass" version="6.1">
+         <artifact name="hiddenapibypass-6.1.aar">
+            <sha256 value="e3161dd21c97a4540b1698a33f7062aeaa1450008e1e2176070e5380f7a6324c" origin="Maven Central, matches the release's .module"/>
+         </artifact>
+         <artifact name="hiddenapibypass-6.1.module">
+            <sha256 value="0a9110b0713c3f7aff9f65de0bebd2de8c2ebe14f421dd4b7e851e7f0df9be3e" origin="Maven Central"/>
+         </artifact>
+         <artifact name="hiddenapibypass-6.1.pom">
+            <sha256 value="55109914ea9c6ef31c903198e9af0b671be208412a1539bfab025ff47d9f9597" origin="Maven Central"/>
+         </artifact>
+      </component>
+   </components>
+</verification-metadata>

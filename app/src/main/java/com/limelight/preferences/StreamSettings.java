@@ -336,6 +336,25 @@ public class StreamSettings extends Activity {
             CoverGlowSettings.attach(this, view);
         }
 
+        // The DualSense group looks for the pad only while Settings is showing
+        private DualSenseSettings dualSenseSettings;
+
+        @Override
+        public void onResume() {
+            super.onResume();
+            if (dualSenseSettings != null) {
+                dualSenseSettings.onResume();
+            }
+        }
+
+        @Override
+        public void onPause() {
+            if (dualSenseSettings != null) {
+                dualSenseSettings.onPause();
+            }
+            super.onPause();
+        }
+
         @Override
         public boolean onPreferenceTreeClick(PreferenceScreen preferenceScreen, Preference preference) {
             // Credit settings that came from another Moonlight version, under the panel
@@ -351,6 +370,8 @@ public class StreamSettings extends Activity {
             PreferenceScreen screen = getPreferenceScreen();
             initializeMicrophonePreferences();
             initializeAboutPreferences();
+            dualSenseSettings = new DualSenseSettings(this);
+            dualSenseSettings.attach();
 
             // hide on-screen controls category on non touch screen devices
             if (!getActivity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
@@ -1100,6 +1121,9 @@ public class StreamSettings extends Activity {
         @Override
         public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
             super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+            if (dualSenseSettings != null && dualSenseSettings.onPermissionResult(requestCode, grantResults)) {
+                return;
+            }
             if (requestCode != REQUEST_RECORD_AUDIO) {
                 return;
             }

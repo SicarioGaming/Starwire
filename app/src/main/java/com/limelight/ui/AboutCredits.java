@@ -48,6 +48,8 @@ public final class AboutCredits {
                     R.string.credit_moonlit, "https://github.com/4had45/moonlit-artemis"),
             new Credit(MOONLIGHT, "Moonlight Fold", "sblocktechnologies",
                     R.string.credit_fold, "https://github.com/sblocktechnologies/moonlight-fold"),
+            new Credit(MOONLIGHT, "Nightjar", "Ramazan Kara",
+                    R.string.credit_nightjar, "https://github.com/RamazanKara/nightjar"),
 
             new Credit(MICROPHONE, "Apollo microphone", "logabell",
                     R.string.credit_apollo_microphone, "https://github.com/logabell/apollo-microphone"),

@@ -75,10 +75,10 @@ Vulkan driver inside Starwire's own process. Those libraries are in every 64-bit
 they're only loaded when the option is on and a driver has been picked.
 
 A driver is native code. It runs inside Starwire with all of Starwire's permissions, including
-the network, the microphone and the keys for your paired PCs. So only use a driver from a source
-you trust. Starwire refuses files that aren't 64-bit ARM libraries, and goes back to the system
-driver when a driver can't load or can't run PyroWave. A driver that loads and then crashes will
-end the stream.
+the network, the microphone, Nearby devices if you allowed it for the DualSense, and the keys
+for your paired PCs. So only use a driver from a source you trust. Starwire refuses files that
+aren't 64-bit ARM libraries, and goes back to the system driver when a driver can't load or
+can't run PyroWave. A driver that loads and then crashes will end the stream.
 
 ## Checking that a download is really Starwire
 

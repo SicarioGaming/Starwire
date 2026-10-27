@@ -60,6 +60,7 @@ public class RepoConsistencyTest {
                 {"JCodec", "org.jcodec:jcodec:"},
                 {"ShieldControllerExtensions", "com.github.cgutman:ShieldControllerExtensions:"},
                 {"desugar_jdk_libs", "com.android.tools:desugar_jdk_libs:"},
+                {"HiddenApiBypass", "org.lsposed.hiddenapibypass:hiddenapibypass:"},
         };
         List<String> drift = new ArrayList<>();
         for (String[] d : deps) {
@@ -72,6 +73,25 @@ public class RepoConsistencyTest {
             }
         }
         assertTrue("licence page versions out of date: " + drift, drift.isEmpty());
+    }
+
+    // HiddenApiBypass reaches hidden Android calls, so Gradle checks its files' SHA-256 before
+    // every build. The checked version has to be the one the app uses, or the check is for nothing.
+    @Test
+    public void hiddenApiBypassIsTheVersionGradleChecks() throws Exception {
+        String gradle = RepoFiles.read("app/build.gradle");
+        Matcher used = Pattern.compile("'org\\.lsposed\\.hiddenapibypass:hiddenapibypass:([^']+)'").matcher(gradle);
+        assertTrue(used.find());
+        String version = used.group(1);
+        String metadata = RepoFiles.read("gradle/verification-metadata.xml");
+        assertTrue("verification-metadata.xml doesn't check hiddenapibypass " + version, metadata.contains(
+                "<component group=\"org.lsposed.hiddenapibypass\" name=\"hiddenapibypass\" version=\"" + version + "\">"));
+        Matcher aar = Pattern.compile("<artifact name=\"hiddenapibypass-" + Pattern.quote(version)
+                + "\\.aar\">\\s*<sha256 value=\"([0-9a-f]{64})\"").matcher(metadata);
+        assertTrue("no SHA-256 for the AAR", aar.find());
+        // Everything else is trusted for now; this library must not be
+        assertTrue(metadata.contains("<trust group=\"^(?!org[.]lsposed[.]hiddenapibypass$).*$\" regex=\"true\""));
+        assertTrue("PROVENANCE.md records it", RepoFiles.read("docs/PROVENANCE.md").contains(aar.group(1)));
     }
 
     @Test

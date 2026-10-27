@@ -295,6 +295,8 @@ public final class CoverGlowSettings {
             CREDITS.put(key, turnip);
         }
         CREDITS.put("checkbox_enable_perf_overlay_lite", "From Axixi2233, via Artemis and Artemide");
+        CREDITS.put("checkbox_dualsense_effects", "Bluetooth route ported from Moonlight V+ by qiin2333; "
+                + "the host's effects reach Java through code from Nightjar by Ramazan Kara");
     }
 
     /** Where a setting came from, or null for Moonlight's own and Starwire's new settings. */

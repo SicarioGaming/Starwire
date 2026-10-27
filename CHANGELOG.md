@@ -42,6 +42,24 @@ steps and the checksums for each version.
   controls, the on-screen controls and the fallback to this device. No test covers Shield
   controllers, or audio haptics, which goes through the same code as the game's rumble. It hasn't
   been tried on a device or felt on a real controller yet, the G8+ included.
+- **DualSense trigger effects over Bluetooth (Experimental, off by default),** in Settings,
+  Controllers, DualSense. On Android 12 and newer, a DualSense paired over Bluetooth gets the
+  game's own adaptive trigger effects from a host that sends them (going by its source,
+  Vibepollo does when it emulates a DualSense), or one of four presets when the game sends
+  none: light resistance, gun click, heavy pedal or buzz. The game's effects win over a preset,
+  and "Off" turns both off. Trigger strength has 8 steps and uses the pad's own power limit.
+  Starwire checks the link every time the pad connects and goes back to the usual path if
+  anything fails; the status line says why. Test sends one effect. Rumble and the light bar work
+  as before. It asks for the Nearby devices permission and uses a hidden Android call, through
+  HiddenApiBypass (LSPosed), whose files Gradle checks by SHA-256. How the reports reach the pad
+  and how the pad is found are ported from Moonlight V+ (qiin2333), with two changes: setReport is
+  only used on a phone without sendData, and a DualShock 4 is never taken for the pad. The code
+  that passes the host's effects to Java is Nightjar's (Ramazan Kara). Only the trigger modes
+  Nielk1's notes list reach the pad; any other mode turns the trigger off. **Not tried on a pad
+  yet:** Starwire's trigger effects haven't been tried on a real DualSense, and nobody has felt
+  the presets or the strength steps. A separate test app changed a DualSense's light bar through
+  the same hidden sendData call on one tablet; setReport did nothing there. Tested with JVM tests
+  against a fake Bluetooth link.
 
 ### Changed
 
