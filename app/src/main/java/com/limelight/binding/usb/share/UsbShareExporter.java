@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.net.Socket;
 
 /**
- * What the share flow needs from the USB/IP exporter inside the app (usbipdcpp; lane U-B,
+ * What the share flow needs from the USB/IP exporter inside the app (usbipdcpp, through
  * com.limelight.binding.usb's UsbExporter): the device rules applied to all of a device's
  * descriptors, HID report descriptors included, then the export, both from one read of them, so
  * what the rules decided is exactly what SHARE describes (docs/dev/usb-protocol.md, "The device
@@ -48,7 +48,7 @@ public interface UsbShareExporter {
     /**
      * The one connection to the export on 127.0.0.1, for the tunnel's relay, connected within
      * timeoutMs. Every app on the phone can reach 127.0.0.1, so the exporter lets in only this
-     * one (U-B's UsbExporter.connect binds the socket first and authorises its source port). At
+     * one (UsbExporter.connect binds the socket first and authorises its source port). At
      * most once, after start(). Blocks.
      */
     Socket connect(int timeoutMs) throws IOException;

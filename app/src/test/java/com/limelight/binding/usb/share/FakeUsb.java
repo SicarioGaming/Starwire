@@ -157,7 +157,7 @@ final class FakeUsb {
 
     /**
      * The exporter, with the device rules it applies to all of a device's descriptors: what its
-     * own check says is `verdict`, as U-B's UsbExporter.start() decides it.
+     * own check says is `verdict`, as UsbExporter.start() decides it.
      */
     static final class Exporter implements UsbShareExporter {
         final Listener listener;
@@ -213,7 +213,7 @@ final class FakeUsb {
     static final byte[] SHARE = {0, 0, 0, 5, 1};
 
     /**
-     * The tunnel, which behaves as U-A's UsbTunnel does around the share flow: it starts the
+     * The tunnel, which behaves as UsbTunnel does around the share flow: it starts the
      * exporter on BIND_ACK, and however it ends it stops the exporter (if it started it) and then
      * says so, once. close() only asks: the test ends it.
      */

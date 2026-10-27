@@ -15,31 +15,26 @@ steps and the checksums for each version.
 
 ### Added
 
-- **USB sharing, the phone's end of the tunnel** ([usb-protocol.md](docs/dev/usb-protocol.md)):
-  TLS to the PC's USB helper, tied to the microphone's pairing, then the device's traffic both
-  ways. Nothing in the app uses it yet. It's tested on a PC against a fake helper and a fake
-  exporter only, not on a phone, with the real helper or with a USB device.
-- **USB sharing, the phone's side (not in the stream menu yet):** the USB/IP exporter from
-  Moonlight V+ (qiin2333), built on usbipdcpp (yunsmall), is now inside the app, with
-  Starwire's device rules. They decide before anything is shared: pads, wheels, sticks and audio
-  devices pass, keyboards and mice need your yes, and hubs, storage, network adapters,
-  vendor-specific devices (wired Xbox pads among them, for now) and USB 3 devices are refused, with
-  the reason. One device at a time, on Android 9 or later on 64-bit ARM phones and tablets: x86_64
-  Chromebooks and emulators don't get it, even ones that run ARM apps. Only tested on a
-  computer, against the rules' shared cases: no USB device has been shared through it on a phone
-  or tablet yet, and nothing in the app starts it until the stream menu gets its USB item. The
-  APK carries the exporter for 64-bit ARM (and x86_64 in debug builds), and its licences are in
-  Settings > About > Open-source licences.
-- **USB devices (Experimental), the menu side:** a "USB devices (Experimental)" setting under
-  Controllers, off by default, adds "USB devices" to the stream menu. It lists what's plugged into
-  the phone: which devices can't be shared and why, which ask you first (keyboards and mice), and
-  that the rest are checked in full when you share them. Choosing one asks Android's permission
-  and shares it; choosing it again, unplugging it or ending the stream gives it back, and after a
-  lost connection, or the phone's network going away, it offers to share it again. A device that
-  turns out to be a keyboard or mouse only once Starwire reads all of it isn't shared, and asks you
-  then. Only this part is in so far, tested on the computer with stand-ins for the parts that carry
-  the device to the PC, so the setting stays hidden until those are in. Nothing has been shared on
-  a phone or a PC yet, and the question for a keyboard hasn't been tried with a controller.
+- **USB devices (Experimental):** share a wired device plugged into the phone with the PC you
+  stream from. Turn on "USB devices (Experimental)" under Controllers (off by default), and the
+  stream menu gets a "USB devices" page. It lists what's plugged in: which devices can't be shared
+  and why, which ask you first (keyboards and mice), and that the rest are checked in full when you
+  share them. Choosing one asks Android's permission and shares it; choosing it again, unplugging
+  it or ending the stream gives it back, and after a lost connection, or the phone's network going
+  away, it offers to share it again. The device goes through the USB/IP exporter from Moonlight V+
+  (qiin2333), built on usbipdcpp (yunsmall), and an encrypted tunnel to the PC's USB helper, tied
+  to the microphone's pairing ([usb-protocol.md](docs/dev/usb-protocol.md)). Starwire's device
+  rules decide before anything is shared: pads, wheels, sticks and audio devices pass, keyboards
+  and mice need your yes each time, and hubs, storage, network adapters, vendor-specific devices
+  (wired Xbox pads among them, for now) and USB 3 devices are refused, with the reason. A device
+  that turns out to be a keyboard or mouse only once Starwire reads all of it isn't shared, and
+  asks you then. One device at a time, on Android 9 or later on 64-bit ARM phones and tablets:
+  x86_64 Chromebooks and emulators don't get the setting, even ones that run ARM apps. Tested
+  only on a computer: the stream menu's page, the exporter with its device rules and the tunnel
+  together, against a fake PC helper and a stand-in for the exporter's native part on 127.0.0.1.
+  Not tried yet: sharing a USB device on a phone or tablet, the real helper, Windows, and the
+  question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
+  x86_64 in debug builds), and its licences are in Settings > About > Open-source licences.
 
 ## [0.2.1] - 2026-10-23
 

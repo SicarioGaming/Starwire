@@ -84,10 +84,12 @@ public class UsbShareSettingTest {
         assertEquals(true, PreferenceConfiguration.readPreferences(context).usbShare);
     }
 
-    // This build has no exporter or tunnel yet, so there's nothing for the setting to do
+    // The build's own backends, on a computer: the exporter only runs in a 64-bit ARM process, so
+    // there's nothing for the setting to do here
     @Test
-    public void hiddenWithoutBackends() {
-        assertNull(UsbShareBackends.get());
+    public void hiddenWhereTheExporterCantRun() {
+        assertNotNull(UsbShareBackends.get());
+        assertFalse(UsbShareBackends.get().isSupported());
         assertNull(setting(true));
     }
 

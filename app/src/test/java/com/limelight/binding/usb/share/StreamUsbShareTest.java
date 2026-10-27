@@ -115,8 +115,9 @@ public class StreamUsbShareTest {
         assertTrue(backends.tunnels.isEmpty());
     }
 
+    // The build's own backends, on a computer, where the exporter can't run
     @Test
-    public void offWithoutBackends() {
+    public void offWhereTheExporterCantRun() {
         UsbShareBackends.setForTests(null);
         share.start(true, target, null);
         assertFalse(share.isRunning());

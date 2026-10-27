@@ -16,10 +16,12 @@ tunnel (`UsbTunnel.java` and `SwutTls.java`: TLS, BIND, SHARE, the relay to the 
 each way a session ends). Starwire's copy of the device rules (`UsbDeviceRules.java`) decides
 every one of their cases, and the exporter (`UsbExporter.java`) applies them before it exports
 anything. The app's JVM tests check all of this against the vectors and the rules' cases, and
-Starwire's end of the tunnel against a fake helper and a fake exporter on 127.0.0.1. The tunnel
-and the exporter aren't joined to each other yet, and neither has run on a phone or with the real
-helper. The helper's end of the tunnel, its device rules and its relay aren't in code, no device
-has gone through any of it, and nothing here has been tried on Windows.
+Starwire's end of the tunnel against a fake helper and a fake exporter on 127.0.0.1. The stream
+menu's USB devices page drives the two together (`RealUsbShareBackends.java`), and
+`UsbShareWiredTest` runs that whole path, HELLO to END, against a fake helper and a stand-in for
+the exporter's native part on 127.0.0.1. None of it has run on a phone or with the real helper.
+The helper's end of the tunnel, its device rules and its relay aren't in code, no device has gone
+through any of it, and nothing here has been tried on Windows.
 
 ## In plain words
 

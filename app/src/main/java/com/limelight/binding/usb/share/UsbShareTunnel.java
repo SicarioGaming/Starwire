@@ -4,13 +4,13 @@ import java.io.IOException;
 import java.net.Socket;
 
 /**
- * What the share flow needs from the tunnel client (lane U-A, com.limelight.binding.usb.tunnel's
+ * What the share flow needs from the tunnel client (com.limelight.binding.usb.tunnel's
  * UsbTunnel): one connection to the PC's USB helper, as docs/dev/usb-protocol.md describes it.
  * TLS, HELLO and BIND first; then, once the helper's BIND_ACK checks out, the tunnel asks its
  * Exporter for the device and sends the SHARE that start() returns; then SHARE_ACK and the relay,
  * until either side ends it.
  *
- * It's shaped like U-A's UsbTunnel, so the build's backend only passes calls on: the same
+ * It's shaped like UsbTunnel, so RealUsbShareBackends only passes calls on: the same
  * Exporter and Listener, the same endings, and close() and networkLost() that only ask. The PC's
  * address and the microphone's pairing for it are the backend's to read. The exporter makes the
  * tunnel's one connection to it on 127.0.0.1 itself, and the share flow only passes it on.
@@ -65,7 +65,7 @@ public interface UsbShareTunnel {
         void onEnded(Ending ending);
     }
 
-    /** How a connection ended, numbered as U-A's UsbTunnel.Ending numbers it. */
+    /** How a connection ended, numbered as UsbTunnel.Ending numbers it. */
     final class Ending {
         /** No microphone pairing with this PC on the phone */
         public static final int NO_PAIRING = 1;
@@ -99,9 +99,9 @@ public interface UsbShareTunnel {
         public final int kind;
         public final int code;
         public final int rule;
-        /** What to show, from strings.xml: U-A's Ending.messageId() */
+        /** What to show, from strings.xml: UsbTunnel.Ending.messageId() */
         public final int messageId;
-        /** 0, or the text of the rule that refused the device, for messageId's %1$s: U-A's ruleId() */
+        /** 0, or the text of the rule that refused the device, for messageId's %1$s: Ending.ruleId() */
         public final int ruleId;
 
         public Ending(int kind, int code, int rule, int messageId, int ruleId) {

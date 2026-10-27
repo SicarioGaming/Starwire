@@ -3,9 +3,10 @@ package com.limelight.binding.usb.share;
 import android.content.Context;
 
 /**
- * The parts of USB sharing that other lanes write: the exporter, with the device rules (U-B), and
- * the tunnel (U-A). Until a build has them, get() is null, and the setting and the stream menu's
- * USB devices item stay hidden, so nothing offers a share that can't happen.
+ * The parts of USB sharing below the share flow: the exporter, with the device rules
+ * (UsbExporter), and the tunnel (UsbTunnel), through RealUsbShareBackends. On a phone that can't
+ * run the exporter, isSupported() is false, and the setting and the stream menu's USB devices item
+ * stay hidden, so nothing offers a share that can't happen.
  */
 public final class UsbShareBackends {
     public interface Factory {
@@ -24,14 +25,12 @@ public final class UsbShareBackends {
     private UsbShareBackends() {
     }
 
-    /** The backends this build has, or null. */
+    /** The app's backends, or the tests' stand-ins. */
     public static Factory get() {
         if (forTests != null) {
             return forTests;
         }
-        // The exporter and the tunnel aren't in this build yet. The lane that brings them in
-        // returns them here.
-        return null;
+        return RealUsbShareBackends.app();
     }
 
     /** Whether this build and this phone can share USB devices. */

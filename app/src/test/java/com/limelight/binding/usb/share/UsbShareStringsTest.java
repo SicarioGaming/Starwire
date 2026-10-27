@@ -15,9 +15,9 @@ import java.util.regex.Pattern;
 
 /**
  * The share flow's strings keep to names of their own, usb_share_, so they never meet the
- * tunnel's (usb_tunnel_, usb_rule_) or the exporter's when the lanes merge. Git merges two lanes'
- * new lines in strings.xml without a conflict, and then the build fails on a name both define:
- * the review found eight of them with feature/usb-tunnel.
+ * tunnel's (usb_tunnel_, usb_rule_) or the exporter's when the branches merge. Git merges two
+ * branches' new lines in strings.xml without a conflict, and then the build fails on a name both
+ * define: the review found eight of them with feature/usb-tunnel.
  */
 public class UsbShareStringsTest {
     private static final String STRINGS = "app/src/main/res/values/strings.xml";
