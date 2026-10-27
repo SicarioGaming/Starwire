@@ -36,6 +36,21 @@ steps and the checksums for each version.
   Settings under PC and in a game's App Settings, so it's easier to find. Its choices are now Host
   default, On (a screen made for this device) and Off (the PC's main monitor). A choice you
   already made stays as it was. Thank you to u/elenayebenes for asking about it.
+- **Quit Session in the stream menu asks first,** because it closes the game on the PC and
+  anything unsaved there is lost. Yes quits. No or Back keeps streaming. Tests answer it by touch,
+  and with a controller's A and B buttons as Android passes them on. From Moonlight X. Not yet
+  tried in a stream, so we don't know yet which answer a controller starts on. Two catches with a
+  controller. With Flip face buttons on, the question doesn't swap A and B the way the menu does,
+  so the button that picked Quit Session cancels it; the bitrate and touch mode pickers already
+  work that way. And a controller run by Starwire's own USB driver can't answer it, as it can't
+  move through the menu either.
+- **Google's video decoders, as on Pixel phones, are asked for the most frames they can handle**
+  at the stream's size, instead of just the stream's frame rate. They set their speed to just
+  meet what they're asked for. Moonlight X measured about 9 ms a frame before and about 7.8 ms
+  after, at 120 FPS on a Pixel 10 Pro. From Moonlight X. Checked by tests, but not tried here:
+  we don't have a Pixel.
+- **The stats box has rounded corners.** From Moonlight X. Checked by a test, not yet seen in a
+  stream.
 
 ### Fixed
 
@@ -78,6 +93,12 @@ steps and the checksums for each version.
   could come back last, and the stream or the menu ended up on the older choice. The changes now
   go to the host one at a time, and only the latest is shown. This is tested with a stand-in
   host, not yet with a real PC. The idea is from Moonlight V+ (qiin2333).
+- **The last setting in Settings scrolls clear of the gesture bar.** With gesture navigation,
+  the see-through bar at the bottom of the screen covered it. The list still runs behind the bar,
+  and its last row now scrolls up above it. The same code also leaves room for the bar under the
+  game list, the PC list, per-game settings, the Quick Launch app picker and the Credits and
+  Open-source licences pages; no test checks those screens yet. From Moonlight X. Checked by
+  tests, not yet tried on a device.
 
 ## [0.2.1] - 2026-10-23
 

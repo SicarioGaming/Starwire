@@ -432,6 +432,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Monitor switcher (Monitor 1–6, using the host's Ctrl+Alt+Shift+F1… shortcuts) | Idea from Moonlit Artemis (Mohammad Forhad / 4had45) |
 | Change bitrate mid-stream **(Vibepollo)** | Idea from Moonlight V+ (qiin2333) |
 | Coming in the next release: a Brightness item that opens the brightness slider, left out on Android TV. A controller moves it in 5% steps. A swipe in from the left edge of the screen can open the slider or the menu too. It's off by default: turn it on in Settings, In-stream menu, Left edge swipe action. The swipe starts within 80 dp of the edge (about 1.3 cm) and moves 60 dp to the right (about 1 cm) within half a second, so a slow drag from near the edge counts too, and the drag goes to the game until then. A tap at the edge goes to the game. The slider stays up until you change it, then hides 2 seconds after your last change. Checked by tests, not yet tried in a stream | Ported from Moonlight X (MoreOrLessSoftware), as a tile in Starwire's menu and a setting under In-stream menu |
+| Coming in the next release: Quit Session asks before it closes the game on the PC. Yes quits, and No or Back keeps streaming. Checked by tests with touch and a controller's A and B buttons, not yet tried in a stream | Ported from Moonlight X (MoreOrLessSoftware) |
 
 </details>
 
@@ -453,6 +454,8 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Prevent Packet Loss (keeps Wi-Fi awake during streams) | Option from Artemis (Yukino Song), via Artemide; rewritten for Starwire as a small keep-alive ping |
 | Lite performance overlay (one compact line: data rate, ping, decode time, dropped frames, FPS) | Ported from Axixi2233's fork (axi), via Artemis and Artemide; the plain wording is new in Starwire |
 | 1% low FPS in the stats | Idea from Moonlight V+ (qiin2333) and Moonlight X Turnip (NoCrypt) |
+| Coming in the next release: Google's video decoders, as on Pixel phones, are asked for the most frames they can handle at the stream's size. Moonlight X measured about 9 ms a frame before and 7.8 ms after at 120 FPS on a Pixel 10 Pro. Not tried with Starwire: we don't have a Pixel | Ported from Moonlight X (MoreOrLessSoftware) |
+| Coming in the next release: rounded corners on the stats box | Ported from Moonlight X (MoreOrLessSoftware) |
 
 </details>
 
@@ -468,6 +471,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Long-press to right-click in gaming trackpad mode | New in Starwire |
 | Settings, the game screen and the stream menu fit more Android devices, down to narrow screens like a Galaxy Z Fold's cover screen; the game screen's header scrolls away with the covers | New in Starwire |
 | An "Impact:" line under settings that change latency, smoothness, picture quality or battery | New in Starwire |
+| Coming in the next release: with gesture navigation, the last setting scrolls clear of the gesture bar. Checked by a test, not yet tried on a device | Ported from Moonlight X (MoreOrLessSoftware) |
 | On a foldable's inner screen, the stream follows the device instead of forcing landscape | Idea from [Moonlight Fold](https://github.com/sblocktechnologies/moonlight-fold) (sblocktechnologies) and [moonlight-android#1613](https://github.com/moonlight-stream/moonlight-android/pull/1613) |
 | Send your microphone to the PC with any host: a VBAN stream to Starwire's receiver on the PC, which plays it into VB-Cable. Encrypted from 0.2.1, and only from devices you've paired with the PC; a "Not encrypted" option stays for Voicemeeter and other VBAN apps ([see above](#new-in-020-your-microphone-on-the-pc-with-any-host)). The receiver has no window, just an icon by the clock with pairing, a mic check and a test tone | New in Starwire, with its Windows receiver and setup script; VBAN is VB-Audio's network audio format |
 | Or send it over the stream itself, with a choice of microphone **(needs [logabell's Apollo build](https://github.com/logabell/apollo-microphone/releases) on the PC)** | Ported from logabell's Artemis and moonlight-common-c microphone changes ([Artemis PR #537](https://github.com/ClassicOldSong/moonlight-android/pull/537)); echo-cancelled capture is new in Starwire |
