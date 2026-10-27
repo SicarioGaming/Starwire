@@ -17,10 +17,12 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.limelight.computers.ComputerDatabaseManager;
 import com.limelight.nvstream.http.ComputerDetails;
+import com.limelight.testing.IgnorePcUpdates;
 import com.limelight.testing.TestFiles;
 import com.limelight.utils.CacheHelper;
 
 import org.junit.After;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -44,6 +46,13 @@ public class ScreenWidthTest {
             + "</root>";
 
     private final Context target = InstrumentationRegistry.getInstrumentation().getTargetContext();
+
+    // The test PC never answers, so the game screen would close itself with "lost connection"
+    // after three failed polls, or at once if the network dropped, part way through a test. On
+    // fold-z-36 (2026-10-27) both happened: one test found its screen gone, and in the next the
+    // screen closed while the test drew on the main thread and Android called it not responding.
+    @Rule
+    public final IgnorePcUpdates ignorePcUpdates = new IgnorePcUpdates();
 
     @After
     public void removeTestPc() {
@@ -80,7 +89,7 @@ public class ScreenWidthTest {
         ComputerDetails details = new ComputerDetails();
         details.uuid = UUID;
         details.name = "TEST-PC";
-        // Unroutable, so the PC stays "checking" while the screen is up
+        // Unroutable, so the PC never answers; the game screen ignores that (IgnorePcUpdates)
         details.manualAddress = new ComputerDetails.AddressTuple("10.255.255.1", 47989);
         ComputerDatabaseManager db = new ComputerDatabaseManager(target);
         db.updateComputer(details);

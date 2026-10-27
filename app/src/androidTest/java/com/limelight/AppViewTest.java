@@ -15,15 +15,13 @@ import android.os.SystemClock;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.runner.lifecycle.ActivityLifecycleCallback;
-import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
-import androidx.test.runner.lifecycle.Stage;
 import com.limelight.computers.ComputerDatabaseManager;
 import com.limelight.nvstream.http.ComputerDetails;
+import com.limelight.testing.IgnorePcUpdates;
 import com.limelight.testing.TestFiles;
 import com.limelight.utils.CacheHelper;
 import org.junit.After;
-import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.io.OutputStream;
@@ -46,29 +44,13 @@ public class AppViewTest {
     // The test PC's address never answers, so after three failed polls the screen closes itself
     // with "lost connection": 12.5 s after launch on the RedMagic tablet. A test that slept and
     // drew full-size screenshots for a few seconds could run into that, and failed 1 run in 3.
-    // The screen ignores the PC's updates from the moment it's created (as it does while a game
-    // quits), so the tests don't race the network.
-    private final ActivityLifecycleCallback ignorePolls = (activity, stage) -> {
-        if (activity instanceof AppView && stage == Stage.PRE_ON_CREATE) {
-            try {
-                java.lang.reflect.Field suspend = AppView.class.getDeclaredField("suspendGridUpdates");
-                suspend.setAccessible(true);
-                suspend.setBoolean(activity, true);
-            }
-            catch (ReflectiveOperationException e) {
-                throw new AssertionError(e);
-            }
-        }
-    };
-
-    @Before
-    public void ignoreThePcsUpdates() {
-        ActivityLifecycleMonitorRegistry.getInstance().addLifecycleCallback(ignorePolls);
-    }
+    // The screen ignores the PC's updates from the moment it's created, so the tests don't race
+    // the network.
+    @Rule
+    public final IgnorePcUpdates ignorePcUpdates = new IgnorePcUpdates();
 
     @After
     public void removeTestPc() {
-        ActivityLifecycleMonitorRegistry.getInstance().removeLifecycleCallback(ignorePolls);
         ComputerDatabaseManager db = new ComputerDatabaseManager(target);
         ComputerDetails details = db.getComputerByUUID(UUID);
         if (details != null) {
@@ -83,7 +65,7 @@ public class AppViewTest {
         ComputerDetails details = new ComputerDetails();
         details.uuid = UUID;
         details.name = "TEST-PC";
-        // Unroutable, so the PC stays "checking" while the screen is up
+        // Unroutable, so the PC never answers; the game screen ignores that (IgnorePcUpdates)
         details.manualAddress = new ComputerDetails.AddressTuple("10.255.255.1", 47989);
         ComputerDatabaseManager db = new ComputerDatabaseManager(target);
         db.updateComputer(details);
