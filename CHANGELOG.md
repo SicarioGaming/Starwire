@@ -13,6 +13,17 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **A Brightness item in the stream menu,** which opens the brightness slider. A controller moves
+  it in 5% steps, and A, B or Back closes it. It isn't shown on Android TV. From Moonlight X.
+  Checked by tests, not yet tried in a stream.
+- **A Left edge swipe action setting,** in Settings under In-stream menu. It says what a swipe in
+  from the left edge of the screen does while streaming: open the brightness slider, open the
+  stream menu, or nothing. It's off (Disabled) by default, so the swipe goes to the game until you
+  pick something else. Moonlight X, where it comes from, opens the slider by default. Checked by
+  tests, not yet tried in a stream.
+
 ### Changed
 
 - **The Starwire wordmark** on the games screen is a little bigger. Beside a long PC name it
@@ -32,6 +43,26 @@ steps and the checksums for each version.
   it. Vibepollo warned about the message each time a stream started. GeForce Experience still gets
   it. A native test checks which hosts get it, but controller vibration hasn't been tried with
   this build yet.
+- **A tap near the left edge of the screen goes to the game** like any other tap. It used to open
+  the brightness slider instead. Now the stream menu's Brightness item opens the slider. A swipe
+  in from the left edge can open it too, but that's off by default. To turn it on, go to
+  Settings, In-stream menu, Left edge swipe action, and pick Brightness adjustment. The swipe
+  works in the trackpad, direct touch and multi-touch modes. It starts within 80 dp of the left
+  edge (about 1.3 cm) and moves 60 dp to the right (about 1 cm) within half a second. That isn't
+  fast, so a slow drag to the right from near the edge, like moving the cursor, opens the slider
+  too. That's why it's off by default. The drag goes to the game until it has moved 60 dp, and
+  the rest of it doesn't. The slider also works differently once it's open. It used to hide 3
+  seconds after it opened. Now it stays up until you change it, then hides 2 seconds after your
+  last change. Until then, a touch on the stream closes it, and none of that touch reaches the
+  game. From Moonlight X. Thank you to u/zolidz64 for reporting it. Checked by tests, not yet
+  tried in a stream.
+- **Multi-touch mode sent the PC mouse clicks instead of touches.** It worked just like direct
+  touch, and had since 0.1.0. Now each finger goes to the PC as a touch of its own, two at a
+  time. If the PC can't take touches, the mode still works like direct touch. The three-finger
+  tap for the stream menu works in this mode too, and so does the left edge swipe once it's
+  turned on. Off, as it is by default, the swipe reaches the PC as a touch. As in the other
+  modes, a third finger lets go of what the first two were doing on the PC, so touches with three
+  or more fingers don't reach it. Checked by tests, not yet tried in a stream.
 
 ## [0.2.1] - 2026-10-23
 

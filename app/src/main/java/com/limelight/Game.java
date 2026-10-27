@@ -134,6 +134,19 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     // Only 2 touches are supported
     private final TouchContext[] touchContextMap = new TouchContext[2];
     private long threeFingerDownTime = 0;
+    // A single finger that went down at the left edge, which does the left edge swipe action if
+    // it swipes in far and fast enough
+    private boolean edgeSwipeTracking = false;
+    private float edgeSwipeStartX, edgeSwipeStartY;
+    private long edgeSwipeStartTime;
+    // The touch on the stream that closed the brightness slider, until its last finger lifts
+    private boolean closingTouch = false;
+    // In multi-touch mode, a touch the PC was told to forget, for an edge swipe or a third
+    // finger, until its last finger lifts
+    private boolean multiTouchCancelled = false;
+    // In multi-touch mode, true while the PC has a touch down: from the first finger it took
+    // until the last one lifts, or the touch is cancelled or taken back from it
+    private boolean multiTouchDown = false;
 
     private static final int REFERENCE_HORIZ_RES = 1280;
     private static final int REFERENCE_VERT_RES = 720;
@@ -145,6 +158,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private static final int STYLUS_UP_DEAD_ZONE_RADIUS = 50;
 
     private static final int THREE_FINGER_TAP_THRESHOLD = 300;
+    // How far in from the left edge the swipe goes, and how long it has to get there
+    private static final float EDGE_SWIPE_DISTANCE_DP = 60;
+    private static final int EDGE_SWIPE_TIME_LIMIT = 500;
 
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
@@ -443,6 +459,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // Initialize overlay menu view (setup will be done after controllerHandler is initialized)
         overlayMenuView = findViewById(R.id.overlayMenuView);
         overlayMenuView.setFlipFaceButtons(prefConfig.flipFaceButtons);
+        overlayMenuView.setShowBrightness(!isAndroidTV);
 
         floatingMenuButton = findViewById(R.id.floatingMenuButton);
         // Kept within the window, as the drag always was
@@ -1703,6 +1720,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return overlayMenuView.dispatchKeyEvent(event);
         }
 
+        // Likewise the brightness slider shown from it, and the repeats of the key that closed it
+        if (brightnessSliderView != null && brightnessSliderView.handleKeyEvent(event)) {
+            return true;
+        }
+
         // Handle a synthetic back button event that some Android OS versions
         // create as a result of a right-click. This event WILL repeat if
         // the right mouse button is held down, so we ignore those.
@@ -1803,6 +1825,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // If overlay menu is visible, route all key events to it
         if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
             return overlayMenuView.dispatchKeyEvent(event);
+        }
+
+        // Likewise the brightness slider shown from it, and the release of the key that closed it
+        if (brightnessSliderView != null && brightnessSliderView.handleKeyEvent(event)) {
+            return true;
         }
 
         // Handle a synthetic back button event that some Android OS versions
@@ -2446,12 +2473,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     return true;
                 }
 
-                if (mouseMode == MOUSE_MODE_MULTI_TOUCH && view == streamView && trySendTouchEvent(view, event)) {
-                    // Multi-touch mode sends touches straight to the host when it supports them
-                    // (Sunshine and Vibepollo do); otherwise fall through to direct touch
-                    return true;
-                }
-
                 // If this is the parent view, we'll offset our coordinates to appear as if they
                 // are relative to the StreamView like our StreamView touch events are.
                 float xOffset, yOffset;
@@ -2469,6 +2490,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 int eventX = (int)(event.getX(actionIndex) + xOffset);
                 int eventY = (int)(event.getY(actionIndex) + yOffset);
 
+                if (!prefConfig.leftEdgeSwipeAction.equals("off") && trackEdgeSwipe(event)) {
+                    return true;
+                }
+
                 // Special handling for 3 finger gesture
                 if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN &&
                         event.getPointerCount() == 3) {
@@ -2477,10 +2502,18 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                     // Cancel the first and second touches to avoid
                     // erroneous events
-                    for (TouchContext aTouchContext : touchContextMap) {
-                        aTouchContext.cancelTouch();
-                    }
+                    cancelTouches();
 
+                    return true;
+                }
+
+                // Fingers land on the view behind the stream, since the stream view lets touches
+                // through to it. So this takes touches from any view (it used to want the stream
+                // view's, and so never sent one). It comes after the 3 finger gesture, where
+                // upstream had native touch, and after the edge swipe, so both work here too.
+                if (mouseMode == MOUSE_MODE_MULTI_TOUCH && view != null && sendMultiTouch(view, event)) {
+                    // Multi-touch mode sends touches straight to the host when it supports them
+                    // (Sunshine and Vibepollo do); otherwise fall through to direct touch
                     return true;
                 }
 
@@ -2590,6 +2623,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
             return overlayMenuView.onGenericMotionEvent(event);
         }
+        if (brightnessSliderView != null && brightnessSliderView.isControllerMode()) {
+            return brightnessSliderView.handleMotionEvent(event);
+        }
 
         if (isImeVisible && isAndroidTV) {
             return super.onGenericMotionEvent(event);
@@ -2668,14 +2704,123 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // NB: This is still needed even when we call the newer requestUnbufferedDispatch()!
             view.requestUnbufferedDispatch(event);
 
-            // Check if touch is on the left edge to show brightness slider
-            if (brightnessSliderView.isTouchInActivationZone(event.getX())) {
-                brightnessSliderView.show();
-                return true; // Consume the touch event to prevent game input
+            // A new touch, however the last one ended
+            closingTouch = false;
+
+            // A touch on the stream closes the brightness slider, which otherwise stays up until
+            // it's been changed. All of that touch is kept from the PC, not just its start.
+            if (brightnessSliderView.isShowing()) {
+                brightnessSliderView.hide();
+                closingTouch = true;
+                return true;
             }
+        }
+        else if (closingTouch) {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP ||
+                    event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                closingTouch = false;
+            }
+            return true;
         }
 
         return handleMotionEvent(view, event);
+    }
+
+    // Follows a single finger from the left edge of the screen, and does the left edge swipe
+    // action once it has swiped in far enough in time. Returns true when it did, having cancelled
+    // the touches the gesture made, which then ignore the rest of it.
+    private boolean trackEdgeSwipe(MotionEvent event) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                // On the screen's coordinates: the touch can land on the stream or around it
+                edgeSwipeTracking = brightnessSliderView.isTouchInActivationZone(event.getRawX());
+                edgeSwipeStartX = event.getRawX();
+                edgeSwipeStartY = event.getRawY();
+                edgeSwipeStartTime = event.getEventTime();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (!edgeSwipeTracking) {
+                    break;
+                }
+                if (event.getEventTime() - edgeSwipeStartTime > EDGE_SWIPE_TIME_LIMIT) {
+                    edgeSwipeTracking = false;
+                    break;
+                }
+                float in = event.getRawX() - edgeSwipeStartX;
+                float vertical = Math.abs(event.getRawY() - edgeSwipeStartY);
+                if (in >= EDGE_SWIPE_DISTANCE_DP * getResources().getDisplayMetrics().density && vertical < in) {
+                    edgeSwipeTracking = false;
+                    cancelTouches();
+                    if (prefConfig.leftEdgeSwipeAction.equals("overlay_menu")) {
+                        overlayMenuView.show();
+                    }
+                    else {
+                        brightnessSliderView.show();
+                    }
+                    return true;
+                }
+                break;
+            default:
+                // A second finger, or the finger lifted, before it swiped far enough
+                edgeSwipeTracking = false;
+                break;
+        }
+        return false;
+    }
+
+    // Lets go of what the fingers were doing on the PC, for an edge swipe, a third finger or a
+    // switch to Pan/Zoom. The touch contexts then ignore the rest of the touch, and so does
+    // multi-touch mode.
+    private void cancelTouches() {
+        for (TouchContext aTouchContext : touchContextMap) {
+            aTouchContext.cancelTouch();
+        }
+        cancelMultiTouch();
+    }
+
+    // If the PC has a touch down from multi-touch mode, tells it to forget its touches, and
+    // sendMultiTouch keeps the rest of the touch from it. Only multi-touch mode puts a touch
+    // down, and applyMouseMode calls this before it changes the mode.
+    private void cancelMultiTouch() {
+        if (multiTouchDown) {
+            multiTouchDown = false;
+            multiTouchCancelled = true;
+            conn.sendTouchEvent(MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL, 0, 0, 0, 0, 0, 0,
+                    MoonBridge.LI_ROT_UNKNOWN);
+        }
+    }
+
+    // Multi-touch mode: sends the touch to the PC as a touch, and returns false if the PC can't
+    // take touches. Once cancelMultiTouch has taken a touch back from the PC, the rest of it goes
+    // no further, and its last finger lifting may end a 3 finger tap, as in the other modes.
+    private boolean sendMultiTouch(View view, MotionEvent event) {
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            // A new touch, however the last one ended
+            multiTouchCancelled = false;
+        }
+        else if (multiTouchCancelled) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                multiTouchCancelled = false;
+                if (action == MotionEvent.ACTION_UP &&
+                        (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || (event.getFlags() & MotionEvent.FLAG_CANCELED) == 0) &&
+                        event.getEventTime() - threeFingerDownTime < THREE_FINGER_TAP_THRESHOLD) {
+                    // This is a 3 finger tap to bring up the overlay menu
+                    runOnUiThread(() -> overlayMenuView.show());
+                }
+            }
+            return true;
+        }
+        if (!trySendTouchEvent(view, event)) {
+            return false;
+        }
+        if (action == MotionEvent.ACTION_DOWN) {
+            multiTouchDown = true;
+        }
+        else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            multiTouchDown = false;
+        }
+        return true;
     }
 
     @Override
@@ -3486,6 +3631,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
 
             @Override
+            public void onShowBrightness() {
+                brightnessSliderView.showForController(() -> streamView.requestFocus());
+            }
+
+            @Override
             public void onCustomCommand(CustomCommand command) {
                 if (command.getPostAction() == CustomCommand.POST_ACTION_CLOSE_MENU) {
                     overlayMenuView.closeMenu();
@@ -3795,10 +3945,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private void togglePanZoomMode() {
         isPanZoomMode = !isPanZoomMode;
 
-        // Release anything held down by the touch that started this
-        for (TouchContext touchContext : touchContextMap) {
-            touchContext.cancelTouch();
-        }
+        // Release anything a finger on the stream holds down, a touch on the PC included
+        cancelTouches();
 
         Toast.makeText(this, isPanZoomMode ? R.string.pan_zoom_mode_enabled : R.string.pan_zoom_mode_disabled,
                 Toast.LENGTH_SHORT).show();
@@ -3808,6 +3956,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
      * Rebuild the touch contexts for one of Artemide's touch modes (MOUSE_MODE_*).
      */
     private void applyMouseMode(int mode) {
+        // A finger held on the stream lets go of its touch on the PC. The touch contexts below
+        // let go of what they hold down.
+        cancelMultiTouch();
         mouseMode = mode;
 
         // The trackpad modes move the cursor relative to the finger; the others place it under it

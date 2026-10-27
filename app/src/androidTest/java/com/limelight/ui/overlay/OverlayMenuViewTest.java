@@ -49,6 +49,7 @@ public class OverlayMenuViewTest {
         @Override public void onToggleMouseEmulation() { events.add("mouseEmulation"); flip(OverlayMenuView.TOGGLE_MOUSE_EMULATION); }
         @Override public void onShowKeyboard() { events.add("keyboard"); }
         @Override public void onSendGuideButton() { events.add("guide"); }
+        @Override public void onShowBrightness() { events.add("brightness"); }
         @Override public void onCustomCommand(CustomCommand command) { events.add("custom"); }
         @Override public void onMenuClosed() { events.add("closed"); }
         @Override public void onSendKeys(short[] keys) { events.add("keys"); lastKeys = keys; }
@@ -278,6 +279,13 @@ public class OverlayMenuViewTest {
         assertEquals(List.of("closed", "bitrate"), listener.events);
     }
 
+    @Test
+    public void brightnessOpensTheSliderAfterClosingTheMenu() {
+        // Closed first, so the slider gets the controller's input instead of the menu
+        click(str(com.limelight.R.string.overlay_menu_brightness));
+        assertEquals(List.of("closed", "brightness"), listener.events);
+    }
+
     private void press(int keyCode) {
         onMain(() -> menu.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode)));
     }
@@ -293,7 +301,7 @@ public class OverlayMenuViewTest {
 
         // Up from Close goes into the grid's last tile, and back down returns to Close
         press(KeyEvent.KEYCODE_DPAD_UP);
-        assertTrue(selected(com.limelight.R.string.overlay_menu_floating_button));
+        assertTrue(selected(com.limelight.R.string.overlay_menu_brightness));
         press(KeyEvent.KEYCODE_DPAD_DOWN);
         assertTrue(selected(com.limelight.R.string.overlay_menu_close));
 
@@ -309,19 +317,25 @@ public class OverlayMenuViewTest {
                 com.limelight.R.string.overlay_menu_fetch_clipboard, com.limelight.R.string.overlay_menu_server_commands,
                 com.limelight.R.string.overlay_menu_task_manager, com.limelight.R.string.overlay_menu_rotate_screen,
                 com.limelight.R.string.overlay_menu_onscreen_controller, com.limelight.R.string.overlay_menu_floating_button,
+                com.limelight.R.string.overlay_menu_brightness,
         };
         int columns = ((ViewGroup) findButton(menu, str(tiles[0])).getParent()).getChildCount();
         assertTrue(columns + " columns", columns >= 2 && columns <= 5);
         int last = tiles.length - 1;
+        int above = last - columns;
         press(KeyEvent.KEYCODE_DPAD_UP);
         press(KeyEvent.KEYCODE_DPAD_UP);
-        assertTrue(selected(tiles[last - columns]));
-        press(KeyEvent.KEYCODE_DPAD_LEFT);
-        assertTrue(selected(tiles[last - columns - 1]));
+        assertTrue(selected(tiles[above]));
+        // Then along that row: left, or right from the row's first tile (with two or three
+        // columns the last tile starts a row)
+        boolean first = above % columns == 0;
+        int side = first ? above + 1 : above - 1;
+        press(first ? KeyEvent.KEYCODE_DPAD_RIGHT : KeyEvent.KEYCODE_DPAD_LEFT);
+        assertTrue(selected(tiles[side]));
 
         // Down twice: the bottom row, then Close, which sits above Quit and Disconnect
         press(KeyEvent.KEYCODE_DPAD_DOWN);
-        assertTrue(selected(tiles[last - 1]));
+        assertTrue(selected(tiles[Math.min(side + columns, last)]));
         press(KeyEvent.KEYCODE_DPAD_DOWN);
         assertTrue(selected(com.limelight.R.string.overlay_menu_close));
         press(KeyEvent.KEYCODE_DPAD_DOWN);
