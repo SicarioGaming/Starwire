@@ -36,10 +36,10 @@
 # smoke test, which may wait for the PC and a stream: 5 minutes) fails with what the app's main
 # thread was doing, and the run goes on to the next test.
 #
-# Exit codes: 0 all good; 1 a test failed or the cursor setting changed; 2 a crash, an ANR, or a
-# test run that didn't finish; 3 an install failed; 4 a device problem (not connected, locked, a
-# stream already open, or refused) or bad arguments. With several devices the worst one counts,
-# in that order: 2, then 1, 3 and 4.
+# Exit codes: 0 all good; 1 a test failed or the cursor setting changed; 2 a crash, an ANR, a test
+# run that didn't finish, or crash logs it couldn't keep; 3 an install failed; 4 a device problem
+# (not connected, locked, a stream already open, or refused) or bad arguments. With several
+# devices the worst one counts, in that order: 2, then 1, 3 and 4.
 
 set -uo pipefail
 # Git Bash: hand /sdcard/... to adb untouched. Local paths go through host_path instead.
@@ -152,6 +152,21 @@ adb_() {
 }
 sh_() {
     "$ADB" -s "$SERIAL" shell "$@" | tr -d '\r'
+}
+# Keeps what a command prints in FILE, without adb's \r. Fails only when FILE can't be written:
+# a device that answers nothing is for the crash check to judge.
+keep() {  # file, then the command
+    local file=$1 status
+    shift
+    "$@" 2>/dev/null | tr -d '\r' > "$file"
+    status=${PIPESTATUS[1]}
+    [ "$status" = 0 ]
+}
+dropbox_records() {
+    local tag
+    for tag in data_app_crash data_app_anr data_app_native_crash; do
+        adb_ shell dumpsys dropbox --print "$tag"
+    done
 }
 note() {
     echo "$*" | tee -a "$DIR/notes.txt"
@@ -382,32 +397,37 @@ test_device() {
 
     # 5. Crashes and ANRs from the app since the start. Some devices keep logcat empty, so
     # the system's dropbox is read too. Logcat prints a Java crash as "AndroidRuntime: Process:
-    # <package>, PID: ...".
-    local pkg_re="${PKG//./\\.}" tag
-    adb_ logcat -d -b crash -T "$start_log" 2>/dev/null | tr -d '\r' > "$DIR/logcat-crash.txt"
-    adb_ logcat -d -b main -b system -b events -T "$start_log" 2>/dev/null | tr -d '\r' > "$DIR/logcat.txt"
-    : > "$DIR/dropbox.txt"
-    for tag in data_app_crash data_app_anr data_app_native_crash; do
-        sh_ dumpsys dropbox --print "$tag" >> "$DIR/dropbox.txt" 2>/dev/null
-    done
+    # <package>, PID: ...". A log that can't be kept or read here means the check didn't run,
+    # which counts as a run that didn't finish, never as no crash.
+    local pkg_re="${PKG//./\\.}" kept=1
+    keep "$DIR/logcat-crash.txt" adb_ logcat -d -b crash -T "$start_log" || kept=0
+    keep "$DIR/logcat.txt" adb_ logcat -d -b main -b system -b events -T "$start_log" || kept=0
+    keep "$DIR/dropbox.txt" dropbox_records || kept=0
     {
+        # grep's exit 1 is "no match"; 2 is an error
         grep -hE "^Process: $pkg_re\$|Process: $pkg_re,|>>> $pkg_re <<<|ANR in $pkg_re( |\$)|am_anr.*,$pkg_re," \
-            "$DIR/logcat-crash.txt" "$DIR/logcat.txt"
+            "$DIR/logcat-crash.txt" "$DIR/logcat.txt" || [ $? = 1 ] || kept=0
         awk -v start="$start_box" -v pkg="$PKG" '
             /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9:]+ data_app_/ { stamp = $1 " " $2; tag = $3; next }
             /^Process: / { if (stamp != "" && stamp >= start && $2 == pkg) print stamp " " tag; stamp = "" }
-        ' "$DIR/dropbox.txt"
-    } > "$DIR/crashes.txt"
+        ' "$DIR/dropbox.txt" || kept=0
+    } > "$DIR/crashes.txt" || kept=0
+    if [ $kept = 0 ]; then
+        note "Couldn't keep or read the crash logs in $DIR (is the disk full?), so crashes weren't checked"
+        crashed=1
+    fi
     [ -s "$DIR/crashes.txt" ] && crashed=1
 
     local shots crash_line
     shots=$(find "$DIR/smoke" -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
-    if [ -s "$DIR/crashes.txt" ]; then
+    if [ $kept = 0 ]; then
+        crash_line="not checked: the crash logs couldn't be kept (notes.txt)"
+    elif [ -s "$DIR/crashes.txt" ]; then
         crash_line="$(wc -l < "$DIR/crashes.txt" | tr -d ' ') (crashes.txt)"
     else
         crash_line="none"
     fi
-    if [ ! -s "$DIR/logcat.txt" ]; then
+    if [ $kept = 1 ] && [ ! -s "$DIR/logcat.txt" ]; then
         crash_line="$crash_line; logcat gave nothing here, so only the system's crash records were read"
     fi
     {

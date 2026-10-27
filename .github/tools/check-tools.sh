@@ -288,6 +288,14 @@ fi
 fake_run 2 -s FAKE-1
 grep -qx 'Crashes/ANRs:    1 (crashes.txt)' "$work/out/FAKE-1/summary.txt" ||
     fail "device-test.sh missed the app's crash in logcat's crash log"
+# So does a crash check that couldn't keep the crash log: that isn't a run with no crash
+rm -f "$work/out/FAKE-1/logcat-crash.txt"
+mkdir "$work/out/FAKE-1/logcat-crash.txt"
+fake_run 2 -s FAKE-1
+if grep -q '^Crashes/ANRs:    none' "$work/out/FAKE-1/summary.txt"; then
+    fail "device-test.sh said there was no crash, but it couldn't keep the crash log"
+fi
+rmdir "$work/out/FAKE-1/logcat-crash.txt"
 rm -f "$work/crash"
 if grep -q uninstall "$work/all-calls"; then fail "device-test.sh uninstalled something"; fi
 ok "device-test.sh refuses listed devices, checks before it installs, guards monkey, and filters tests"
