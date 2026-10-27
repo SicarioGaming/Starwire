@@ -11,10 +11,10 @@ byte.
 
 **Status.** Written before the code. It has had one security review (Rv-1, first round), whose
 findings are fixed here, but not its second round or the maintainer's sign-off, so it can still
-change. Only the frames, keys and MACs exist so far (`SwutCodec.java`), checked by the app's JVM
-tests against the vectors. The device rules' cases are written, but no code decides them yet.
-There's no tunnel, no helper, no relay and no device rules in code, no device has gone through
-any of it, and nothing here has been tried on Windows.
+change. The frames, keys and MACs exist (`SwutCodec.java`), checked by the app's JVM tests
+against the vectors, and Starwire's copy of the device rules (`UsbDeviceRules.java`) decides
+every one of their cases there too. On this branch there's no tunnel, helper or relay in code, no
+device has gone through any of it, and nothing here has been tried on Windows.
 
 ## In plain words
 
@@ -695,5 +695,5 @@ differently: an extended usage, a Usage Page after the Usage, two Usages, Delimi
 Pop, long items and nesting.
 
 `SwutPolicyCasesTest` checks that both copies are the same, that every SHARE in it is well formed,
-and that every rule a SHARE can break has a case. Nothing checks the decisions yet: Starwire's
-device rules and the helper's are each to reach every one, in their own tests.
+and that every rule a SHARE can break has a case. `UsbDeviceRulesTest` checks that Starwire's
+device rules reach every decision. The helper's rules are to reach every one too, in its own tests.
