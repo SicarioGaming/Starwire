@@ -23,7 +23,7 @@ import com.limelight.binding.usb.share.AndroidUsbDevices;
 import com.limelight.binding.usb.share.UsbShareBackends;
 import com.limelight.binding.usb.share.UsbShareController;
 import com.limelight.binding.usb.share.UsbShareText;
-import com.limelight.binding.usb.share.UsbTunnel;
+import com.limelight.binding.usb.share.UsbShareTunnel;
 import com.limelight.binding.input.evdev.EvdevListener;
 import com.limelight.binding.input.touch.TouchContext;
 import com.limelight.binding.input.virtual_controller.VirtualController;
@@ -1365,7 +1365,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     @Override
     protected void onDestroy() {
         stopMicrophoneCapture();
-        stopUsbSharing(UsbTunnel.END_CLOSING);
+        stopUsbSharing(UsbShareTunnel.END_CLOSING);
         super.onDestroy();
 
         // Unregister broadcast receiver
@@ -2717,9 +2717,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return;
         }
         Handler main = new Handler(getMainLooper());
-        usbShareWorker = java.util.concurrent.Executors.newSingleThreadExecutor(r -> new Thread(r, "UsbShare"));
+        usbShareWorker = java.util.concurrent.Executors.newCachedThreadPool(r -> new Thread(r, "UsbShare"));
         usbShare = new UsbShareController(this, new AndroidUsbDevices(this, this), backends,
-                new UsbTunnel.Target(getIntent().getStringExtra(EXTRA_HOST), getIntent().getStringExtra(EXTRA_PC_UUID)),
+                new UsbShareTunnel.Target(getIntent().getStringExtra(EXTRA_HOST), getIntent().getStringExtra(EXTRA_PC_UUID)),
                 new UsbShareController.Ui() {
                     @Override
                     public void onChanged() {
@@ -2727,8 +2727,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     }
 
                     @Override
-                    public void confirmInput(String name, UsbShareController.Answer answer) {
-                        confirmUsbInput(name, answer);
+                    public void confirmInput(UsbShareController.Entry device, UsbShareController.Answer answer) {
+                        confirmUsbInput(device.name, answer);
+                    }
+
+                    @Override
+                    public void cancelConfirm() {
+                        if (usbConfirmDialog != null) {
+                            usbConfirmDialog.dismiss();
+                            usbConfirmDialog = null;
+                        }
                     }
 
                     @Override
@@ -2893,7 +2901,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private void stopConnection() {
         stopMicrophoneCapture();
         // A shared USB device goes back to the phone when the stream ends, however it ends
-        stopUsbSharing(UsbTunnel.END_STREAM_ENDED);
+        stopUsbSharing(UsbShareTunnel.END_STREAM_ENDED);
         // Give the PC its cursor back before the connection goes away
         final boolean flushHostCursor = hostCursor.onStopping();
 

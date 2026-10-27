@@ -3,6 +3,8 @@ package com.limelight.binding.usb.share;
 import android.content.Context;
 import android.hardware.usb.UsbDevice;
 
+import com.limelight.R;
+
 import org.robolectric.shadow.api.Shadow;
 
 import java.io.IOException;
@@ -14,8 +16,8 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
- * Fakes for the share flow's parts: the phone's USB devices, the device rules, the exporter and
- * the tunnel, each driven by the test one step at a time. No device, network or clock.
+ * Fakes for the share flow's parts: the phone's USB devices, the exporter with its device rules,
+ * and the tunnel, each driven by the test one step at a time. No device, network or clock.
  */
 final class FakeUsb {
     private FakeUsb() {
@@ -152,38 +154,37 @@ final class FakeUsb {
         }
     }
 
-    static final class Rules implements UsbDeviceRules {
+    /**
+     * The exporter, with the device rules it applies to all of a device's descriptors: what its
+     * own check says is `verdict`, as U-B's UsbExporter.start() decides it.
+     */
+    static final class Exporter implements UsbShareExporter {
+        final Listener listener;
         UsbVerdict verdict = UsbVerdict.ALLOW;
         IOException failure;
-        int checks;
-
-        @Override
-        public UsbVerdict check(UsbDevice device) throws IOException {
-            checks++;
-            if (failure != null) {
-                throw failure;
-            }
-            return verdict;
-        }
-    }
-
-    static final class Exporter implements UsbExporter {
+        RuntimeException stopFailure;
         int starts;
         int stops;
         boolean running;
-        IOException failure;
-        RuntimeException stopFailure;
-        Listener listener;
+        // The inputConfirmed of the last start()
+        boolean confirmed;
+
+        Exporter(Listener listener) {
+            this.listener = listener;
+        }
 
         @Override
-        public Export start(UsbDevice device, Listener listener) throws IOException {
+        public Export start(UsbDevice device, boolean inputConfirmed) throws Refused, IOException {
             starts++;
+            confirmed = inputConfirmed;
             if (failure != null) {
                 throw failure;
             }
-            this.listener = listener;
+            if (verdict.isRefused() || (verdict.asks() && !inputConfirmed)) {
+                throw new Refused(verdict);
+            }
             running = true;
-            return () -> "1-1";
+            return () -> SHARE.clone();
         }
 
         @Override
@@ -196,18 +197,46 @@ final class FakeUsb {
         }
     }
 
-    static final class Tunnel implements UsbTunnel {
+    // What the fake exporter's SHARE says; the share flow only passes it on
+    static final byte[] SHARE = {0, 0, 0, 5, 1};
+
+    /**
+     * The tunnel, which behaves as U-A's UsbTunnel does around the share flow: it starts the
+     * exporter on BIND_ACK, and however it ends it stops the exporter (if it started it) and then
+     * says so, once. close() only asks: the test ends it.
+     */
+    static final class Tunnel implements UsbShareTunnel {
+        final UsbShareTunnel.Exporter exporter;
+        final Listener listener;
         Target target;
-        boolean confirmed;
-        Listener listener;
+        int connects;
+        RuntimeException connectFailure;
+        // Run inside connect(), as if the main thread did it while connect() ran
+        Runnable duringConnect;
         final List<Integer> closes = new ArrayList<>();
-        UsbExporter.Export export;
+        int networkLosses;
+        byte[] share;
+        boolean started;
+        boolean ended;
+        // What its endings say, from strings.xml
+        int messageId = R.string.usb_share_ended;
+        int ruleId;
+
+        Tunnel(UsbShareTunnel.Exporter exporter, Listener listener) {
+            this.exporter = exporter;
+            this.listener = listener;
+        }
 
         @Override
-        public void connect(Target target, boolean confirmedInput, Listener listener) {
+        public void connect(Target target) {
+            connects++;
+            if (duringConnect != null) {
+                duringConnect.run();
+            }
+            if (connectFailure != null) {
+                throw connectFailure;
+            }
             this.target = target;
-            this.confirmed = confirmedInput;
-            this.listener = listener;
         }
 
         @Override
@@ -215,9 +244,25 @@ final class FakeUsb {
             closes.add(endReason);
         }
 
-        /** A BIND_ACK that checks out: the share flow starts the exporter */
-        void bindAck() throws IOException {
-            export = listener.onBound();
+        @Override
+        public void networkLost() {
+            networkLosses++;
+        }
+
+        /**
+         * A BIND_ACK that checks out: the tunnel starts the exporter. If that throws, the tunnel
+         * sends END 2 and ends, as DEVICE_GONE, and this is false.
+         */
+        boolean bindAck() {
+            started = true;
+            try {
+                share = exporter.start();
+                return true;
+            }
+            catch (IOException e) {
+                end(Ending.DEVICE_GONE, UsbShareTunnel.END_UNPLUGGED, 0);
+                return false;
+            }
         }
 
         /** SHARE_ACK with status 0 */
@@ -225,14 +270,30 @@ final class FakeUsb {
             listener.onSharing();
         }
 
-        void closed(int kind, int code, int detail) {
-            listener.onClosed(new Closed(kind, code, detail));
+        /** The connection ends: the exporter is stopped if it was started, then the listener told */
+        void end(int kind, int code, int rule) {
+            if (ended) {
+                throw new AssertionError("a tunnel ends once");
+            }
+            ended = true;
+            if (started) {
+                exporter.stop();
+            }
+            listener.onEnded(new Ending(kind, code, rule, messageId, ruleId));
+        }
+
+        /** The end close() asked for: END with its reason, then STOPPED */
+        void endAsAsked() {
+            end(Ending.STOPPED, closes.get(closes.size() - 1), 0);
         }
     }
 
     static final class Backends implements UsbShareBackends.Factory {
         boolean supported = true;
-        final Rules rules = new Rules();
+        // For each new exporter: what its check says, and whether it can't start at all
+        UsbVerdict exporterVerdict = UsbVerdict.ALLOW;
+        IOException exporterFailure;
+        RuntimeException connectFailure;
         final List<Exporter> exporters = new ArrayList<>();
         final List<Tunnel> tunnels = new ArrayList<>();
 
@@ -242,20 +303,19 @@ final class FakeUsb {
         }
 
         @Override
-        public UsbDeviceRules rules(Context context) {
-            return rules;
-        }
-
-        @Override
-        public UsbExporter exporter(Context context) {
-            Exporter e = new Exporter();
+        public UsbShareExporter exporter(Context context, UsbShareExporter.Listener listener) {
+            Exporter e = new Exporter(listener);
+            e.verdict = exporterVerdict;
+            e.failure = exporterFailure;
             exporters.add(e);
             return e;
         }
 
         @Override
-        public UsbTunnel tunnel(Context context) {
-            Tunnel t = new Tunnel();
+        public UsbShareTunnel tunnel(Context context, UsbShareTunnel.Exporter exporter,
+                                     UsbShareTunnel.Listener listener) {
+            Tunnel t = new Tunnel(exporter, listener);
+            t.connectFailure = connectFailure;
             tunnels.add(t);
             return t;
         }
@@ -272,8 +332,10 @@ final class FakeUsb {
     static final class Ui implements UsbShareController.Ui {
         int changes;
         final List<String> messages = new ArrayList<>();
-        String confirming;
+        UsbShareController.Entry confirming;
         UsbShareController.Answer answer;
+        int questions;
+        int cancels;
 
         @Override
         public void onChanged() {
@@ -281,9 +343,15 @@ final class FakeUsb {
         }
 
         @Override
-        public void confirmInput(String name, UsbShareController.Answer answer) {
-            confirming = name;
+        public void confirmInput(UsbShareController.Entry device, UsbShareController.Answer answer) {
+            confirming = device;
             this.answer = answer;
+            questions++;
+        }
+
+        @Override
+        public void cancelConfirm() {
+            cancels++;
         }
 
         @Override

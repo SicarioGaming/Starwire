@@ -567,7 +567,6 @@
     <string name="usb_rule_too_fast">It\'s a USB 3 device.</string>
     <string name="usb_rule_other">The device rules refused it.</string>
     <string name="usb_state_permission">Waiting for Android\'s permission</string>
-    <string name="usb_state_checking">Checking the device</string>
     <string name="usb_state_confirm">Waiting for your answer</string>
     <string name="usb_state_connecting">Connecting to the PC</string>
     <string name="usb_state_shared">Shared with the PC. Select to stop.</string>
@@ -581,31 +580,9 @@
     <string name="usb_shared_toast">%1$s is shared with the PC.</string>
     <string name="usb_unplugged_toast">%1$s was unplugged, so it\'s no longer shared.</string>
     <string name="usb_lost_toast">Lost the connection to the PC. %1$s is back on this phone.</string>
-    <string name="usb_lost">Lost the connection to the PC.</string>
+    <string name="usb_share_connect_failed">Couldn\'t start sharing it. Try again in a moment.</string>
+    <string name="usb_share_ended">Sharing stopped.</string>
     <string name="usb_permission_denied">Android didn\'t let Starwire use it.</string>
-    <string name="usb_read_failed">Starwire couldn\'t read the device.</string>
-    <string name="usb_failed_no_pairing">Pair this phone with the PC\'s microphone receiver first (Settings, Sound and vibration, Send my microphone, Pair with the PC). USB sharing uses that pairing.</string>
-    <string name="usb_failed_not_home">Not shared: the PC\'s address isn\'t on your home network or a private VPN.</string>
-    <string name="usb_failed_no_answer">The PC\'s USB helper didn\'t answer. Check that USB is on in its menu.</string>
-    <string name="usb_failed_not_proven">Not shared: the PC couldn\'t prove it holds this phone\'s pairing.</string>
-    <string name="usb_failed_app_too_old">The PC\'s USB helper is newer than this Starwire. Update Starwire.</string>
-    <string name="usb_failed_helper_too_old">The PC\'s USB helper is older than this Starwire. Update the helper on the PC.</string>
-    <string name="usb_failed_exporter">Starwire couldn\'t open the device.</string>
-    <string name="usb_refuse_not_paired">The PC\'s USB helper doesn\'t know this phone. Pair the microphone with this PC again.</string>
-    <string name="usb_refuse_no_version">Starwire and the PC\'s USB helper have no version in common. Update the older one.</string>
-    <string name="usb_refuse_malformed">The PC\'s USB helper couldn\'t read Starwire\'s request.</string>
-    <string name="usb_refuse_not_allowed">On the PC, tick Allow USB for this phone in the USB helper\'s menu.</string>
-    <string name="usb_not_shared_busy">The PC already has another shared device.</string>
-    <string name="usb_not_shared_rules">The PC refused it. %1$s</string>
-    <string name="usb_not_shared_driver">The PC\'s USB driver is missing, or the helper doesn\'t know its version.</string>
-    <string name="usb_ended_stopped">Stopped on the PC.</string>
-    <string name="usb_ended_usb_off">USB was turned off on the PC.</string>
-    <string name="usb_ended_unpaired">The PC removed this phone\'s pairing, or its Allow USB.</string>
-    <string name="usb_ended_rules">The PC stopped it. %1$s</string>
-    <string name="usb_ended_attach">Windows couldn\'t attach it, or removed it.</string>
-    <string name="usb_ended_closing">The PC\'s USB helper closed.</string>
-    <string name="usb_ended_protocol">The connection to the PC broke down.</string>
-    <string name="usb_ended_other">The PC ended the share.</string>
 
     <!-- Starwire: Warp Drive / Warp 2 pacing (from Artemide), cursor hiding, long-press right click -->
     <string name="pacing_warp">Warp Drive: 2x FPS from the PC, newest frame shown (Experimental)</string>

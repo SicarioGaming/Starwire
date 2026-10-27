@@ -11,8 +11,8 @@ import java.util.Set;
  * Android shows the class codes, configurations, interfaces and endpoints, but not interface
  * association descriptors, descriptor lengths or HID report descriptors. So this runs the checks
  * that only need what it shows, in the contract's order, and a device with a HID interface gets
- * an incomplete verdict: the rules decide it again from all its descriptors when you share it
- * (UsbDeviceRules), and that decision is the one that counts.
+ * an incomplete verdict: the exporter decides it again from all its descriptors when you share
+ * it (UsbShareExporter), and that decision is the one that counts.
  */
 public final class UsbSharePreview {
     // USB class codes (usb.org "Defined Class Codes")

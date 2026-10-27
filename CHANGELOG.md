@@ -20,9 +20,10 @@ steps and the checksums for each version.
   the phone and says whether each device can be shared, asks you first (keyboards and mice) or
   can't be, and why. Choosing one asks Android's permission and shares it; choosing it again,
   unplugging it or ending the stream gives it back, and after a lost connection it offers to share
-  it again. Only this part is in so far, tested on the computer with stand-ins for the parts that
-  carry the device to the PC, so the setting stays hidden until those are in. Nothing has been
-  shared on a phone or a PC yet.
+  it again. A device that turns out to be a keyboard or mouse only once Starwire reads all of it
+  isn't shared, and asks you then. Only this part is in so far, tested on the computer with
+  stand-ins for the parts that carry the device to the PC, so the setting stays hidden until those
+  are in. Nothing has been shared on a phone or a PC yet.
 
 ## [0.2.1] - 2026-10-23
 

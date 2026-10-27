@@ -19,8 +19,6 @@ public final class UsbShareText {
         switch (e.state()) {
             case PERMISSION:
                 return context.getString(R.string.usb_state_permission);
-            case CHECKING:
-                return context.getString(R.string.usb_state_checking);
             case CONFIRM:
                 return context.getString(R.string.usb_state_confirm);
             case CONNECTING:
@@ -58,69 +56,14 @@ public final class UsbShareText {
         return context.getString(rule >= 1 && rule <= reasons.length ? reasons[rule - 1] : R.string.usb_rule_other);
     }
 
-    /** How a session the PC or the network ended went, for its note */
-    public static String closed(Context context, UsbTunnel.Closed why) {
-        switch (why.kind) {
-            case UsbTunnel.Closed.REFUSED:
-                switch (why.code) {
-                    case UsbTunnel.REFUSE_NOT_PAIRED:
-                        return context.getString(R.string.usb_refuse_not_paired);
-                    case UsbTunnel.REFUSE_NO_VERSION:
-                        return context.getString(R.string.usb_refuse_no_version);
-                    case UsbTunnel.REFUSE_NOT_ALLOWED:
-                        return context.getString(R.string.usb_refuse_not_allowed);
-                    default:
-                        return context.getString(R.string.usb_refuse_malformed);
-                }
-            case UsbTunnel.Closed.NOT_SHARED:
-                switch (why.code) {
-                    case UsbTunnel.SHARE_BUSY:
-                        return context.getString(R.string.usb_not_shared_busy);
-                    case UsbTunnel.SHARE_REFUSED:
-                        return context.getString(R.string.usb_not_shared_rules, rule(context, why.detail));
-                    case UsbTunnel.SHARE_NO_DRIVER:
-                        return context.getString(R.string.usb_not_shared_driver);
-                    default:
-                        return context.getString(R.string.usb_ended_other);
-                }
-            case UsbTunnel.Closed.ENDED:
-                switch (why.code) {
-                    case UsbTunnel.END_STOPPED:
-                        return context.getString(R.string.usb_ended_stopped);
-                    case UsbTunnel.END_USB_OFF:
-                        return context.getString(R.string.usb_ended_usb_off);
-                    case UsbTunnel.END_UNPAIRED:
-                        return context.getString(R.string.usb_ended_unpaired);
-                    case UsbTunnel.END_RULES:
-                        return context.getString(R.string.usb_ended_rules, rule(context, why.detail));
-                    case UsbTunnel.END_ATTACH_FAILED:
-                        return context.getString(R.string.usb_ended_attach);
-                    case UsbTunnel.END_CLOSING:
-                        return context.getString(R.string.usb_ended_closing);
-                    case UsbTunnel.END_PROTOCOL:
-                        return context.getString(R.string.usb_ended_protocol);
-                    default:
-                        return context.getString(R.string.usb_ended_other);
-                }
-            case UsbTunnel.Closed.LOST:
-                return context.getString(R.string.usb_lost);
-            default:
-                switch (why.code) {
-                    case UsbTunnel.FAILED_NO_PAIRING:
-                        return context.getString(R.string.usb_failed_no_pairing);
-                    case UsbTunnel.FAILED_NOT_HOME:
-                        return context.getString(R.string.usb_failed_not_home);
-                    case UsbTunnel.FAILED_NOT_PROVEN:
-                        return context.getString(R.string.usb_failed_not_proven);
-                    case UsbTunnel.FAILED_APP_TOO_OLD:
-                        return context.getString(R.string.usb_failed_app_too_old);
-                    case UsbTunnel.FAILED_HELPER_TOO_OLD:
-                        return context.getString(R.string.usb_failed_helper_too_old);
-                    case UsbTunnel.FAILED_EXPORTER:
-                        return context.getString(R.string.usb_failed_exporter);
-                    default:
-                        return context.getString(R.string.usb_failed_no_answer);
-                }
+    /** How a connection the PC, the network or the exporter ended went: the tunnel's own words */
+    public static String ended(Context context, UsbShareTunnel.Ending ending) {
+        if (ending.messageId == 0) {
+            return context.getString(R.string.usb_share_ended);
         }
+        if (ending.ruleId != 0) {
+            return context.getString(ending.messageId, context.getString(ending.ruleId));
+        }
+        return context.getString(ending.messageId);
     }
 }

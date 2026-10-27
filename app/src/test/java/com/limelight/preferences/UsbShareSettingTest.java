@@ -13,10 +13,9 @@ import android.preference.PreferenceFragment;
 import android.preference.PreferenceManager;
 
 import com.limelight.R;
-import com.limelight.binding.usb.share.UsbDeviceRules;
-import com.limelight.binding.usb.share.UsbExporter;
 import com.limelight.binding.usb.share.UsbShareBackends;
-import com.limelight.binding.usb.share.UsbTunnel;
+import com.limelight.binding.usb.share.UsbShareExporter;
+import com.limelight.binding.usb.share.UsbShareTunnel;
 
 import org.junit.After;
 import org.junit.Test;
@@ -45,9 +44,16 @@ public class UsbShareSettingTest {
         }
 
         @Override public boolean isSupported() { return supported; }
-        @Override public UsbDeviceRules rules(Context context) { throw new AssertionError(); }
-        @Override public UsbExporter exporter(Context context) { throw new AssertionError(); }
-        @Override public UsbTunnel tunnel(Context context) { throw new AssertionError(); }
+        @Override
+        public UsbShareExporter exporter(Context context, UsbShareExporter.Listener listener) {
+            throw new AssertionError();
+        }
+
+        @Override
+        public UsbShareTunnel tunnel(Context context, UsbShareTunnel.Exporter exporter,
+                                     UsbShareTunnel.Listener listener) {
+            throw new AssertionError();
+        }
     }
 
     @After
