@@ -745,6 +745,26 @@ if [ $status -ne 0 ]; then
 fi
 ok "check-version.sh tells good release tags and version bumps from bad ones"
 
+# 16. RELEASING.md says how to add and fetch, without tags, every fork remote check-publish.sh
+# counts as upstream by default. A clone without one fails the check on that fork's picks, and
+# RELEASING.md once named only three of the five.
+begin
+default_remotes=$(sed -n 's/^UPSTREAM=\${UPSTREAM_REMOTES:-\(.*\)}$/\1/p' "$HERE/check-publish.sh")
+releasing=$(tr -d '\r' < "$ROOT/docs/dev/RELEASING.md")
+fetch_loop=$(grep -E '^for remote in .*tagOpt --no-tags.*git fetch' <<< "$releasing" || true)
+if [ -z "$default_remotes" ]; then
+    fail "couldn't find check-publish.sh's default UPSTREAM_REMOTES"
+fi
+for remote in $default_remotes; do
+    if ! grep -qE "^git remote add $remote https://github\.com/[^ ]+\.git$" <<< "$releasing"; then
+        fail "RELEASING.md doesn't say how to add the $remote remote (git remote add $remote https://github.com/...)"
+    fi
+    if ! sed 's/;.*//' <<< "$fetch_loop" | grep -qw -- "$remote"; then
+        fail "RELEASING.md's fetch loop doesn't fetch $remote without tags"
+    fi
+done
+ok "RELEASING.md adds and fetches every fork remote check-publish.sh counts as upstream"
+
 if [ $failures -ne 0 ]; then
     echo "$failures problem(s)" >&2
     exit 1

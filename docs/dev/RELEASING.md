@@ -58,7 +58,8 @@ if it finds:
 - a commit or tag by anyone other than `SicarioGaming <stayf8dop@gmail.com>`, or not dated in UTC.
   A commit brought in with `git cherry-pick -x` keeps its own author and date when the commit it
   names is on one of the forks' remotes: `moonlightx`, `artemide`, `turnip`, `nightjar` or `vplus`
-  (Moonlight V+). Fetch each of them with `tagOpt --no-tags`, as below
+  (Moonlight V+). Fetch each of them with `tagOpt --no-tags`, as in
+  [The forks' remotes](#the-forks-remotes)
 - a keystore or key file, `keystore.properties`, `local.properties`, `.env`, anything under
   `private/`, or a Reddit draft
 - an access token, a private key, a written-out password, a local user folder, or a private network
@@ -93,6 +94,25 @@ yet, pushes to the public repo stop and pushes anywhere else go through.
 Two things it can't see: the submodule (common-c commits are published from their own repo) and
 what's already public. If a secret ever does get out, removing it from history doesn't help: change
 the secret.
+
+### The forks' remotes
+
+The check only counts a cherry-pick as upstream when the commit it names is on a fork's remote in
+the clone it runs in. A pick from a fork that isn't fetched there fails, as a commit by someone
+else would. Add and fetch all five once per clone:
+
+```
+git remote add moonlightx https://github.com/MoreOrLessSoftware/moonlight-android.git
+git remote add artemide https://github.com/derflacco/moonlight-android.git
+git remote add turnip https://github.com/NoCrypt/moonlight-x-turnip.git
+git remote add nightjar https://github.com/RamazanKara/nightjar.git
+git remote add vplus https://github.com/qiin2333/moonlight-vplus.git
+for remote in moonlightx artemide turnip nightjar vplus; do git config remote.$remote.tagOpt --no-tags; git fetch $remote; done
+```
+
+`--no-tags` keeps the forks' tags out, since some have names Starwire uses, like v0.3.0 (see
+[Afterwards](#afterwards)). `check-tools.sh` checks this list matches the remotes
+`check-publish.sh` counts by default.
 
 ## Version numbers
 
@@ -244,8 +264,9 @@ already out, or rewriting a commit that's already out. Wording fixes are new com
   Turnip's is `turnip/v12.1-turnip`, in the private repo and the maintainer's clone, so the plain
   `vX.Y.Z` names are Starwire's alone. Artemide's tags (like `Experimental_7.1`) stay as they
   are, since none of them starts with `v`. Fetches from the forks no longer bring tags
-  (`git config remote.moonlightx.tagOpt --no-tags`, and the same for `artemide` and `turnip`);
-  set that in any new clone. The public repo only ever had Starwire's tags, and nothing changed
+  (`git config remote.moonlightx.tagOpt --no-tags`, and the same for `artemide` and `turnip`,
+  and later `nightjar` and `vplus`); set that in any new clone, as in
+  [The forks' remotes](#the-forks-remotes). The public repo only ever had Starwire's tags, and nothing changed
   there. In the private repo, v0.2.0 now matches the public one. Its v0.1.0 and v0.1.2 are the
   private tags made at those releases, on different commits from the public ones (which mark the
   per-folder commits published at the time), and `starwire-v0.2.0` is left from when v0.2.0 was
