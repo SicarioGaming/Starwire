@@ -51,6 +51,47 @@ public class DualSenseChecksTest {
         public boolean setReport(BluetoothDevice device, long type, String report) { return false; }
     }
 
+    // Records what each hidden call is given: AOSP's two hex forms (a byte report type), and
+    // byte[] forms with an int or Integer report type
+    @SuppressWarnings("unused")
+    static final class Recorder {
+        final java.util.List<Object> got = new java.util.ArrayList<>();
+        public boolean sendData(BluetoothDevice device, String report) { got.add(report); return true; }
+        public boolean sendData(BluetoothDevice device, byte[] report) { got.add(report); return true; }
+        public boolean setReport(BluetoothDevice device, byte type, String report) { got.add(type); got.add(report); return true; }
+        public boolean setReport(BluetoothDevice device, int type, byte[] report) { got.add(type); got.add(report); return true; }
+        public boolean setReport(BluetoothDevice device, Integer type, String report) { got.add(type); got.add(report); return true; }
+    }
+
+    private static java.util.List<Object> callWith(Method method, byte[] report) throws Exception {
+        Recorder recorder = new Recorder();
+        SendForm form = BluetoothHidHostLink.formOf(method);
+        // A wrong argument type throws IllegalArgumentException here, as the real call would
+        assertEquals(Boolean.TRUE, method.invoke(recorder, BluetoothHidHostLink.arguments(form, method, null, report)));
+        return recorder.got;
+    }
+
+    @Test
+    public void eachFormGetsTheArgumentsItsMethodTakes() throws Exception {
+        byte[] report = Hex.bytes("3100100c40");
+        assertEquals(java.util.Collections.singletonList("3100100C40"),
+                callWith(Recorder.class.getMethod("sendData", BluetoothDevice.class, String.class), report));
+
+        java.util.List<Object> raw = callWith(Recorder.class.getMethod("sendData", BluetoothDevice.class, byte[].class), report);
+        assertEquals(1, raw.size());
+        assertTrue(java.util.Arrays.equals(report, (byte[]) raw.get(0)));
+
+        assertEquals(java.util.Arrays.asList((byte) 2, "3100100C40"), callWith(
+                Recorder.class.getMethod("setReport", BluetoothDevice.class, byte.class, String.class), report));
+        assertEquals(java.util.Arrays.asList(2, "3100100C40"), callWith(
+                Recorder.class.getMethod("setReport", BluetoothDevice.class, Integer.class, String.class), report));
+
+        java.util.List<Object> typed = callWith(
+                Recorder.class.getMethod("setReport", BluetoothDevice.class, int.class, byte[].class), report);
+        assertEquals(2, typed.get(0));
+        assertTrue(java.util.Arrays.equals(report, (byte[]) typed.get(1)));
+    }
+
     @SuppressWarnings("unused")
     static final class BytesShaped {
         public boolean sendData(BluetoothDevice device, byte[] report) { return false; }

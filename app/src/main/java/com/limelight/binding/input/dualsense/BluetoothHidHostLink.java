@@ -161,10 +161,15 @@ public final class BluetoothHidHostLink implements HidHostLink {
             return false;
         }
         BluetoothDevice device = adapter.getRemoteDevice(address);
-        Object result = form.setReport
-                ? method.invoke(p, device, reportType(method), form.payload(report))
-                : method.invoke(p, device, form.payload(report));
-        return Boolean.TRUE.equals(result);
+        return Boolean.TRUE.equals(method.invoke(p, arguments(form, method, device, report)));
+    }
+
+    // The arguments for a form's method: the device, then for setReport the output report type
+    // in the method's own type (byte or int), then the report as the form takes it
+    static Object[] arguments(SendForm form, Method method, Object device, byte[] report) {
+        return form.setReport
+                ? new Object[] {device, reportType(method), form.payload(report)}
+                : new Object[] {device, form.payload(report)};
     }
 
     // Each form by name and parameters, on the proxy's class and android.bluetooth.BluetoothHidHost,
@@ -242,9 +247,12 @@ public final class BluetoothHidHostLink implements HidHostLink {
         return type == byte.class || type == Byte.class || type == int.class || type == Integer.class;
     }
 
-    private static Object reportType(Method m) {
+    // Not a ?: expression: one with a Byte and an Integer is an int, so a byte method got an Integer
+    static Object reportType(Method m) {
         Class<?> type = m.getParameterTypes()[1];
-        return type == byte.class || type == Byte.class
-                ? Byte.valueOf((byte) SendForm.REPORT_TYPE_OUTPUT) : Integer.valueOf(SendForm.REPORT_TYPE_OUTPUT);
+        if (type == byte.class || type == Byte.class) {
+            return Byte.valueOf((byte) SendForm.REPORT_TYPE_OUTPUT);
+        }
+        return Integer.valueOf(SendForm.REPORT_TYPE_OUTPUT);
     }
 }
