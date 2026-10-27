@@ -23,6 +23,15 @@ steps and the checksums for each version.
 
 - The games screen takes a new font size from Android's settings straight away. The PC name,
   the wordmark and the selected game used to keep the old size until you opened the screen again.
+- Prevent packet loss sent a packet type that Sunshine, Apollo and Vibepollo don't know. They log
+  each one at their debug level, so Vibepollo's log got about 50 lines a second. It now sends a
+  ping, which these hosts log only at a more detailed level. A native test checks the new packet.
+  A stream with Vibepollo logging at debug level hasn't been tried with this build yet.
+- Starwire no longer sends Sunshine, Apollo and Vibepollo a message GeForce Experience needs to
+  turn on controller vibration. Going by their source code, these hosts send vibration without
+  it. Vibepollo warned about the message each time a stream started. GeForce Experience still gets
+  it. A native test checks which hosts get it, but controller vibration hasn't been tried with
+  this build yet.
 
 ## [0.2.1] - 2026-10-23
 
