@@ -117,7 +117,11 @@ Java_com_limelight_usbip_NativeUsbIp_start(JNIEnv* env, jclass) {
         // server is running, and the server is destroyed before the instance.
         Instance* owner = &instance;
         instance.server->get_server().set_connection_filter([owner](const asio::ip::tcp::endpoint& peer) {
-            if (!peer.address().is_loopback()) return false;
+            // Starwire: 127.0.0.1 only, the address its socket binds to. Every 127.x.y.z is the
+            // phone itself, so a socket on 127.0.0.2 could take the authorised port number
+            // while Starwire's socket holds it on 127.0.0.1.
+            const asio::ip::address& from = peer.address();
+            if (!from.is_v4() || from.to_v4() != asio::ip::address_v4::loopback()) return false;
             const std::uint16_t source = peer.port();
             if (source == 0) return false;
             // Each tunnel authorizes its own source port and spends it here.

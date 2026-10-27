@@ -161,6 +161,29 @@ public class UsbExporterLoopbackTest {
         }
     }
 
+    // Every 127.x.y.z is the phone itself: while Starwire's socket holds its port on 127.0.0.1,
+    // another app's socket on 127.0.0.2 can have the same port number, and mustn't get in with it
+    @Test
+    public void theAuthorisedPortCountsFrom127001Only() throws Exception {
+        try (Socket other = new Socket()) {
+            try {
+                other.bind(new InetSocketAddress(InetAddress.getByName("127.0.0.2"), 0));
+            }
+            catch (IOException e) {
+                Assume.assumeNoException("this kernel won't bind 127.0.0.2", e);
+            }
+            UsbExporter.Natives natives = new UsbExporter.RealNatives();
+            natives.authorize(export.handle, other.getLocalPort());
+            try {
+                other.connect(new InetSocketAddress("127.0.0.1", export.port), 3000);
+                assertClosedByTheExporter(other);
+            }
+            finally {
+                natives.revoke(export.handle, other.getLocalPort());
+            }
+        }
+    }
+
     // Nothing on the phone's other addresses (Wi-Fi, the emulator's network) reaches it
     @Test
     public void itListensOnLoopbackOnly() throws Exception {
