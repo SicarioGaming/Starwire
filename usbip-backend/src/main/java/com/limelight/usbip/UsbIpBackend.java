@@ -20,6 +20,10 @@ import java.util.concurrent.Future;
  * or devices claimed automatically. The owner must release each export on
  * detach/session end, and close when finished. Every tunnel authorizes the source
  * port it connects from, and the exporter accepts nothing else.
+ *
+ * Starwire: the app doesn't share devices through this class, which applies no device rules.
+ * It uses isSupported(); com.limelight.binding.usb.UsbExporter shares one device at a time,
+ * after the device rules.
  */
 public final class UsbIpBackend implements AutoCloseable {
     private static final String TAG = "MoonlightUsbIp";

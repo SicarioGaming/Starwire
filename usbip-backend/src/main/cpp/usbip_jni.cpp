@@ -278,3 +278,97 @@ Java_com_limelight_usbip_NativeUsbIp_stop(JNIEnv* env, jclass, jlong handle) {
     instances.erase(found);
     releaseLibusb();
 }
+
+// ---- Starwire: the checks before a device is exported ------------------------------------------
+// Starwire's device rules read the device's speed and its HID report descriptors from the same
+// open connection it then exports. Each call wraps a duplicate of the FD for as long as it needs
+// it, as bind() does, and lets go of everything before it returns.
+namespace {
+struct Probe {
+    int fd = -1;
+    libusb_device_handle* handle = nullptr;
+    bool acquired = false;
+
+    // Caller holds mutex.
+    explicit Probe(int deviceFd) {
+        try {
+            acquireLibusb();
+            acquired = true;
+            fd = fcntl(deviceFd, F_DUPFD_CLOEXEC, 0);
+            if (fd < 0) throw std::runtime_error("Unable to duplicate USB FD");
+            if (libusb_wrap_sys_device(nullptr, fd, &handle) != 0) {
+                handle = nullptr;
+                throw std::runtime_error("Unable to wrap USB FD");
+            }
+        } catch (...) {
+            release();
+            throw;
+        }
+    }
+    ~Probe() { release(); }
+    Probe(const Probe&) = delete;
+    Probe& operator=(const Probe&) = delete;
+
+    void release() {
+        // libusb_close() leaves the wrapped FD open, so it's closed here
+        if (handle) { libusb_close(handle); handle = nullptr; }
+        if (fd >= 0) { close(fd); fd = -1; }
+        if (acquired) { releaseLibusb(); acquired = false; }
+    }
+};
+}
+
+/** The device's speed as libusb reads it from the kernel (LIBUSB_SPEED_*). */
+extern "C" JNIEXPORT jint JNICALL
+Java_com_limelight_usbip_NativeUsbIp_speed(JNIEnv* env, jclass, jint fd) {
+    std::lock_guard lock(mutex);
+    try {
+        Probe probe(fd);
+        return libusb_get_device_speed(libusb_get_device(probe.handle));
+    } catch (const std::exception& error) {
+        fail(env, error.what());
+        return 0;
+    }
+}
+
+/**
+ * One interface's HID report descriptor (GET_DESCRIPTOR, type 0x22), at most length bytes. The
+ * kernel only answers for an interface the caller has claimed, so Android's driver lets go of it
+ * for the moment it takes, and gets it back straight after, the way usbipdcpp gives a device back.
+ */
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_limelight_usbip_NativeUsbIp_reportDescriptor(JNIEnv* env, jclass, jint fd, jint interfaceNumber,
+                                                      jint length) {
+    if (interfaceNumber < 0 || interfaceNumber > 255 || length < 1 || length > 4096) {
+        fail(env, "Invalid HID report descriptor request");
+        return nullptr;
+    }
+    std::lock_guard lock(mutex);
+    try {
+        Probe probe(fd);
+        const bool detached = libusb_kernel_driver_active(probe.handle, interfaceNumber) == 1;
+        if (detached && libusb_detach_kernel_driver(probe.handle, interfaceNumber) != 0)
+            throw std::runtime_error("Unable to take the USB interface from Android");
+        std::string report(static_cast<size_t>(length), '\0');
+        int got = -1;
+        const int claimed = libusb_claim_interface(probe.handle, interfaceNumber);
+        if (claimed == 0) {
+            got = libusb_control_transfer(probe.handle, LIBUSB_ENDPOINT_IN | LIBUSB_RECIPIENT_INTERFACE,
+                                          LIBUSB_REQUEST_GET_DESCRIPTOR, 0x22 << 8,
+                                          static_cast<uint16_t>(interfaceNumber),
+                                          reinterpret_cast<unsigned char*>(report.data()),
+                                          static_cast<uint16_t>(length), 1000);
+            libusb_release_interface(probe.handle, interfaceNumber);
+        }
+        if (detached) libusb_attach_kernel_driver(probe.handle, interfaceNumber);
+        if (claimed != 0) throw std::runtime_error("Unable to claim the USB interface");
+        if (got < 0) throw std::runtime_error("The USB device sent no HID report descriptor");
+        jbyteArray result = env->NewByteArray(got);
+        if (!result) return nullptr;   // pending OutOfMemoryError
+        env->SetByteArrayRegion(result, 0, got, reinterpret_cast<const jbyte*>(report.data()));
+        return result;
+    } catch (const std::exception& error) {
+        fail(env, error.what());
+        return nullptr;
+    }
+}
