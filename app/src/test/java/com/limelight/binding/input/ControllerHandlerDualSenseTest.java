@@ -143,8 +143,8 @@ public class ControllerHandlerDualSenseTest {
             controller(7, PadMatcher.SONY_VENDOR_ID, PadMatcher.DUALSENSE_PRODUCT_ID, 1);
             hostSends(1);
             assertEquals("switch on", Arrays.asList(
-                    "DualSense effect: t=0ms R2 mode=25 params=44000700000000000000 sent",
-                    "DualSense effect: t=0ms L2 mode=21 params=f80300dab62d00000000 sent"), log.effects());
+                    "DualSense effect: t=0ms R2 mode=0x25 params=44000700000000000000 sent",
+                    "DualSense effect: t=0ms L2 mode=0x21 params=f80300dab62d00000000 sent"), log.effects());
         }
     }
 

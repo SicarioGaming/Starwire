@@ -417,8 +417,8 @@ public class DualSenseBluetoothTest {
         gameSends(dualSense, 7);
         gameSends(dualSense, 7);
         assertEquals(Arrays.asList(
-                "DualSense effect: t=2500ms R2 mode=25 params=44000700000000000000 sent",
-                "DualSense effect: t=2500ms L2 mode=21 params=f80300dab62d00000000 sent"), log.effects());
+                "DualSense effect: t=2500ms R2 mode=0x25 params=44000700000000000000 sent",
+                "DualSense effect: t=2500ms L2 mode=0x21 params=f80300dab62d00000000 sent"), log.effects());
         assertEquals("the connect and the effects, as without the log", 2, link.calls.size());
         for (String line : log.effects()) {
             assertTrue("nothing about the pad: " + line, !line.contains(PAD) && !line.contains(PAD_NAME));
@@ -434,7 +434,7 @@ public class DualSenseBluetoothTest {
         dualSense.onHostTriggers(7, HostTriggerMessage.RIGHT_TRIGGER, 0, 0x25, new byte[10], WEAPON);
         idle();
         assertEquals(Collections.singletonList(
-                "DualSense effect: t=0ms R2 mode=25 params=44000700000000000000 held (no pad ready)"), log.effects());
+                "DualSense effect: t=0ms R2 mode=0x25 params=44000700000000000000 held (no pad ready)"), log.effects());
     }
 
     @Test
@@ -445,7 +445,7 @@ public class DualSenseBluetoothTest {
                 Hex.bytes("0102030405060708090a"));
         idle();
         assertEquals(Collections.singletonList(
-                "DualSense effect: t=0ms R2 mode=fc params=0102030405060708090a dropped (unknown mode, trigger off)"),
+                "DualSense effect: t=0ms R2 mode=0xfc params=0102030405060708090a dropped (unknown mode, trigger off)"),
                 log.effects());
         assertEquals(OFF, FakeHidHost.rightTrigger(link.lastTaken()));
     }
@@ -456,8 +456,8 @@ public class DualSenseBluetoothTest {
         dualSense(dualSense, 7);
         gameSends(dualSense, 7);
         assertEquals(Arrays.asList(
-                "DualSense effect: t=0ms R2 mode=25 params=44000700000000000000 replaced by preset off",
-                "DualSense effect: t=0ms L2 mode=21 params=f80300dab62d00000000 replaced by preset off"),
+                "DualSense effect: t=0ms R2 mode=0x25 params=44000700000000000000 replaced by preset off",
+                "DualSense effect: t=0ms L2 mode=0x21 params=f80300dab62d00000000 replaced by preset off"),
                 log.effects());
         assertEquals("only the connect", 1, link.calls.size());
     }
@@ -479,7 +479,7 @@ public class DualSenseBluetoothTest {
         List<String> lines = log.effects();
         assertEquals(Arrays.asList(
                 "DualSense effect: t=0ms 1 change not logged, more than 10 in a second",
-                "DualSense effect: t=0ms R2 mode=01 params=000b0000000000000000 sent"),
+                "DualSense effect: t=0ms R2 mode=0x01 params=000b0000000000000000 sent"),
                 lines.subList(TriggerEffectLog.MAX_LINES_A_SECOND, lines.size()));
     }
 

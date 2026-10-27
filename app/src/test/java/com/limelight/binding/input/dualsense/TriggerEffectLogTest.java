@@ -38,15 +38,15 @@ public class TriggerEffectLogTest {
     }
 
     private static String resistanceLine(long ms, int force) {
-        return String.format("DualSense effect: t=%dms R2 mode=01 params=00%02x0000000000000000 sent", ms, force);
+        return String.format("DualSense effect: t=%dms R2 mode=0x01 params=00%02x0000000000000000 sent", ms, force);
     }
 
     @Test
     public void aLineSaysWhenWhichTriggerWhatAndWhatHappened() {
         gameSends(12345);
         assertEquals(Arrays.asList(
-                "DualSense effect: t=12345ms R2 mode=25 params=44000700000000000000 sent",
-                "DualSense effect: t=12345ms L2 mode=21 params=f80300dab62d00000000 sent"), lines);
+                "DualSense effect: t=12345ms R2 mode=0x25 params=44000700000000000000 sent",
+                "DualSense effect: t=12345ms L2 mode=0x21 params=f80300dab62d00000000 sent"), lines);
     }
 
     @Test
@@ -60,10 +60,10 @@ public class TriggerEffectLogTest {
         TriggerEffectLog off = new TriggerEffectLog(0, lines::add, TriggerPreset.OFF);
         off.onGameMessage(300, BOTH, 0xFC, 0x25, debug, WEAPON, false, true);
         assertEquals(Arrays.asList(
-                "DualSense effect: t=100ms R2 mode=25 params=44000700000000000000 held (no pad ready)",
-                "DualSense effect: t=200ms L2 mode=fc params=0102030405060708090a dropped (unknown mode, trigger off)",
-                "DualSense effect: t=300ms R2 mode=25 params=44000700000000000000 replaced by preset off",
-                "DualSense effect: t=300ms L2 mode=fc params=0102030405060708090a replaced by preset off"), lines);
+                "DualSense effect: t=100ms R2 mode=0x25 params=44000700000000000000 held (no pad ready)",
+                "DualSense effect: t=200ms L2 mode=0xfc params=0102030405060708090a dropped (unknown mode, trigger off)",
+                "DualSense effect: t=300ms R2 mode=0x25 params=44000700000000000000 replaced by preset off",
+                "DualSense effect: t=300ms L2 mode=0xfc params=0102030405060708090a replaced by preset off"), lines);
     }
 
     @Test
@@ -71,7 +71,7 @@ public class TriggerEffectLogTest {
         log.onGameMessage(START, RIGHT, 0x21, 0x25, FEEDBACK, WEAPON, true, true);
         log.onGameMessage(START + 10, 0, 0x26, 0x26, FEEDBACK, FEEDBACK, true, true);
         assertEquals(Arrays.asList(
-                "DualSense effect: t=0ms R2 mode=25 params=44000700000000000000 sent"), lines);
+                "DualSense effect: t=0ms R2 mode=0x25 params=44000700000000000000 sent"), lines);
     }
 
     @Test
@@ -87,12 +87,12 @@ public class TriggerEffectLogTest {
         // Back to the first effect: that's a change too
         gameSends(2100);
         assertEquals(Arrays.asList(
-                "DualSense effect: t=2000ms L2 mode=05 params=00000000000000000000 sent",
-                "DualSense effect: t=2100ms L2 mode=21 params=f80300dab62d00000000 sent"), lines.subList(2, 4));
+                "DualSense effect: t=2000ms L2 mode=0x05 params=00000000000000000000 sent",
+                "DualSense effect: t=2100ms L2 mode=0x21 params=f80300dab62d00000000 sent"), lines.subList(2, 4));
 
         // The same effect with another outcome is a new line: the pad went away
         log.onGameMessage(START + 2200, RIGHT, 0, 0x25, ZEROS, WEAPON, true, false);
-        assertEquals("DualSense effect: t=2200ms R2 mode=25 params=44000700000000000000 held (no pad ready)",
+        assertEquals("DualSense effect: t=2200ms R2 mode=0x25 params=44000700000000000000 held (no pad ready)",
                 lines.get(4));
         assertEquals(5, lines.size());
     }
@@ -111,7 +111,7 @@ public class TriggerEffectLogTest {
         assertEquals(Arrays.asList(
                 "DualSense effect: t=100ms 19 changes not logged, more than 10 in a second",
                 resistanceLine(290, 29),
-                "DualSense effect: t=1500ms L2 mode=21 params=f80300dab62d00000000 sent"),
+                "DualSense effect: t=1500ms L2 mode=0x21 params=f80300dab62d00000000 sent"),
                 lines.subList(10, lines.size()));
 
         // A new second has its own 10 lines, and the held-back line counted in it
@@ -146,7 +146,7 @@ public class TriggerEffectLogTest {
         assertEquals(Arrays.asList(
                 "DualSense effect: t=10ms 1 change not logged, more than 10 in a second",
                 resistanceLine(11, 11),
-                "DualSense effect: t=12ms L2 mode=21 params=f80300dab62d00000000 sent"),
+                "DualSense effect: t=12ms L2 mode=0x21 params=f80300dab62d00000000 sent"),
                 lines.subList(10, lines.size()));
 
         log.finish();

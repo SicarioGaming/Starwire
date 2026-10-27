@@ -8,11 +8,12 @@ import com.limelight.LimeLog;
  * A log line for each change in a game's trigger effects during a stream, so a screen recording
  * can be matched to the effects the game really sent. The lines go through LimeLog to logcat:
  * <pre>
- * DualSense effect: t=12345ms R2 mode=25 params=44000700000000000000 sent
+ * DualSense effect: t=12345ms R2 mode=0x25 params=44000700000000000000 sent
  * </pre>
  * That's the time since the stream started (when DualSenseBluetooth.forStream made this, as the
  * stream screen opens), the trigger (R2 or L2), its mode and ten parameter bytes in hex as the
- * host sent them, and what Starwire did with the effect:
+ * host sent them (the mode with 0x, so 25 can't be read as decimal), and what Starwire did with
+ * the effect:
  * <ul>
  * <li>{@code sent}: passed on to the pad. Messages that come faster than one send go out as one
  * report with the latest effects, and a send Android refuses gets its own warning line.</li>
@@ -108,7 +109,7 @@ public final class TriggerEffectLog {
 
     private void onEffect(long atMs, int trigger, int mode, byte[] parameters, boolean gameTookOver,
                           boolean padReady) {
-        String line = TRIGGER_NAMES[trigger] + " mode=" + hex(mode) + " params=" + hex(parameters)
+        String line = TRIGGER_NAMES[trigger] + " mode=0x" + hex(mode) + " params=" + hex(parameters)
                 + " " + outcome(mode, gameTookOver, padReady);
         String last = heldBack[trigger] != null ? heldBack[trigger] : logged[trigger];
         if (line.equals(last)) {
