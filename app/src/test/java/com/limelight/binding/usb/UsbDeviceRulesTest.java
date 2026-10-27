@@ -165,6 +165,106 @@ public class UsbDeviceRulesTest {
         assertEquals("refuse 7", UsbDeviceRules.plan(pad.deviceDescriptor, huge).refusal.toString());
     }
 
+    // ---------------------------------------------------------------- Starwire's own cases
+    // Where the contract leaves a choice, these pin the one Starwire makes, for the helper to
+    // match. They aren't in the shared file until the contract says so.
+    private static final String DEVICE = "120100020000004009120100000101020001";
+    private static final String PAD_REPORT = "05010905a101150025017501951005091901291081020501150026ff0075089502"
+            + "093009318102c0";
+
+    private static String u16(int v) {
+        return String.format("%02x%02x", v & 0xFF, (v >> 8) & 0xFF);
+    }
+
+    // A configuration descriptor around its body, as make-swut-v1-policy.sh writes one
+    private static byte[] config(int interfaces, String body) {
+        return hex("0902" + u16(9 + body.length() / 2) + String.format("%02x", interfaces) + "01008032" + body);
+    }
+
+    // A HID descriptor whose one class descriptor is a report of this length
+    private static String hidDescriptor(int reportLength) {
+        return "09211101000122" + u16(reportLength);
+    }
+
+    // HID interface n with one interrupt IN endpoint and a report of this length
+    private static String hidInterface(int n, int reportLength) {
+        return "0904" + String.format("%02x", n) + "000103000000" + hidDescriptor(reportLength) + "07058103400004";
+    }
+
+    private static String decide(String device, byte[] configuration, int[] interfaces, String... reports) {
+        byte[][] r = new byte[reports.length][];
+        for (int i = 0; i < reports.length; i++) {
+            r[i] = hex(reports[i]);
+        }
+        return UsbDeviceRules.decide(hex(device), configuration, interfaces, r).toString();
+    }
+
+    @Test
+    public void theHelpersMatchTheSharedPadCase() throws Exception {
+        SwutCodec.Share pad = share(cases(), "pad");
+        assertArrayEquals(pad.deviceDescriptor, hex(DEVICE));
+        assertArrayEquals(pad.configuration, config(1, hidInterface(0, 40)));
+        assertArrayEquals(pad.reports[0], hex(PAD_REPORT));
+    }
+
+    // An endpoint belongs to the interface before it. One before the first interface, or right
+    // after an IAD, belongs to none, so it doesn't read
+    @Test
+    public void anEndpointOutsideAnInterfaceDoesntRead() throws Exception {
+        assertEquals("refuse 7", decide(DEVICE, config(1, "07058203400004" + hidInterface(0, 40)), new int[] {0},
+                PAD_REPORT));
+        String grouped = "12010002ef02014009120100000101020001";    // EF/02/01, interfaces grouped by IADs
+        assertEquals("allow", decide(grouped, config(1, "080b000103000000" + hidInterface(0, 40)), new int[] {0},
+                PAD_REPORT));
+        assertEquals("refuse 7", decide(grouped, config(1, "080b000103000000" + "07058203400004" + hidInterface(0, 40)),
+                new int[] {0}, PAD_REPORT));
+    }
+
+    // bNumDescriptors says how many class descriptors follow; a HID descriptor too short to hold
+    // them all doesn't read
+    @Test
+    public void aHidDescriptorTooShortForItsClassDescriptorsDoesntRead() throws Exception {
+        String iface = "090400000103000000" + "092111010002222800" + "07058103400004";
+        assertEquals("refuse 7", decide(DEVICE, config(1, iface), new int[] {0}, PAD_REPORT));
+    }
+
+    // As in Linux and Windows' HID drivers, the first HID descriptor after an interface is the one
+    @Test
+    public void onlyTheFirstHidDescriptorOfASettingCounts() throws Exception {
+        String iface = "090400000103000000" + hidDescriptor(40) + hidDescriptor(41) + "07058103400004";
+        assertEquals("allow", decide(DEVICE, config(1, iface), new int[] {0}, PAD_REPORT));
+        assertEquals("refuse 7", decide(DEVICE, config(1, iface), new int[] {0}, PAD_REPORT + "00"));
+    }
+
+    // Endpoint addresses are compared whole, reserved bits and all, so 0x81 and 0x91 are two
+    @Test
+    public void endpointAddressesAreComparedWhole() throws Exception {
+        String midi = "090400000201030000" + "07058102400000" + "07059102400000";
+        assertEquals("allow", decide(DEVICE, config(1, midi), new int[0]));
+    }
+
+    // The reports are read in their interfaces' order, each one whole before its collections
+    // count, so the first report that refuses names the rule
+    @Test
+    public void theFirstReportThatRefusesNamesTheRule() throws Exception {
+        String led = "05080901a10115002501750195088102c0";            // the LED page, 17 bytes: rule 8
+        String longItem = "fe0000" + PAD_REPORT;                      // a long item, 43 bytes: rule 7
+        byte[] ledFirst = config(2, hidInterface(0, 17) + hidInterface(1, 43));
+        assertEquals("refuse 8", decide(DEVICE, ledFirst, new int[] {0, 1}, led, longItem));
+        byte[] longFirst = config(2, hidInterface(0, 43) + hidInterface(1, 17));
+        assertEquals("refuse 7", decide(DEVICE, longFirst, new int[] {0, 1}, longItem, led));
+    }
+
+    // SHARE carries report descriptors of at most 4096 bytes, so a longer one is refused before
+    // Starwire reads it
+    @Test
+    public void aReportLongerThanShareCarriesIsRefusedBeforeItsRead() throws Exception {
+        byte[] configuration = config(1, hidInterface(0, SwutCodec.MAX_REPORT + 1));
+        assertEquals("refuse 7", UsbDeviceRules.plan(hex(DEVICE), configuration).refusal.toString());
+        byte[] longest = config(1, hidInterface(0, SwutCodec.MAX_REPORT));
+        assertArrayEquals(new int[] {SwutCodec.MAX_REPORT}, UsbDeviceRules.plan(hex(DEVICE), longest).lengths);
+    }
+
     @Test
     public void topLevelCollectionsCarryTheirPageAndUsage() throws Exception {
         // Game Pad, then Keyboard
