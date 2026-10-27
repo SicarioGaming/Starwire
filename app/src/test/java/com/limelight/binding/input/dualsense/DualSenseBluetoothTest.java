@@ -299,6 +299,50 @@ public class DualSenseBluetoothTest {
         assertEquals(1, link.calls.size());
     }
 
+    private String savedForSettings() {
+        return PreferenceManager.getDefaultSharedPreferences(context)
+                .getString(PreferenceConfiguration.DUALSENSE_LAST_STATUS_PREF_STRING, null);
+    }
+
+    @Test
+    public void aPadThatWorkedAndThenLeftIsNotNoPadInSettings() {
+        // Turned off or out of range before the stream ended: it worked, so Settings shouldn't
+        // say "Last stream: No DualSense connected"
+        DualSenseBluetooth dualSense = stream(TriggerPreset.GUN_CLICK);
+        dualSense(dualSense, 7);
+        dualSense.onControllerRemoved(7);
+        idle();
+        assertEquals(DualSenseStatus.NO_PAD, dualSense.status());
+        dualSense.stop();
+        idle();
+        assertEquals("WORKING", savedForSettings());
+    }
+
+    @Test
+    public void aPadThatNeverWorkedIsNoPadInSettings() {
+        // The DualSense on a cable, say: Android shows it, but its HID service never lists it
+        link.devices.clear();
+        DualSenseBluetooth dualSense = stream(TriggerPreset.GUN_CLICK);
+        dualSense(dualSense, 7);
+        waitFor(DualSenseBluetooth.PAD_RETRY_MS);
+        dualSense.stop();
+        idle();
+        assertEquals("NO_PAD", savedForSettings());
+    }
+
+    @Test
+    public void aPadThatLeftAndCameBackFailingSavesTheFailure() {
+        DualSenseBluetooth dualSense = stream(TriggerPreset.GUN_CLICK);
+        dualSense(dualSense, 7);
+        dualSense.onControllerRemoved(7);
+        idle();
+        link.answer(FakeHidHost.Answer.FALSE, SendForm.values());
+        dualSense(dualSense, 8);
+        dualSense.stop();
+        idle();
+        assertEquals("SEND_FAILED", savedForSettings());
+    }
+
     @Test
     public void aRefusedSendFallsBackForTheRestOfTheStream() {
         link.answer(FakeHidHost.Answer.FALSE, SendForm.values());

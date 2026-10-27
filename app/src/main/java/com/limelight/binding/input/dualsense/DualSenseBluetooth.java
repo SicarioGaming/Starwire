@@ -68,6 +68,8 @@ public final class DualSenseBluetooth {
     private int sessionDevice = -1;
     private boolean retried;
     private DualSenseStatus status = DualSenseStatus.CHECKING;
+    // NO_PAD now only because the pad that was WORKING went away (turned off, out of range)
+    private boolean workingPadLeft;
     private boolean stopped;
 
     private DualSenseBluetooth(Context context, boolean inStream, TriggerPreset preset, int strength,
@@ -186,9 +188,11 @@ public final class DualSenseBluetooth {
             }
             pads.remove(deviceId);
             if (deviceId == sessionDevice) {
+                boolean worked = session.status() == DualSenseStatus.WORKING;
                 session.lost();
                 endSession();
                 setStatus(DualSenseStatus.NO_PAD);
+                workingPadLeft = worked;
             }
             if (pads.size() == 1 && session == null) {
                 // The one left is alone now
@@ -281,13 +285,19 @@ public final class DualSenseBluetooth {
             }
             if (inStream) {
                 PreferenceManager.getDefaultSharedPreferences(context).edit()
-                        .putString(PreferenceConfiguration.DUALSENSE_LAST_STATUS_PREF_STRING, status.name())
+                        .putString(PreferenceConfiguration.DUALSENSE_LAST_STATUS_PREF_STRING, lastStreamStatus().name())
                         .apply();
             }
             if (thread != null) {
                 thread.quitSafely();
             }
         });
+    }
+
+    // What Settings shows for this stream: a pad that worked and then went away before the
+    // stream ended worked, so that isn't "No DualSense connected"
+    private DualSenseStatus lastStreamStatus() {
+        return workingPadLeft && status == DualSenseStatus.NO_PAD ? DualSenseStatus.WORKING : status;
     }
 
     // Settings has no ControllerHandler, so it looks through Android's controllers itself
@@ -397,6 +407,7 @@ public final class DualSenseBluetooth {
             LimeLog.info("DualSense: " + status + " -> " + next);
         }
         status = next;
+        workingPadLeft = false;
         if (listener != null) {
             main.post(() -> listener.onStatus(next));
         }
