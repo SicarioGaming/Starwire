@@ -115,7 +115,11 @@ public final class UsbDeviceRules {
         boolean hasAudio;
     }
 
-    /** The checks before the report descriptors (steps 1 to 5, the report lengths taken as given). */
+    /**
+     * The checks before the report descriptors (steps 1 to 5, the report lengths taken as given).
+     * A device whose reports couldn't fit in one SHARE, whatever its name and bus id, is refused
+     * here (rule 7), before any report is read: reading each one takes an interface from Android.
+     */
     public static Plan plan(byte[] device, byte[] configuration) {
         try {
             Parsed p = read(device, configuration);
@@ -127,11 +131,23 @@ public final class UsbDeviceRules {
                 interfaces[i] = e.getKey();
                 lengths[i++] = e.getValue();
             }
+            if (smallestShare(configuration.length, lengths) > SwutCodec.MAX_PAYLOAD) {
+                throw unreadable();
+            }
             return new Plan(null, interfaces, lengths);
         }
         catch (Refused r) {
             return new Plan(refusal(r.rule), new int[0], new int[0]);
         }
+    }
+
+    // SHARE's payload with a one-character bus id and no name: the least these descriptors need
+    static long smallestShare(int configurationLength, int[] reportLengths) {
+        long length = 1 + 1 + 1 + 1 + SwutCodec.DEVICE_DESCRIPTOR + 2 + configurationLength + 1;
+        for (int l : reportLengths) {
+            length += 3 + l;
+        }
+        return length;
     }
 
     /** The whole decision for what SHARE says about a device. Its flags don't count here. */
@@ -401,6 +417,11 @@ public final class UsbDeviceRules {
             if (before != null && before != a.reportLength) {
                 throw unreadable();
             }
+        }
+        // SHARE carries at most 16 report descriptors, so a device with more HID interfaces can't
+        // have them all. Refused here, before Starwire reads any of them.
+        if (p.hidLengths.size() > SwutCodec.MAX_REPORTS) {
+            throw unreadable();
         }
         return p;
     }

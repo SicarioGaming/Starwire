@@ -255,6 +255,55 @@ public class UsbDeviceRulesTest {
         assertEquals("refuse 7", decide(DEVICE, longFirst, new int[] {0, 1}, longItem, led));
     }
 
+    // SHARE carries at most 16 report descriptors. A device with more HID interfaces is refused
+    // before any report is read: each read takes an interface from Android for up to a second
+    @Test
+    public void moreHidInterfacesThanShareCarriesAreRefusedBeforeAnyReportIsRead() throws Exception {
+        StringBuilder sixteen = new StringBuilder();
+        for (int n = 0; n < SwutCodec.MAX_REPORTS; n++) {
+            sixteen.append(hidInterface(n, 40));
+        }
+        UsbDeviceRules.Plan plan = UsbDeviceRules.plan(hex(DEVICE), config(16, sixteen.toString()));
+        assertNull(plan.refusal);
+        assertEquals(16, plan.interfaces.length);
+        byte[] seventeen = config(17, sixteen + hidInterface(16, 40));
+        assertEquals("refuse 7", UsbDeviceRules.plan(hex(DEVICE), seventeen).refusal.toString());
+        int[] numbers = new int[17];
+        String[] reports = new String[17];
+        for (int n = 0; n < 17; n++) {
+            numbers[n] = n;
+            reports[n] = PAD_REPORT;
+        }
+        assertEquals("refuse 7", decide(DEVICE, seventeen, numbers, reports));
+    }
+
+    // Reports that couldn't fit in one SHARE, even with a one-character bus id and no name, are
+    // refused before they're read. The limit is the codec's own: at exactly 16384 bytes it fits
+    @Test
+    public void reportsThatCantFitInOneShareAreRefusedBeforeTheyreRead() throws Exception {
+        String four = hidInterface(0, 4096) + hidInterface(1, 4096) + hidInterface(2, 4096);
+        byte[] fits = config(4, four + hidInterface(3, 3950));
+        byte[] over = config(4, four + hidInterface(3, 3951));
+        UsbDeviceRules.Plan plan = UsbDeviceRules.plan(hex(DEVICE), fits);
+        assertNull(plan.refusal);
+        assertEquals(SwutCodec.MAX_PAYLOAD, UsbDeviceRules.smallestShare(fits.length, plan.lengths));
+        assertEquals("refuse 7", UsbDeviceRules.plan(hex(DEVICE), over).refusal.toString());
+
+        byte[][] reports = new byte[4][];
+        for (int i = 0; i < 4; i++) {
+            reports[i] = new byte[plan.lengths[i]];
+        }
+        byte[] frame = SwutCodec.share(0, "1", "", hex(DEVICE), fits, plan.interfaces, reports);
+        assertEquals(SwutCodec.FRAME_HEADER + SwutCodec.MAX_PAYLOAD, frame.length);
+        reports[3] = new byte[3951];
+        try {
+            SwutCodec.share(0, "1", "", hex(DEVICE), over, plan.interfaces, reports);
+            org.junit.Assert.fail("a SHARE over 16384 bytes");
+        }
+        catch (IllegalArgumentException expected) {
+        }
+    }
+
     // SHARE carries report descriptors of at most 4096 bytes, so a longer one is refused before
     // Starwire reads it
     @Test
