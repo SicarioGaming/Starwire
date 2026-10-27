@@ -303,6 +303,11 @@ public class ActivityScreensTest {
         for (int i = 0; i < menu.getChildCount(); i++) {
             if (menu.getChildAt(i) instanceof ScrollView) {
                 ScrollView grid = (ScrollView) menu.getChildAt(i);
+                // Opening the page stops any scroll still running over the old tiles with a fling
+                // of no speed, which the next frame's draw ends. End it here, as that frame would
+                // on a device, or the picture's own draw ends it after the scroll below and puts
+                // the grid back at the top.
+                grid.computeScroll();
                 assertScrollsToEveryRow(grid);
                 // The picture shows the end of the page, where those three are
                 grid.scrollTo(0, grid.getChildAt(0).getHeight());
