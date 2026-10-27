@@ -54,23 +54,32 @@ public final class UsbTunnel {
     static final long CLOSE_MS = 2_000;
     static final long TICK_MS = 100;
     private static final int CONNECT_MS = (int) ANSWER_MS;
-    private static final int EXPORTER_CONNECT_MS = 5_000;
+    static final int EXPORTER_CONNECT_MS = 5_000;
     // Frames waiting to go to the helper: up to 32 DATA frames, 512 KiB
     private static final int QUEUED_FRAMES = 32;
-    private static final byte[] LOOPBACK = {127, 0, 0, 1};
 
-    /** The device's side: the USB/IP exporter in the app. */
+    /**
+     * The device's side: the USB/IP exporter in the app (UsbExporter). Its port on 127.0.0.1 only
+     * exists once it has the device, so the tunnel never needs to know it: the exporter makes the
+     * one connection itself.
+     */
     public interface Exporter {
         /**
-         * BIND_ACK checked out: give the device to the exporter and return its SHARE frame
-         * (SwutCodec.share), with the bus id the exporter gave it. The device rules, the speed
-         * check and any yes from the person come before connect(), not here. Null shares nothing.
-         * Called once for each connection, on the tunnel's thread.
+         * BIND_ACK checked out: give the device to the exporter (UsbExporter.start) and return
+         * its SHARE frame (UsbExporter.Export.shareFrame()), with the bus id the exporter gave
+         * it. Ask the person and check the device rules before connect(): a refusal here ends the
+         * session as DEVICE_GONE. Null shares nothing. The helper waits 10 s for SHARE, so this
+         * mustn't take longer. Called once for each connection, on the tunnel's thread.
          */
         byte[] start() throws IOException;
 
-        /** Let in exactly one connection, the one from 127.0.0.1:sourcePort. Called after start(). */
-        void authorize(int sourcePort) throws IOException;
+        /**
+         * SHARE_ACK 0: the one connection to the exporter on 127.0.0.1, connected within timeoutMs.
+         * Every app on the phone can reach 127.0.0.1, so the exporter must let in only this one
+         * (UsbExporter.connect binds the socket first, authorises its source port, then
+         * connects). Called at most once, after start(), on the tunnel's thread.
+         */
+        Socket connect(int timeoutMs) throws IOException;
 
         /** The connection is over: take the device back. Called once, after start(), however it ended. */
         void stop();
@@ -296,7 +305,6 @@ public final class UsbTunnel {
     private static final class Session {
         final String host;
         final int port;
-        final int localPort;
         // The session thread's own
         byte[] usbKey;
         byte[] deviceId;
@@ -327,10 +335,9 @@ public final class UsbTunnel {
         final Object callbackLock = new Object();
         boolean told;
 
-        Session(String host, int port, int localPort) {
+        Session(String host, int port) {
             this.host = host;
             this.port = port;
-            this.localPort = localPort;
         }
     }
 
@@ -351,25 +358,24 @@ public final class UsbTunnel {
     }
 
     // ---------------------------------------------------------------- the caller's side
-    /** Shares a device with the helper on its default port, 6981. See connect(String, int, MicPairing, int). */
-    public void connect(String host, MicPairing pairing, int localPort) {
-        connect(host, DEFAULT_PORT, pairing, localPort);
+    /** Shares a device with the helper on its default port, 6981. See connect(String, int, MicPairing). */
+    public void connect(String host, MicPairing pairing) {
+        connect(host, DEFAULT_PORT, pairing);
     }
 
     /**
      * Starts sharing a device with the USB helper at host. The pairing is the microphone's with
      * this PC, read from MicPairingStore for this connection: K_usb is worked out from it here and
      * the copy of its key is wiped (the pairing itself isn't changed). Null means not paired, and
-     * the listener hears so. localPort is the exporter's port on 127.0.0.1, where it may already
-     * listen, but it mustn't have the device before Exporter.start().
+     * the listener hears so. The exporter gets the device only after a BIND_ACK that checks out.
      *
      * @throws IllegalStateException while this or another tunnel is connecting or sharing
      */
-    public void connect(String host, int port, MicPairing pairing, int localPort) {
-        if (host == null || host.isEmpty() || port < 1 || port > 65535 || localPort < 1 || localPort > 65535) {
-            throw new IllegalArgumentException("a host, and ports from 1 to 65535");
+    public void connect(String host, int port, MicPairing pairing) {
+        if (host == null || host.isEmpty() || port < 1 || port > 65535) {
+            throw new IllegalArgumentException("a host, and a port from 1 to 65535");
         }
-        Session s = new Session(host, port, localPort);
+        Session s = new Session(host, port);
         if (pairing != null) {
             byte[] pairKey = pairing.key.clone();
             try {
@@ -635,28 +641,42 @@ public final class UsbTunnel {
             throw new Ended(new Ending(Ending.NOT_SHARED, status, SwutCodec.detail(ack, SwutCodec.TYPE_SHARE_ACK)), null);
         }
 
-        // Every app on the phone can reach 127.0.0.1, so the exporter takes only the connection
-        // from the source port it was told, bound here first so no other app can take it. This
-        // is how Moonlight V+'s USB backend does it (qiin2333/moonlight-vplus, usbip-backend).
-        Socket local = new Socket();
+        // The exporter makes its one connection itself, and takes no other: every app on the
+        // phone can reach 127.0.0.1. This is how Moonlight V+'s USB backend does it
+        // (qiin2333/moonlight-vplus, usbip-backend).
+        Socket local;
+        synchronized (s.exporterLock) {
+            synchronized (lock) {
+                if (s.ending != null) {
+                    throw new Ended(null, null);
+                }
+            }
+            try {
+                local = exporter.connect(EXPORTER_CONNECT_MS);
+            }
+            catch (IOException | RuntimeException e) {
+                LimeLog.warning("USB tunnel: couldn't connect to the exporter: " + e);
+                local = null;
+            }
+        }
         synchronized (lock) {
             s.local = local;
             if (s.ending != null) {
                 throw new Ended(null, null);
             }
         }
-        InetAddress loopback = InetAddress.getByAddress(LOOPBACK);
+        InputStream fromExporter;
         try {
+            if (local == null || !local.isConnected()) {
+                throw new IOException("the exporter gave no connection");
+            }
             local.setTcpNoDelay(true);
-            local.bind(new InetSocketAddress(loopback, 0));
-            exporter.authorize(local.getLocalPort());
-            local.connect(new InetSocketAddress(loopback, s.localPort), EXPORTER_CONNECT_MS);
+            fromExporter = local.getInputStream();
         }
-        catch (IOException | RuntimeException e) {
-            LimeLog.warning("USB tunnel: couldn't connect to the exporter: " + e);
+        catch (IOException e) {
+            LimeLog.warning("USB tunnel: no connection to the exporter: " + e);
             throw new Ended(Ending.of(Ending.DEVICE_GONE), SwutCodec.end(SwutCodec.END_UNPLUGGED, 0));
         }
-        InputStream fromExporter = local.getInputStream();
         Thread pump = new Thread(() -> pump(s, fromExporter), "UsbTunnelExport");
         synchronized (lock) {
             if (s.ending != null) {

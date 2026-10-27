@@ -147,7 +147,7 @@ public class UsbTunnelTest {
     }
 
     private void connect() {
-        tunnel.connect("127.0.0.1", helper.port(), pairing(), exporter.port());
+        tunnel.connect("127.0.0.1", helper.port(), pairing());
     }
 
     // The helper's side up to BIND: TLS, HELLO, and a BIND that checks out
@@ -213,6 +213,7 @@ public class UsbTunnelTest {
         UsbTunnel.Ending e = events.awaitEnded();
         assertEquals(e.toString(), kind, e.kind);
         assertEquals("the exporter was started", 0, exporter.starts.get());
+        assertEquals(0, exporter.connects.get());
         assertEquals(0, exporter.stops.get());
         assertFalse(exporter.anyoneConnected());
         assertFalse(e.canShareAgain());
@@ -340,7 +341,7 @@ public class UsbTunnelTest {
         for (boolean helperChecks : new boolean[] {true, false}) {
             Middle middle = new Middle(SwutTls.newIdentity(seeded(11)), SwutTls.newIdentity(seeded(12)), helper.port());
             closeLater.add(middle);
-            tunnel.connect("127.0.0.1", middle.port(), pairing(), exporter.port());
+            tunnel.connect("127.0.0.1", middle.port(), pairing());
             byte[] hello = hello();
             helper.accept();
             helper.send(hello);
@@ -529,7 +530,7 @@ public class UsbTunnelTest {
     // ---------------------------------------------------------------- before it connects
     @Test
     public void withoutAPairingItSaysToPairTheMicrophoneFirst() throws Exception {
-        tunnel.connect("127.0.0.1", helper.port(), null, exporter.port());
+        tunnel.connect("127.0.0.1", helper.port(), null);
         UsbTunnel.Ending e = endedWithoutTheDevice(UsbTunnel.Ending.NO_PAIRING);
         assertEquals(R.string.usb_tunnel_no_pairing, e.messageId());
         helper.server.setSoTimeout(1);
@@ -539,7 +540,7 @@ public class UsbTunnelTest {
     // A public address is refused before anything is sent (TEST-NET-3, so nothing's there anyway)
     @Test
     public void itOnlyConnectsToHomeNetworkAddresses() throws Exception {
-        tunnel.connect("203.0.113.5", helper.port(), pairing(), exporter.port());
+        tunnel.connect("203.0.113.5", helper.port(), pairing());
         UsbTunnel.Ending e = endedWithoutTheDevice(UsbTunnel.Ending.NOT_HOME_NETWORK);
         assertEquals(R.string.usb_tunnel_not_home, e.messageId());
     }
@@ -548,7 +549,7 @@ public class UsbTunnelTest {
     public void nothingListeningMeansItCantReachTheHelper() throws Exception {
         int port = helper.port();
         helper.close();
-        tunnel.connect("127.0.0.1", port, pairing(), exporter.port());
+        tunnel.connect("127.0.0.1", port, pairing());
         endedWithoutTheDevice(UsbTunnel.Ending.CANT_REACH);
     }
 
@@ -556,7 +557,7 @@ public class UsbTunnelTest {
     @Test
     public void thePairingIsLeftAsItWas() throws Exception {
         MicPairing p = pairing();
-        tunnel.connect("127.0.0.1", helper.port(), p, exporter.port());
+        tunnel.connect("127.0.0.1", helper.port(), p);
         bindFor(hello());
         assertArrayEquals(SwutVectors.PAIR_KEY, p.key);
         tunnel.close();
@@ -564,14 +565,44 @@ public class UsbTunnelTest {
     }
 
     // ---------------------------------------------------------------- the relay
+    // The exporter makes the one connection itself, only after SHARE_ACK 0, and the tunnel uses it
     @Test
-    public void theExporterOnlyGetsAConnectionFromThePortItWasTold() throws Exception {
+    public void theTunnelUsesTheOneConnectionTheExporterMade() throws Exception {
         connect();
-        Socket local = sharing();
+        bound();
+        assertEquals(0, exporter.connects.get());
+        helper.send(SwutCodec.shareAck(SwutCodec.SHARE_ATTACHING, 0));
+        Socket local = exporter.accept();
+        closeLater.add(local);
+        events.awaitSharing();
         assertEquals(exporter.authorized, local.getPort());
         assertEquals(InetAddress.getByName("127.0.0.1"), local.getInetAddress());
         assertEquals(1, exporter.starts.get());
+        assertEquals(1, exporter.connects.get());
         assertEquals(Arrays.asList("sharing"), events.order());
+        byte[] ping = hex("0102");
+        helper.send(SwutCodec.data(ping, 0, ping.length));
+        assertArrayEquals(ping, readN(local.getInputStream(), ping.length));
+    }
+
+    // No connection to the exporter after SHARE_ACK 0: END 2, and the device goes back
+    @Test
+    public void anExporterThatCantBeConnectedToSendsEndTwo() throws Exception {
+        for (int i = 0; i < 2; i++) {
+            exporter.failConnect = i == 0 ? new IOException("nothing listening") : null;
+            exporter.unconnected = i == 1;
+            connect();
+            bound();
+            helper.send(SwutCodec.shareAck(SwutCodec.SHARE_ATTACHING, 0));
+            assertArrayEquals(SwutCodec.end(SwutCodec.END_UNPLUGGED, 0), helper.read());
+            UsbTunnel.Ending e = events.awaitEnded();
+            assertEquals(UsbTunnel.Ending.DEVICE_GONE, e.kind);
+            assertEquals(R.string.usb_tunnel_device_gone, e.messageId());
+            assertEquals(i + 1, exporter.connects.get());
+            assertEquals(i + 1, exporter.stops.get());
+            assertFalse(events.order().contains("sharing"));
+            assertTrue("more after END", helper.readUntilClosed().isEmpty());
+        }
     }
 
     // Both ways at once, more than either side's buffers hold, in frames that don't line up with
@@ -769,6 +800,7 @@ public class UsbTunnelTest {
             assertArrayEquals(SwutCodec.end(SwutCodec.END_UNPLUGGED, 0), helper.read());
             assertEquals(UsbTunnel.Ending.DEVICE_GONE, events.awaitEnded().kind);
             assertEquals(i + 1, exporter.stops.get());
+            assertEquals(0, exporter.connects.get());
             assertFalse(exporter.anyoneConnected());
         }
     }
@@ -793,6 +825,7 @@ public class UsbTunnelTest {
             assertTrue("Starwire sent something after a refused SHARE", helper.readUntilClosed().isEmpty());
             assertFalse(exporter.anyoneConnected());
         }
+        assertEquals(0, exporter.connects.get());
         assertEquals(cases.length, exporter.stops.get());
         // The vectors' SHARE_ACK for a keyboard nobody confirmed reads the same way
         connect();
@@ -913,13 +946,13 @@ public class UsbTunnelTest {
         assertThrows(IllegalStateException.class, this::connect);
         UsbTunnel other = new UsbTunnel(exporter, new TunnelEvents(), now::get, seeded(8), SwutTls::newIdentity, 2);
         assertThrows(IllegalStateException.class,
-                () -> other.connect("127.0.0.1", helper.port(), pairing(), exporter.port()));
+                () -> other.connect("127.0.0.1", helper.port(), pairing()));
         tunnel.close();
         events.awaitEnded();
         // Free again once it's ended
         TunnelEvents otherEvents = new TunnelEvents();
         UsbTunnel next = new UsbTunnel(exporter, otherEvents, now::get, seeded(8), SwutTls::newIdentity, 2);
-        next.connect("127.0.0.1", helper.port(), null, exporter.port());
+        next.connect("127.0.0.1", helper.port(), null);
         assertEquals(UsbTunnel.Ending.NO_PAIRING, otherEvents.awaitEnded().kind);
     }
 
