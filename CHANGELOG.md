@@ -58,19 +58,23 @@ steps and the checksums for each version.
   that passes the host's effects to Java is Nightjar's (Ramazan Kara). Only the trigger modes
   Nielk1's notes list reach the pad; any other mode turns the trigger off. **Not tried on a pad
   yet:** Starwire's trigger effects haven't been tried on a real DualSense, and nobody has felt
-  the presets or the strength steps. A separate test app changed a DualSense's light bar through
-  the same hidden sendData call on one tablet; setReport did nothing there. Tested with JVM tests
-  against a fake Bluetooth link.
+  the presets or the strength steps. A separate test app used the same hidden sendData call on
+  one tablet and one DualSense. It changed the light bar, and four trigger effects felt as
+  expected: firm resistance, a weapon click, a buzz and off. setReport did nothing there.
+  Starwire's presets use other values, and light resistance and heavy pedal use a kind of effect
+  that test didn't try. Tested with JVM tests against a fake Bluetooth link.
 
 ### Changed
 
 - **The Starwire wordmark** on the games screen is a little bigger. Beside a long PC name it
   shrinks to make room, back to the size it was before, or further if the name would still reach
-  it. It stays the same size on screens under 360 dp wide, like a Fold's cover screen.
+  it. It stays the same size on screens under 360 dp wide, like a Fold's cover screen. Checked
+  by tests and screenshots on a computer, not yet seen on a device.
 - **Virtual display** is the new name of the setting that was called "Display on the PC", in
   Settings under PC and in a game's App Settings, so it's easier to find. Its choices are now Host
   default, On (a screen made for this device) and Off (the PC's main monitor). A choice you
-  already made stays as it was. Thank you to u/elenayebenes for asking about it.
+  already made stays as it was. Thank you to u/elenayebenes for asking about it. Checked by
+  tests, not yet tried on a device.
 - **Quit Session in the stream menu asks first,** because it closes the game on the PC and
   anything unsaved there is lost. Yes quits. No or Back keeps streaming. Tests answer it by touch,
   and with a controller's A and B buttons as Android passes them on. From Moonlight X. Not yet
@@ -91,6 +95,7 @@ steps and the checksums for each version.
 
 - The games screen takes a new font size from Android's settings straight away. The PC name,
   the wordmark and the selected game used to keep the old size until you opened the screen again.
+  Checked by tests, not yet tried on a device.
 - Prevent packet loss sent a packet type that Sunshine, Apollo and Vibepollo don't know. They log
   each one at their debug level, so Vibepollo's log got about 50 lines a second. It now sends a
   ping, which these hosts log only at a more detailed level. A native test checks the new packet.
