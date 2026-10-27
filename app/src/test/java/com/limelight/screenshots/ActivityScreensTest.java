@@ -7,6 +7,7 @@ import android.app.Activity;
 import android.content.res.Configuration;
 import android.text.Layout;
 import android.os.Looper;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -38,6 +39,8 @@ import org.robolectric.annotation.GraphicsMode;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Proxy;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -207,6 +210,57 @@ public class ActivityScreensTest {
             }
         }
         capture(frame, "streamMenu");
+        for (int i = 0; i < menu.getChildCount(); i++) {
+            if (menu.getChildAt(i) instanceof ScrollView) {
+                assertScrollsToEveryRow((ScrollView) menu.getChildAt(i));
+            }
+        }
+    }
+
+    /**
+     * The stream menu's USB devices page (Experimental), with a device in each kind of state:
+     * shared, asking first, refused with the reason, and allowed.
+     */
+    @Test
+    public void streamMenuUsbDevices() {
+        ActivityController<Activity> controller = Robolectric.buildActivity(Activity.class).create();
+        Activity activity = controller.get();
+        activity.setTheme(R.style.StreamTheme);
+        FrameLayout frame = new FrameLayout(activity);
+        frame.setBackgroundColor(0xFF203040); // stands in for the video
+        LayoutInflater.from(activity).inflate(R.layout.activity_game, frame, true);
+        activity.setContentView(frame);
+        controller.start().resume().visible();
+        OverlayMenuView menu = frame.findViewById(R.id.overlayMenuView);
+        menu.setGameInfo(GAMES[0], "1920 x 1080, 120 FPS", AppIcons.accentFor(GAMES[0]));
+        menu.setCover(AppIcons.tile(activity, GAMES[0]));
+        List<OverlayMenuView.UsbItem> devices = new ArrayList<>();
+        devices.add(new OverlayMenuView.UsbItem("1", "Wireless Controller", activity.getString(R.string.usb_state_shared)));
+        devices.add(new OverlayMenuView.UsbItem("2", "USB Keyboard", activity.getString(R.string.usb_verdict_ask)));
+        devices.add(new OverlayMenuView.UsbItem("3", "USB Flash Drive", activity.getString(R.string.usb_verdict_refused,
+                activity.getString(R.string.usb_rule_storage))));
+        devices.add(new OverlayMenuView.UsbItem("4", "USB Headset", activity.getString(R.string.usb_verdict_allowed)));
+        menu.setMenuActionListener((OverlayMenuView.MenuActionListener) Proxy.newProxyInstance(
+                OverlayMenuView.MenuActionListener.class.getClassLoader(),
+                new Class<?>[] {OverlayMenuView.MenuActionListener.class},
+                (proxy, method, args) -> method.getName().equals("usbDevices") ? devices
+                        : method.getReturnType() == boolean.class ? false : null));
+        menu.setUsbDevicesShown(true);
+        menu.show();
+        shadowOf(Looper.getMainLooper()).idle();
+        // Opened from its tile, the last on the main page, before the main grid's scroll down to it
+        // has finished. That scroll used to carry on over the new page on the screens where the
+        // grid scrolls, leaving its first device, the one selected, out of sight.
+        menu.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_UP));
+        menu.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BUTTON_A));
+        // Once the sheet has slid in and any scroll would have ended
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1));
+        for (int i = 0; i < menu.getChildCount(); i++) {
+            if (menu.getChildAt(i) instanceof ScrollView) {
+                assertNoWordBroken(menu.getChildAt(i));
+            }
+        }
+        capture(frame, "streamMenuUsbDevices");
         for (int i = 0; i < menu.getChildCount(); i++) {
             if (menu.getChildAt(i) instanceof ScrollView) {
                 assertScrollsToEveryRow((ScrollView) menu.getChildAt(i));

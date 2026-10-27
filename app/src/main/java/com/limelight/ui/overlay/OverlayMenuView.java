@@ -78,6 +78,28 @@ public class OverlayMenuView extends LinearLayout {
 
         // Whether a toggle tile (TOGGLE_*) is on, for its switch
         boolean isToggleOn(int toggle);
+
+        // The USB devices page (Experimental): the devices plugged into the phone, and one of
+        // them chosen. Only asked for when setUsbDevicesShown(true).
+        default List<UsbItem> usbDevices() {
+            return new ArrayList<>();
+        }
+
+        default void onUsbDevice(String key) {
+        }
+    }
+
+    /** A device on the USB devices page: its name, and what it's doing or would do */
+    public static final class UsbItem {
+        public final String key;
+        public final String name;
+        public final String detail;
+
+        public UsbItem(String key, String name, String detail) {
+            this.key = key;
+            this.name = name;
+            this.detail = detail;
+        }
     }
 
     // The tiles that switch something on and off; they show a small switch and keep the menu open
@@ -142,7 +164,10 @@ public class OverlayMenuView extends LinearLayout {
     private static final int PAGE_MAIN = 0;
     private static final int PAGE_SHORTCUTS = 1;
     private static final int PAGE_MONITORS = 2;
+    private static final int PAGE_USB = 3;
     private int page = PAGE_MAIN;
+    // A device's name and state take the sheet's whole width
+    private static final int USB_COLUMNS = 1;
 
     // Vibepollo (like Sunshine) switches the streamed display on Ctrl+Alt+Shift+F1..F13
     private static final int MONITOR_COUNT = 6;
@@ -175,6 +200,8 @@ public class OverlayMenuView extends LinearLayout {
     private MenuActionListener actionListener;
     private CustomCommandsManager commandsManager;
     private boolean fixHostCursorShown;
+    private boolean usbDevicesShown;
+    private List<UsbItem> usbItems = new ArrayList<>();
     private List<ImportedShortcuts.Shortcut> importedShortcuts = new ArrayList<>();
 
     private static final int ACTION_DISCONNECT = 0;
@@ -200,6 +227,9 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_MONITORS = 20;
     private static final int ACTION_BITRATE = 21;
     private static final int ACTION_FIX_HOST_CURSOR = 22;
+    private static final int ACTION_USB_DEVICES = 23;
+    private static final int ACTION_NONE = 24;
+    private static final int ACTION_USB_BASE = 1000;
     private static final int ACTION_IMPORTED_BASE = 400;
     private static final int ACTION_MONITOR_BASE = 300;
     private static final int ACTION_CUSTOM_BASE = 100;
@@ -342,6 +372,33 @@ public class OverlayMenuView extends LinearLayout {
         fixHostCursorShown = shown;
     }
 
+    /** Whether the main page offers USB devices; it shows from the next time the menu opens. */
+    public void setUsbDevicesShown(boolean shown) {
+        usbDevicesShown = shown;
+    }
+
+    /**
+     * The USB devices changed: shows them again if their page is open, keeping the selection
+     * where it was.
+     */
+    public void refreshUsbDevices() {
+        if (page != PAGE_USB || getVisibility() != VISIBLE) {
+            return;
+        }
+        Region region = activeRegion;
+        int bar = barIndex;
+        int grid = gridIndex;
+        buildMenu();
+        if (region == Region.GRID && !gridButtons.isEmpty()) {
+            activeRegion = Region.GRID;
+            setGridIndex(Math.min(grid, gridButtons.size() - 1));
+        }
+        else {
+            activeRegion = Region.BAR;
+            setBarIndex(bar);
+        }
+    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         // A sheet, not the whole screen: at most SHEET_WIDTH_DP wide
@@ -358,6 +415,9 @@ public class OverlayMenuView extends LinearLayout {
         barIndex = 0;
         gridIndex = 0;
         clearFocus();
+        // A fling with no speed ends a scroll still running over the old tiles (one to the last
+        // tile, say), which would otherwise carry on over the new ones
+        gridScroll.fling(0);
 
         gridContainer.removeAllViews();
         barContainer.removeAllViews();
@@ -386,6 +446,19 @@ public class OverlayMenuView extends LinearLayout {
             for (int i = 0; i < MONITOR_COUNT; i++) {
                 addTile(R.drawable.ic_overlay_monitor,
                     getContext().getString(R.string.overlay_menu_monitor_n, i + 1), ACTION_MONITOR_BASE + i);
+            }
+            addTile(0, getContext().getString(R.string.overlay_menu_back), ACTION_BACK);
+        } else if (page == PAGE_USB) {
+            // One tile per device plugged into the phone, with what it's doing, then Back
+            columns = USB_COLUMNS;
+            List<UsbItem> items = actionListener != null ? actionListener.usbDevices() : null;
+            usbItems = items != null ? items : new ArrayList<>();
+            for (int i = 0; i < usbItems.size(); i++) {
+                addTile(R.drawable.ic_overlay_usb, usbItems.get(i).name, ACTION_USB_BASE + i);
+                gridButtons.get(gridButtons.size() - 1).setDetail(usbItems.get(i).detail);
+            }
+            if (usbItems.isEmpty()) {
+                addTile(R.drawable.ic_overlay_usb, getContext().getString(R.string.usb_none_plugged_in), ACTION_NONE);
             }
             addTile(0, getContext().getString(R.string.overlay_menu_back), ACTION_BACK);
         } else {
@@ -431,6 +504,10 @@ public class OverlayMenuView extends LinearLayout {
                 getContext().getString(R.string.overlay_menu_onscreen_controller), ACTION_ONSCREEN_CONTROLLER, TOGGLE_ONSCREEN_CONTROLLER);
             addTile(R.drawable.ic_overlay_window_menu,
                 getContext().getString(R.string.overlay_menu_floating_button), ACTION_FLOATING_BUTTON, TOGGLE_FLOATING_BUTTON);
+            if (usbDevicesShown) {
+                addTile(R.drawable.ic_overlay_usb,
+                    getContext().getString(R.string.overlay_menu_usb_devices), ACTION_USB_DEVICES);
+            }
 
             List<CustomCommand> customCommands = commandsManager.getCommands();
             for (int i = 0; i < customCommands.size(); i++) {
@@ -879,7 +956,19 @@ public class OverlayMenuView extends LinearLayout {
         boolean shouldCloseMenu = false;
 
         if (actionListener != null) {
-            if (action == ACTION_DISCONNECT) {
+            if (action >= ACTION_USB_BASE) {
+                // The share flow answers by refreshing the page; the menu stays open
+                int index = action - ACTION_USB_BASE;
+                if (index < usbItems.size()) {
+                    actionListener.onUsbDevice(usbItems.get(index).key);
+                }
+                return;
+            } else if (action == ACTION_USB_DEVICES) {
+                switchPage(PAGE_USB);
+                return;
+            } else if (action == ACTION_NONE) {
+                return;
+            } else if (action == ACTION_DISCONNECT) {
                 actionListener.onDisconnect();
                 shouldCloseMenu = true;
             } else if (action == ACTION_QUIT) {

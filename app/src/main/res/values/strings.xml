@@ -548,6 +548,8 @@
     <string name="bitrate_failed">Couldn\'t change bitrate: %1$s</string>
 
     <!-- Starwire: sharing a wired USB device with the PC (Experimental) -->
+    <string name="overlay_menu_usb_devices">USB devices</string>
+    <string name="usb_none_plugged_in">No USB devices plugged in</string>
     <string name="usb_unnamed">USB device %1$04x:%2$04x</string>
     <string name="usb_verdict_allowed">Can be shared</string>
     <string name="usb_verdict_unchecked">Checked when you share it</string>
@@ -572,6 +574,10 @@
     <string name="usb_state_stopping">Giving it back</string>
     <string name="usb_state_lost">Connection lost. Share again?</string>
     <string name="usb_one_at_a_time">Stop sharing %1$s first. One device is shared at a time.</string>
+    <string name="usb_confirm_title">Share this keyboard or mouse?</string>
+    <string name="usb_confirm_message">While %1$s is shared, the PC gets everything you type or click on it.</string>
+    <string name="usb_confirm_share">Share</string>
+    <string name="usb_confirm_cancel">Don\'t share</string>
     <string name="usb_shared_toast">%1$s is shared with the PC.</string>
     <string name="usb_unplugged_toast">%1$s was unplugged, so it\'s no longer shared.</string>
     <string name="usb_lost_toast">Lost the connection to the PC. %1$s is back on this phone.</string>
