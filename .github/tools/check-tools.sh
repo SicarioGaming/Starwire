@@ -283,6 +283,12 @@ fake_run 0 FAKE_ADB_SDK=23 -s FAKE-1
 if grep -q 'Unable to open log device' "$work/out/FAKE-1/logcat.txt" || ! grep -q 'ActivityManager: fake' "$work/out/FAKE-1/logcat.txt"; then
     fail "device-test.sh didn't read the main, system and events logs the way Android 6 takes them"
 fi
+# The app's Java crash in the crash log, as logcat prints it, fails the run
+: > "$work/crash"
+fake_run 2 -s FAKE-1
+grep -qx 'Crashes/ANRs:    1 (crashes.txt)' "$work/out/FAKE-1/summary.txt" ||
+    fail "device-test.sh missed the app's crash in logcat's crash log"
+rm -f "$work/crash"
 if grep -q uninstall "$work/all-calls"; then fail "device-test.sh uninstalled something"; fi
 ok "device-test.sh refuses listed devices, checks before it installs, guards monkey, and filters tests"
 

@@ -381,7 +381,8 @@ test_device() {
     fi
 
     # 5. Crashes and ANRs from the app since the start. Some devices keep logcat empty, so
-    # the system's dropbox is read too.
+    # the system's dropbox is read too. Logcat prints a Java crash as "AndroidRuntime: Process:
+    # <package>, PID: ...".
     local pkg_re="${PKG//./\\.}" tag
     adb_ logcat -d -b crash -T "$start_log" 2>/dev/null | tr -d '\r' > "$DIR/logcat-crash.txt"
     adb_ logcat -d -b main -b system -b events -T "$start_log" 2>/dev/null | tr -d '\r' > "$DIR/logcat.txt"
@@ -390,7 +391,7 @@ test_device() {
         sh_ dumpsys dropbox --print "$tag" >> "$DIR/dropbox.txt" 2>/dev/null
     done
     {
-        grep -hE "^Process: $pkg_re\$|>>> $pkg_re <<<|ANR in $pkg_re( |\$)|am_anr.*,$pkg_re," \
+        grep -hE "^Process: $pkg_re\$|Process: $pkg_re,|>>> $pkg_re <<<|ANR in $pkg_re( |\$)|am_anr.*,$pkg_re," \
             "$DIR/logcat-crash.txt" "$DIR/logcat.txt"
         awk -v start="$start_box" -v pkg="$PKG" '
             /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9:]+ data_app_/ { stamp = $1 " " $2; tag = $3; next }
