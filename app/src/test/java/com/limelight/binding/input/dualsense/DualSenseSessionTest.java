@@ -179,12 +179,12 @@ public class DualSenseSessionTest {
     @Test
     public void aRefusedSendFallsBackAndSendsNothingMore() {
         FakeHidHost host = FakeHidHost.working(PAD, PAD_NAME)
-                .answer(FakeHidHost.Answer.FALSE, SendForm.SEND_DATA_BYTES, SendForm.SET_REPORT_BYTES, SendForm.SEND_DATA_HEX)
-                .answer(FakeHidHost.Answer.THROW, SendForm.SET_REPORT_HEX);
+                .answer(FakeHidHost.Answer.FALSE, SendForm.SEND_DATA_BYTES)
+                .answer(FakeHidHost.Answer.THROW, SendForm.SEND_DATA_HEX);
         DualSenseSession session = new DualSenseSession(host, new TriggerRules(TriggerPreset.GUN_CLICK), 8);
 
         assertEquals(DualSenseStatus.SEND_FAILED, session.connect(null));
-        assertEquals("each form tried once", 4, host.calls.size());
+        assertEquals("each sendData form tried once, setReport never", 2, host.calls.size());
         assertTrue(session.lastError() instanceof IllegalStateException);
         assertTrue(session.status().isFallback());
 
@@ -193,7 +193,7 @@ public class DualSenseSessionTest {
         assertEquals(DualSenseStatus.SEND_FAILED, session.onGameMessage(HostTriggerMessage.parse(payload, 0, payload.length)));
         assertEquals(DualSenseStatus.SEND_FAILED, session.release());
         assertEquals(DualSenseStatus.SEND_FAILED, session.test(TriggerEffect.off()));
-        assertEquals(4, host.calls.size());
+        assertEquals(2, host.calls.size());
     }
 
     @Test

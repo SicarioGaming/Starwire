@@ -3,9 +3,13 @@ package com.limelight.binding.input.dualsense;
 /**
  * The four ways of handing a report to android.bluetooth.BluetoothHidHost's hidden methods, in the
  * order Starwire tries them. AOSP has the two hex String forms; some phone makers' builds may have
- * byte[] ones instead. The order and the "keep the one that worked" rule (HidSender) are ported
- * from Moonlight V+ by qiin2333 (GPL-3.0), AndroidBluetoothHidHostTransport.kt:27, :112-136 and
- * :293-298 at 5840bab3. Every form carries the whole report, report ID first.
+ * byte[] ones instead. The four forms and the "keep the one that worked" rule (HidSender) are
+ * ported from Moonlight V+ by qiin2333 (GPL-3.0), AndroidBluetoothHidHostTransport.kt:27, :112-136
+ * and :293-298 at 5840bab3. Every form carries the whole report, report ID first.
+ *
+ * V+ tries raw sendData, raw setReport, hex sendData, then hex setReport. Starwire puts both
+ * sendData forms first, and HidSender uses setReport only on a device without sendData: on the
+ * maintainer's tablet, setReport returned true and the pad did nothing.
  *
  * In AOSP, sendData writes the report on the HID interrupt channel and setReport sends a
  * SET_REPORT on the control channel (packages/modules/Bluetooth, btif_hh.cc).
@@ -13,10 +17,10 @@ package com.limelight.binding.input.dualsense;
 public enum SendForm {
     /** sendData(BluetoothDevice, byte[]) */
     SEND_DATA_BYTES(false, true),
-    /** setReport(BluetoothDevice, OUTPUT, byte[]) */
-    SET_REPORT_BYTES(true, true),
     /** sendData(BluetoothDevice, String), the report as hex */
     SEND_DATA_HEX(false, false),
+    /** setReport(BluetoothDevice, OUTPUT, byte[]) */
+    SET_REPORT_BYTES(true, true),
     /** setReport(BluetoothDevice, OUTPUT, String), the report as hex */
     SET_REPORT_HEX(true, false);
 
