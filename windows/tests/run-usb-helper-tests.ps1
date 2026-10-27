@@ -42,7 +42,7 @@ if (-not (Test-Path $csc)) {
 }
 
 # What each program is built from
-$helper = @('StarwireUsbHelper.cs', 'UsbTunnelCodec.cs') | ForEach-Object { Join-Path $windows $_ }
+$helper = @('StarwireUsbHelper.cs', 'UsbTunnel.cs', 'UsbTunnelCodec.cs', 'UsbDeviceRules.cs', 'UsbRelay.cs') | ForEach-Object { Join-Path $windows $_ }
 $tunnel = @('StarwireUsbHelper.cs', 'UsbTunnel.cs', 'UsbTunnelCodec.cs', 'UsbDeviceRules.cs', 'UsbRelay.cs', 'SecureMic.cs') | ForEach-Object { Join-Path $windows $_ }
 $refs = @('/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Security.dll', '/r:System.Core.dll')
 

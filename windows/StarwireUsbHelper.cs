@@ -1,15 +1,21 @@
 // Starwire USB helper for Windows (GPL-3.0, part of Starwire).
 //
-// Will let a phone running Starwire lend a USB device to this PC, so Windows sees it as if it were
+// Lets a phone running Starwire lend a USB device to this PC, so Windows sees it as if it were
 // plugged in here. It uses usbip-win2's USB/IP driver, the one Vibepollo's DualSense haptics use,
-// and talks to the driver directly, without usbip.exe. So far this is the driver side: find the
-// driver, check it's a version the helper knows, attach a device a USB/IP server shares, and
-// detach only the devices the helper attached itself. The phone's side and its encrypted tunnel
-// come next. Until then the only way to attach is the debug command, for a test with a PC that
-// shares a device with usbipd (USB-LAPTOP-TEST.md).
+// and talks to the driver directly, without usbip.exe. This file is the driver side: find the
+// driver, check it's a version the helper knows, attach a device, and detach only the devices the
+// helper attached itself. The phone's encrypted tunnel, its BIND against the microphone's pairing
+// and the relay the driver attaches through are in UsbTunnel.cs, UsbRelay.cs, UsbTunnelCodec.cs
+// and UsbDeviceRules.cs (docs/dev/usb-protocol.md). The debug commands are for a test with a PC
+// that shares a device with usbipd (USB-LAPTOP-TEST.md).
 //
-//   StarwireUsbHelper.exe              runs in the notification area. For now its icon only shows
-//                                      the driver's state and can detach the helper's devices
+//   StarwireUsbHelper.exe [--tunnel-port 6981]
+//                                      runs in the notification area. Its menu turns USB sharing
+//                                      on or off (off until you turn it on), ticks Allow USB for
+//                                      each paired phone, stops a shared device, and shows the
+//                                      driver's state. With sharing on, it listens on that TCP port
+//   StarwireUsbHelper.exe --forget-key deletes the helper's TLS key for this Windows account, if a
+//                                      crash left it behind (setup-usb.ps1 -Uninstall runs it)
 //   StarwireUsbHelper.exe --probe      says which USB/IP driver this PC has and what's attached to
 //                                      it. Changes nothing: it can only send the driver's
 //                                      read-only command
@@ -22,7 +28,9 @@
 //   StarwireUsbHelper.exe --debug-detach
 //                                      detaches the devices the helper attached, and nothing else
 //
-// The list of what the helper attached is in %LOCALAPPDATA%\Starwire\usb-attached.txt.
+// The list of what the helper attached is in %LOCALAPPDATA%\Starwire\usb-attached.txt. Next to
+// it: usb-allowed.dat (the phones with Allow USB ticked), usb-settings.txt (USB on or off) and
+// usb-helper-log.txt. The microphone receiver's mic-pairings.dat there is only ever read.
 //
 // From PowerShell, pipe the output of the commands (for example `| Out-Host`): a program without a
 // window isn't waited for otherwise.
@@ -113,12 +121,20 @@ static class StarwireUsbHelper
         string host = null;
         string busId = null;
         int tcpPort = UsbipAbi.DefaultTcpPort;
+        int tunnelPort = UsbTunnelOptions.DefaultPort;
         bool lowLatency = false;
         string problem = null;
         for (int i = 0; i < args.Length && problem == null; i++) {
             string a = args[i].ToLowerInvariant();
-            if (a == "--probe" || a == "--debug-detach") {
+            if (a == "--probe" || a == "--debug-detach" || a == "--forget-key") {
                 command = a;
+            }
+            else if (a == "--tunnel-port") {
+                if (i + 1 >= args.Length || !int.TryParse(args[i + 1], NumberStyles.None, CultureInfo.InvariantCulture, out tunnelPort)
+                        || tunnelPort < 1 || tunnelPort > 65535) {
+                    problem = "--tunnel-port needs a TCP port number, like 6981.";
+                }
+                i++;
             }
             else if (a == "--debug-attach") {
                 command = a;
@@ -150,11 +166,24 @@ static class StarwireUsbHelper
         }
         if (problem != null) {
             Console.WriteLine(problem);
-            Console.WriteLine("Usage: StarwireUsbHelper.exe [--probe | --debug-attach <ip> <bus-id> [--port 3240] [--low-latency] | --debug-detach]");
+            Console.WriteLine("Usage: StarwireUsbHelper.exe [--tunnel-port 6981 | --probe | --debug-attach <ip> <bus-id> [--port 3240] [--low-latency] | --debug-detach | --forget-key]");
             return ExitUsage;
         }
 
         OwnedDevices owned = new OwnedDevices(OwnedDevices.DefaultPath());
+        string tlsContainer = InstanceName(owned.FilePath) + ".tls";
+        if (command == "--forget-key") {
+            // The TLS key the icon keeps while it runs, if a crash left it behind
+            Mutex running;
+            if (Mutex.TryOpenExisting(InstanceName(owned.FilePath), out running)) {
+                running.Dispose();
+                Console.WriteLine("The helper's icon is running, and it needs its key. Quit it first.");
+                return ExitUsage;
+            }
+            UsbTlsIdentity.DeleteContainer(tlsContainer);
+            Console.WriteLine("The helper's TLS key for this Windows account is gone, if there was one.");
+            return ExitOk;
+        }
         if (command == "--probe") {
             return new UsbHelper(Win32Vhci.Open, owned, Random, DriverMutex, Console.WriteLine).Probe();
         }
@@ -174,7 +203,17 @@ static class StarwireUsbHelper
             return ExitOk;
         }
         Application.EnableVisualStyles();
-        UsbTray tray = new UsbTray(owned, Random);
+        string pairings = UsbPairingReader.DefaultPath();
+        UsbLog log = new UsbLog(UsbLog.NextTo(pairings));
+        UsbTunnelOptions options = new UsbTunnelOptions();
+        options.Port = tunnelPort;
+        options.PairingsFile = pairings;
+        options.TlsContainer = tlsContainer;
+        options.Random = Random;
+        options.Log = log.Write;
+        options.Attacher = new UsbDriverAttacher(Win32Vhci.Open, owned, Random, DriverMutex, log.Write);
+        UsbTunnelService tunnel = new UsbTunnelService(options);
+        UsbTray tray = new UsbTray(owned, Random, tunnel);
         Application.Run();
         GC.KeepAlive(tray);
         GC.KeepAlive(single);
@@ -2012,41 +2051,139 @@ static class TrayWork
     }
 }
 
-// For now: the driver's state, a way to detach the helper's devices, and Quit. Sharing a device
-// from the phone comes with the tunnel.
+// The driver's state, USB sharing on or off, Allow USB for each paired phone, the device shared
+// now with Stop, a way to detach the helper's devices, and Quit
 sealed class UsbTray
 {
     readonly NotifyIcon icon = new NotifyIcon();
     readonly ToolStripMenuItem status = new ToolStripMenuItem();
+    readonly ToolStripMenuItem sharing = new ToolStripMenuItem();
+    readonly ToolStripMenuItem usbOn;
+    readonly ToolStripMenuItem phones;
+    readonly ToolStripMenuItem stop;
     readonly ToolStripMenuItem detach;
     readonly ToolStripMenuItem check;
     readonly OwnedDevices owned;
     readonly Action<byte[]> random;
     readonly OneJobAtATime jobs;
+    readonly UsbTunnelService tunnel;
+    readonly SynchronizationContext ui;
+    string driverText = "";
 
-    public UsbTray(OwnedDevices owned, Action<byte[]> random)
+    public UsbTray(OwnedDevices owned, Action<byte[]> random, UsbTunnelService tunnel)
     {
         this.owned = owned;
         this.random = random;
+        this.tunnel = tunnel;
         // Made on the icon's thread, so what it posts runs there once Application.Run starts
-        SynchronizationContext ui = new WindowsFormsSynchronizationContext();
+        ui = new WindowsFormsSynchronizationContext();
         jobs = new OneJobAtATime(
             job => ThreadPool.QueueUserWorkItem(delegate { job(); }),
             job => ui.Post(delegate { job(); }, null));
         status.Enabled = false;
+        sharing.Enabled = false;
         ContextMenuStrip menu = new ContextMenuStrip();
         menu.Items.Add(status);
+        menu.Items.Add(sharing);
+        menu.Items.Add(new ToolStripSeparator());
+        usbOn = new ToolStripMenuItem("Let paired phones share USB devices", null, delegate { ToggleUsb(); });
+        phones = new ToolStripMenuItem("Allow USB for");
+        phones.DropDownItems.Add(new ToolStripMenuItem("No phones are paired yet.") { Enabled = false });
+        phones.DropDownOpening += delegate { FillPhones(); };
+        stop = new ToolStripMenuItem("Stop sharing", null, delegate { tunnel.StopSharing(); });
+        menu.Items.Add(usbOn);
+        menu.Items.Add(phones);
+        menu.Items.Add(stop);
         menu.Items.Add(new ToolStripSeparator());
         detach = new ToolStripMenuItem("Detach the devices the helper attached", null, delegate { Detach(); });
         check = new ToolStripMenuItem("Check the driver again", null, delegate { Refresh(); });
         menu.Items.Add(detach);
         menu.Items.Add(check);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Quit", null, delegate { icon.Visible = false; Environment.Exit(0); });
+        menu.Items.Add("Quit", null, delegate { Quit(); });
         icon.ContextMenuStrip = menu;
         icon.Icon = LoadIcon();
         icon.Visible = true;
+        tunnel.Changed += delegate { ui.Post(delegate { ShowTunnel(); }, null); };
+        ShowTunnel();
         Refresh();
+        // Starts listening if USB was on when the helper last ran
+        usbOn.Enabled = false;
+        ThreadPool.QueueUserWorkItem(delegate {
+            tunnel.Apply();
+            ui.Post(delegate { usbOn.Enabled = true; ShowTunnel(); }, null);
+        });
+    }
+
+    void ToggleUsb()
+    {
+        bool on = !tunnel.On;
+        usbOn.Enabled = false;
+        ThreadPool.QueueUserWorkItem(delegate {
+            string problem = null;
+            try {
+                tunnel.SetOn(on);
+            }
+            catch (Exception e) {
+                problem = e.Message;
+            }
+            ui.Post(delegate {
+                usbOn.Enabled = true;
+                ShowTunnel();
+                if (problem != null) {
+                    icon.ShowBalloonTip(6000, "Starwire USB", "Couldn't change USB sharing: " + problem, ToolTipIcon.Warning);
+                }
+            }, null);
+        });
+    }
+
+    // The paired phones, read from the microphone receiver's pairings when the menu opens
+    void FillPhones()
+    {
+        phones.DropDownItems.Clear();
+        string problem;
+        List<UsbPhone> list = tunnel.Phones(out problem);
+        if (list == null) {
+            phones.DropDownItems.Add(new ToolStripMenuItem("Couldn't read the paired phones: " + problem) { Enabled = false });
+            return;
+        }
+        if (list.Count == 0) {
+            phones.DropDownItems.Add(new ToolStripMenuItem("No phones are paired yet. Pair one from the microphone receiver's icon.") { Enabled = false });
+            return;
+        }
+        foreach (UsbPhone p in list) {
+            UsbPhone phone = p;
+            ToolStripMenuItem item = new ToolStripMenuItem(phone.Line.Name + " (" + phone.Line.Id.Substring(0, 8) + ")");
+            item.Checked = phone.Allowed;
+            item.Click += delegate {
+                string why;
+                if (!tunnel.SetAllowed(phone.Line, !phone.Allowed, out why)) {
+                    icon.ShowBalloonTip(6000, "Starwire USB", "Couldn't change Allow USB: " + why, ToolTipIcon.Warning);
+                }
+            };
+            phones.DropDownItems.Add(item);
+        }
+        if (problem != null) {
+            phones.DropDownItems.Add(new ToolStripMenuItem(problem) { Enabled = false });
+        }
+    }
+
+    void ShowTunnel()
+    {
+        usbOn.Checked = tunnel.On;
+        sharing.Text = tunnel.Status();
+        stop.Enabled = tunnel.IsSharing;
+        ShowTip();
+    }
+
+    void Quit()
+    {
+        icon.Visible = false;
+        // Gives a shared device back (END 8) and deletes the TLS key before going
+        Thread t = new Thread(delegate() { tunnel.Dispose(); });
+        t.Start();
+        t.Join(45000);
+        Environment.Exit(0);
     }
 
     UsbHelper HelperFor(Action<string> say)
@@ -2090,7 +2227,15 @@ sealed class UsbTray
 
     void Show(string text)
     {
+        driverText = text;
         status.Text = text;
+        ShowTip();
+    }
+
+    // The tooltip has room for 63 characters: the shared device when there's one, else the driver
+    void ShowTip()
+    {
+        string text = tunnel.IsSharing ? tunnel.Status() : driverText;
         icon.Text = text.Length > 63 ? text.Substring(0, 60) + "..." : text;
     }
 
