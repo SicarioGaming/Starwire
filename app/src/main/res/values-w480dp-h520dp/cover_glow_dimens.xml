@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Cover Glow's game screen on screens 480 dp and wider and 520 dp and taller (tablets, a
-     foldable's inner screen): the sizes it has always had -->
+     foldable's inner screen): the sizes it has always had, apart from a bigger wordmark -->
 <resources>
     <dimen name="cg_content_padding">36dp</dimen>
     <dimen name="cg_content_padding_top">20dp</dimen>
-    <dimen name="cg_wordmark_size">34sp</dimen>
+    <dimen name="cg_wordmark_size">40sp</dimen>
+    <dimen name="cg_wordmark_min_size">34sp</dimen>
     <dimen name="cg_hero_cover_width">180dp</dimen>
     <dimen name="cg_hero_cover_height">240dp</dimen>
     <dimen name="cg_hero_gap">32dp</dimen>
