@@ -206,18 +206,26 @@ public class OverlayMenuViewTest {
         OverlayMenuButton stats = (OverlayMenuButton) findButton(menu, str(com.limelight.R.string.overlay_menu_toggle_stats));
         OverlayMenuButton floating = (OverlayMenuButton) findButton(menu, str(com.limelight.R.string.overlay_menu_floating_button));
         OverlayMenuButton guide = (OverlayMenuButton) findButton(menu, str(com.limelight.R.string.overlay_menu_guide));
-        // In a window, where screen readers find it: Android 5.0 can only describe a view that's
-        // in one (it read the window's details without checking, a NullPointerException there)
+        Runnable check = () -> {
+            android.view.accessibility.AccessibilityNodeInfo off = stats.createAccessibilityNodeInfo();
+            assertTrue(off.isCheckable());
+            assertFalse(off.isChecked());
+            assertTrue(off.getClassName().toString().endsWith("Switch"));
+            assertTrue(floating.createAccessibilityNodeInfo().isChecked());
+            assertFalse("one-shot buttons aren't switches", guide.createAccessibilityNodeInfo().isCheckable());
+        };
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            onMain(check);
+            return;
+        }
+        // Android 5 can only describe a view that's in a window (5.0 read the window's details
+        // without checking: a NullPointerException there), so there the menu goes in one first,
+        // a settings screen's. Only there, so the test needs no screen to open anywhere else.
         try (ActivityScenario<StreamSettings> scenario = ActivityScenario.launch(StreamSettings.class)) {
             scenario.onActivity(activity -> {
                 activity.addContentView(menu, new ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-                android.view.accessibility.AccessibilityNodeInfo off = stats.createAccessibilityNodeInfo();
-                assertTrue(off.isCheckable());
-                assertFalse(off.isChecked());
-                assertTrue(off.getClassName().toString().endsWith("Switch"));
-                assertTrue(floating.createAccessibilityNodeInfo().isChecked());
-                assertFalse("one-shot buttons aren't switches", guide.createAccessibilityNodeInfo().isCheckable());
+                check.run();
             });
         }
     }
