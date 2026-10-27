@@ -80,8 +80,14 @@ public final class UsbDeviceRules {
         final int rule;
 
         Refused(int rule) {
-            super(null, null, false, false);
             this.rule = rule;
+        }
+
+        // A refusal is an answer, not a failure, so it skips the stack trace (the constructor
+        // that says so directly needs Android 7)
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+            return this;
         }
     }
 
