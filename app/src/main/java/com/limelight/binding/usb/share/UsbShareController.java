@@ -7,6 +7,7 @@ import com.limelight.LimeLog;
 import com.limelight.R;
 
 import java.io.IOException;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -314,6 +315,11 @@ public final class UsbShareController {
             }
 
             @Override
+            public Socket connect(int timeoutMs) throws IOException {
+                return connectExporter(s, timeoutMs);
+            }
+
+            @Override
             public void stop() {
                 releaseExporter(s);
             }
@@ -381,6 +387,19 @@ public final class UsbShareController {
         }
         catch (RuntimeException e) {
             throw new IOException("the exporter failed", e);
+        }
+    }
+
+    // On the tunnel's thread, after SHARE_ACK 0: only to a device that's exported and not given back
+    private Socket connectExporter(Session s, int timeoutMs) throws IOException {
+        if (!s.exported.get() || s.released.get()) {
+            throw new IOException("nothing is exported");
+        }
+        try {
+            return s.exporter.connect(timeoutMs);
+        }
+        catch (RuntimeException e) {
+            throw new IOException("the exporter wouldn't take the connection", e);
         }
     }
 

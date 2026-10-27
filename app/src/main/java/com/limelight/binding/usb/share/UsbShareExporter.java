@@ -3,6 +3,7 @@ package com.limelight.binding.usb.share;
 import android.hardware.usb.UsbDevice;
 
 import java.io.IOException;
+import java.net.Socket;
 
 /**
  * What the share flow needs from the USB/IP exporter inside the app (usbipdcpp; lane U-B,
@@ -43,6 +44,14 @@ public interface UsbShareExporter {
      * asked. Blocks, so never on the main thread. When it throws, it holds nothing.
      */
     Export start(UsbDevice device, boolean inputConfirmed) throws Refused, IOException;
+
+    /**
+     * The one connection to the export on 127.0.0.1, for the tunnel's relay, connected within
+     * timeoutMs. Every app on the phone can reach 127.0.0.1, so the exporter lets in only this
+     * one (U-B's UsbExporter.connect binds the socket first and authorises its source port). At
+     * most once, after start(). Blocks.
+     */
+    Socket connect(int timeoutMs) throws IOException;
 
     /** Stops exporting and gives the device back to Android. Blocks; safe to call more than once. */
     void stop();

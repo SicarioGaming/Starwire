@@ -8,6 +8,7 @@ import com.limelight.R;
 import org.robolectric.shadow.api.Shadow;
 
 import java.io.IOException;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -164,6 +165,7 @@ final class FakeUsb {
         IOException failure;
         RuntimeException stopFailure;
         int starts;
+        int connects;
         int stops;
         boolean running;
         // The inputConfirmed of the last start()
@@ -185,6 +187,16 @@ final class FakeUsb {
             }
             running = true;
             return () -> SHARE.clone();
+        }
+
+        @Override
+        public Socket connect(int timeoutMs) throws IOException {
+            connects++;
+            if (!running) {
+                throw new IOException("not exported");
+            }
+            // Never connected: the share flow only passes it on
+            return new Socket();
         }
 
         @Override
@@ -216,6 +228,7 @@ final class FakeUsb {
         final List<Integer> closes = new ArrayList<>();
         int networkLosses;
         byte[] share;
+        Socket exporterConnection;
         boolean started;
         boolean ended;
         // What its endings say, from strings.xml
@@ -265,9 +278,20 @@ final class FakeUsb {
             }
         }
 
-        /** SHARE_ACK with status 0 */
-        void shareAck() {
+        /**
+         * SHARE_ACK with status 0: the tunnel has the exporter make its connection, then says it's
+         * shared. If the connection fails, it sends END 2 and ends as DEVICE_GONE, and this is false.
+         */
+        boolean shareAck() {
+            try {
+                exporterConnection = exporter.connect(5_000);
+            }
+            catch (IOException e) {
+                end(Ending.DEVICE_GONE, UsbShareTunnel.END_UNPLUGGED, 0);
+                return false;
+            }
             listener.onSharing();
+            return true;
         }
 
         /** The connection ends: the exporter is stopped if it was started, then the listener told */

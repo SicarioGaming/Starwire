@@ -3,6 +3,7 @@ package com.limelight.binding.usb.share;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -118,7 +119,10 @@ public class UsbShareControllerTest {
         assertArrayEquals(FakeUsb.SHARE, tunnel.share);
         assertEquals(State.CONNECTING, state(PAD));
 
-        tunnel.shareAck();
+        assertTrue(tunnel.shareAck());
+        // The exporter made the tunnel's one connection to it
+        assertEquals(1, exporter.connects);
+        assertNotNull(tunnel.exporterConnection);
         assertEquals(State.SHARED, state(PAD));
         assertEquals(str(R.string.usb_share_state_shared), detail(PAD));
         assertEquals(str(R.string.usb_share_shared_toast, "Test pad"), ui.lastMessage());
@@ -551,6 +555,49 @@ public class UsbShareControllerTest {
         assertEquals(Collections.singletonList(UsbShareTunnel.END_STOPPED), tunnel.closes);
         assertEquals(State.STOPPING, state(PAD));
         tunnel.endAsAsked();
+        assertEquals(State.IDLE, state(PAD));
+        assertFalse(usb.isBusy());
+    }
+
+    // The tunnel's connection to the exporter goes only to a device that's exported and not yet
+    // given back
+    @Test
+    public void theExportersConnectionIsOnlyForAnExport() throws IOException {
+        usb.activate(PAD);
+        worker.runAll();
+        FakeUsb.Tunnel tunnel = backends.tunnel();
+        try {
+            tunnel.exporter.connect(5_000);
+            throw new AssertionError("a connection before anything was exported");
+        }
+        catch (IOException expected) {
+            // Nothing to connect to yet
+        }
+        assertEquals(0, backends.exporter().connects);
+        assertTrue(tunnel.bindAck());
+        assertNotNull(tunnel.exporter.connect(5_000));
+        usb.activate(PAD);
+        tunnel.endAsAsked();
+        try {
+            tunnel.exporter.connect(5_000);
+            throw new AssertionError("a connection after the device went back");
+        }
+        catch (IOException expected) {
+            // Given back
+        }
+        assertEquals(1, backends.exporter().connects);
+    }
+
+    // The exporter wouldn't take the tunnel's connection: the tunnel ends, and the device is back
+    @Test
+    public void anExporterThatWontConnectEndsTheShare() {
+        usb.activate(PAD);
+        worker.runAll();
+        FakeUsb.Tunnel tunnel = backends.tunnel();
+        assertTrue(tunnel.bindAck());
+        backends.exporter().running = false;
+        assertFalse(tunnel.shareAck());
+        assertEquals(1, backends.exporter().stops);
         assertEquals(State.IDLE, state(PAD));
         assertFalse(usb.isBusy());
     }

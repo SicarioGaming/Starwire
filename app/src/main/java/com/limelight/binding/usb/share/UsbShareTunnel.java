@@ -1,6 +1,7 @@
 package com.limelight.binding.usb.share;
 
 import java.io.IOException;
+import java.net.Socket;
 
 /**
  * What the share flow needs from the tunnel client (lane U-A, com.limelight.binding.usb.tunnel's
@@ -11,8 +12,8 @@ import java.io.IOException;
  *
  * It's shaped like U-A's UsbTunnel, so the build's backend only passes calls on: the same
  * Exporter and Listener, the same endings, and close() and networkLost() that only ask. The PC's
- * address and the microphone's pairing for it are the backend's to read; the exporter's port on
- * 127.0.0.1 is between the tunnel and the exporter, so the share flow never sees it.
+ * address and the microphone's pairing for it are the backend's to read. The exporter makes the
+ * tunnel's one connection to it on 127.0.0.1 itself, and the share flow only passes it on.
  *
  * The tunnel owns the exporter from connect() on: it calls Exporter.start() at most once, and
  * Exporter.stop() once after it, however the connection ends, before Listener.onEnded().
@@ -43,6 +44,13 @@ public interface UsbShareTunnel {
          * shares nothing: the tunnel sends END 2 and ends with DEVICE_GONE.
          */
         byte[] start() throws IOException;
+
+        /**
+         * SHARE_ACK 0: the one connection to the exporter on 127.0.0.1, connected within
+         * timeoutMs (UsbShareExporter.connect). At most once, after start(). Throwing ends the
+         * session as DEVICE_GONE.
+         */
+        Socket connect(int timeoutMs) throws IOException;
 
         /** The connection is over: take the device back. Once, after start(), however it ended. */
         void stop();
