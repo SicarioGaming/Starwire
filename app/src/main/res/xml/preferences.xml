@@ -252,6 +252,11 @@
             android:title="@string/title_floating_button"
             android:summary="@string/summary_floating_button"
             android:defaultValue="true" />
+        <CheckBoxPreference
+            android:key="checkbox_back_opens_menu"
+            android:title="@string/title_back_opens_menu"
+            android:summary="@string/summary_back_opens_menu"
+            android:defaultValue="true" />
         <ListPreference
             android:key="left_edge_swipe_action"
             android:title="@string/title_left_edge_swipe_action"

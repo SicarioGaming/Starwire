@@ -90,6 +90,7 @@ import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.text.Html;
 import android.util.Rational;
+import android.util.SparseIntArray;
 import android.util.TypedValue;
 import android.view.Display;
 import android.view.Gravity;
@@ -191,6 +192,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     private InputCaptureProvider inputCaptureProvider;
     private int modifierFlags = 0;
+    // The keyboard keys the PC has been told are down, with the flags they went with, so opening
+    // the menu can let go of them
+    private final SparseIntArray keysDownOnPc = new SparseIntArray();
     private boolean grabbedInput = true;
     private boolean cursorVisible = false;
     private boolean waitingForAllModifiersUp = false;
@@ -1788,8 +1792,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 return true;
             }
 
-            conn.sendKeyboardInput(translated, KeyboardPacket.KEY_DOWN, getModifierState(event),
-                    keyboardTranslator.hasNormalizedMapping(event.getKeyCode(), event.getDeviceId()) ? 0 : MoonBridge.SS_KBE_FLAG_NON_NORMALIZED);
+            byte flags = keyboardTranslator.hasNormalizedMapping(event.getKeyCode(), event.getDeviceId()) ? 0 : MoonBridge.SS_KBE_FLAG_NON_NORMALIZED;
+            conn.sendKeyboardInput(translated, KeyboardPacket.KEY_DOWN, getModifierState(event), flags);
+            keysDownOnPc.put(translated, flags);
         }
 
         return true;
@@ -1879,6 +1884,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             conn.sendKeyboardInput(translated, KeyboardPacket.KEY_UP, getModifierState(event),
                     keyboardTranslator.hasNormalizedMapping(event.getKeyCode(), event.getDeviceId()) ? 0 : MoonBridge.SS_KBE_FLAG_NON_NORMALIZED);
+            keysDownOnPc.delete(translated);
         }
 
         return true;
@@ -4297,13 +4303,51 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         return com.limelight.ui.AppIcons.tile(this, appName);
     }
 
+    // The floating button's tap and "Back opens the menu"
     private void toggleOverlayMenu() {
         if (overlayMenuView.getVisibility() == View.VISIBLE) {
             overlayMenuView.closeMenu();
         }
         else {
-            overlayMenuView.show();
+            openOverlayMenu();
         }
+    }
+
+    // The open menu takes every key and controller event, so a button or key let go of while it's
+    // open would stay held on the PC until it's pressed again. Let go of them all first, as
+    // holding the controller's menu button does for controllers.
+    private void openOverlayMenu() {
+        if (controllerHandler != null) {
+            controllerHandler.releaseAllControllerInput();
+        }
+        releaseKeysDownOnPc();
+        overlayMenuView.show();
+    }
+
+    private void releaseKeysDownOnPc() {
+        for (int i = 0; i < keysDownOnPc.size(); i++) {
+            conn.sendKeyboardInput((short) keysDownOnPc.keyAt(i), KeyboardPacket.KEY_UP, (byte) 0,
+                    (byte) keysDownOnPc.valueAt(i));
+        }
+        keysDownOnPc.clear();
+
+        // Their key ups go to the menu too, so forget the modifiers, as when the window loses focus
+        modifierFlags = 0;
+    }
+
+    // The system's Back (the navigation bar's button or the back gesture) when nothing else took
+    // it. "Back opens the menu" makes it open the stream menu, as the floating button does,
+    // instead of leaving the stream (idea from Artemis by Yukino Song, via Artemide). The open
+    // menu takes Back itself to close. A mouse's Back is a right-click and a controller's buttons
+    // go to the game, so neither gets here; a TV remote's Back is ControllerHandler's. Android
+    // only calls this while Game opts out of predictive Back in the manifest.
+    @Override
+    public void onBackPressed() {
+        if (prefConfig != null && prefConfig.backOpensMenu && overlayMenuView != null) {
+            toggleOverlayMenu();
+            return;
+        }
+        super.onBackPressed();
     }
 
     private void setFloatingButtonShown(boolean shown) {

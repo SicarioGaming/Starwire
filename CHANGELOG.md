@@ -26,6 +26,15 @@ steps and the checksums for each version.
 - **Shortcuts for Windows' virtual desktops in the stream menu:** Win+Ctrl+Left and
   Win+Ctrl+Right (previous and next desktop) side by side, then Win+Tab (Task View), on the
   Shortcuts page. Checked by tests, not yet tried in a stream.
+- **Back opens the menu,** on by default. Back (the navigation bar's button or the back gesture)
+  now opens the stream menu instead of ending the stream, and Back again closes it. To leave, use
+  Disconnect or Quit Session in the menu. A short press of a TV remote's Back opens the menu too,
+  where it used to end the stream; holding it still opens the menu as before. A switch in
+  **Settings → In-stream menu** turns it off, and Back ends the stream again. A mouse right-click
+  that Android sends as Back still reaches the PC as a right-click, and a controller's B still
+  goes to the game. The idea comes from Artemis (Yukino Song), via Artemide. Thank you to
+  u/Glove5751 for asking for it. Tested in JVM tests only, with a stand-in for the remote. Not yet
+  tried on a phone, a tablet or a TV.
 
 ### Changed
 
@@ -99,6 +108,11 @@ steps and the checksums for each version.
   game list, the PC list, per-game settings, the Quick Launch app picker and the Credits and
   Open-source licences pages; no test checks those screens yet. From Moonlight X. Checked by
   tests, not yet tried on a device.
+- A controller button or keyboard key you were holding when you opened the stream menu with the
+  floating button stayed pressed on the PC until you pressed it again. The floating button and
+  Back, which opens the menu now (see Added), let go of both first. A TV remote's Back lets go of
+  controller buttons, as holding Select on a controller always did. Tested in JVM tests only.
+  Not yet tried on a device.
 
 ## [0.2.1] - 2026-10-23
 
