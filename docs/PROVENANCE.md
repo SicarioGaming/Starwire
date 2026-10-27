@@ -249,6 +249,26 @@ the network, the microphone, and the key Starwire uses to talk to your paired PC
 driver from a source you trust. If the driver fails to load or can't run PyroWave, Starwire
 uses the system driver. If it crashes, the stream closes.
 
+## Built from source with the app: the USB exporter
+
+The USB exporter (`libmoonlight_usbip.so`, from Moonlight V+'s usbip-backend) isn't a prebuilt
+file: the build compiles it every time. Its first build downloads four source archives from
+GitHub at fixed revisions, and CMake refuses any whose SHA-256 differs from the one in
+`usbip-backend/src/main/cpp/CMakeLists.txt`. `UsbBuildTest` checks that each one is pinned that
+way.
+
+| Source | Revision | Licence |
+| --- | --- | --- |
+| [usbipdcpp](https://github.com/yunsmall/usbipdcpp) | commit `1355113f030c4c13404030e6e7426bceb6085276` | LGPL-3.0 |
+| [libusb](https://github.com/libusb/libusb) | tag `v1.0.29` | LGPL-2.1-or-later |
+| [Asio](https://github.com/chriskohlhoff/asio) | tag `asio-1-30-2` | BSL-1.0 |
+| [spdlog](https://github.com/gabime/spdlog) | tag `v1.15.3`, with fmt inside it | MIT |
+
+The build changes one file of usbipdcpp before compiling it, V+'s connection filter
+(`patch_usbipdcpp.cmake`), and stops if the pinned file no longer matches the patch. V+'s own
+test certificates and keys for its tunnel to Sunshine weren't brought in, since Starwire doesn't
+use that tunnel.
+
 ## Changing one of these files
 
 Change the file, its pin in `verify.sh` and its line in `SHA256SUMS` in the same commit, and

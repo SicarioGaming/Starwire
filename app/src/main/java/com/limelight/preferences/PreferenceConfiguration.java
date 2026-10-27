@@ -72,6 +72,8 @@ public class PreferenceConfiguration {
     private static final String ENABLE_PIP_PREF_STRING = "checkbox_enable_pip";
     private static final String ENABLE_PERF_OVERLAY_STRING = "checkbox_enable_perf_overlay";
     private static final String BIND_ALL_USB_STRING = "checkbox_usb_bind_all";
+    // Sharing a wired USB device with the PC from the stream menu (Experimental)
+    static final String USB_SHARE_PREF_STRING = "checkbox_usb_share";
     private static final String MOUSE_EMULATION_STRING = "checkbox_mouse_emulation";
     private static final String ANALOG_SCROLLING_PREF_STRING = "analog_scrolling";
     private static final String MOUSE_NAV_BUTTONS_STRING = "checkbox_mouse_nav_buttons";
@@ -169,6 +171,7 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_ENABLE_PIP = false;
     private static final boolean DEFAULT_ENABLE_PERF_OVERLAY = false;
     private static final boolean DEFAULT_BIND_ALL_USB = false;
+    static final boolean DEFAULT_USB_SHARE = false;
     private static final boolean DEFAULT_MOUSE_EMULATION = true;
     private static final String DEFAULT_ANALOG_STICK_FOR_SCROLLING = "right";
     private static final boolean DEFAULT_MOUSE_NAV_BUTTONS = false;
@@ -258,6 +261,7 @@ public class PreferenceConfiguration {
     public boolean enablePerfOverlay;
     public boolean enableLatencyToast;
     public boolean bindAllUsb;
+    public boolean usbShare;
     public boolean mouseEmulation;
     public AnalogStickForScrolling analogStickForScrolling;
     public boolean mouseNavButtons;
@@ -991,6 +995,7 @@ public class PreferenceConfiguration {
         config.enablePip = prefs.getBoolean(ENABLE_PIP_PREF_STRING, DEFAULT_ENABLE_PIP);
         config.enablePerfOverlay = prefs.getBoolean(ENABLE_PERF_OVERLAY_STRING, DEFAULT_ENABLE_PERF_OVERLAY);
         config.bindAllUsb = prefs.getBoolean(BIND_ALL_USB_STRING, DEFAULT_BIND_ALL_USB);
+        config.usbShare = prefs.getBoolean(USB_SHARE_PREF_STRING, DEFAULT_USB_SHARE);
         config.mouseEmulation = prefs.getBoolean(MOUSE_EMULATION_STRING, DEFAULT_MOUSE_EMULATION);
         config.mouseNavButtons = prefs.getBoolean(MOUSE_NAV_BUTTONS_STRING, DEFAULT_MOUSE_NAV_BUTTONS);
         config.vibrateOsc = prefs.getBoolean(VIBRATE_OSC_PREF_STRING, DEFAULT_VIBRATE_OSC);

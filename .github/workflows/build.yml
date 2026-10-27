@@ -39,11 +39,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
-      # Gradle won't even configure the project without the NDK version build.gradle names
-      - name: Install the NDK
+      # Gradle won't even configure the project without the NDK version build.gradle names, or
+      # the USB exporter's native build without the CMake version usbip-backend/build.gradle names
+      - name: Install the NDK and CMake
         run: |
           NDK=$(grep -oP 'ndkVersion "\K[^"]+' app/build.gradle)
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK" > /dev/null
+          CMAKE=$(grep -oP '^\s*version "\K[^"]+' usbip-backend/build.gradle)
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK" "cmake;$CMAKE" > /dev/null
 
       # Robolectric fetches android-all-instrumented for SDK 36 (about 204 MB) into ~/.m2 on a
       # fresh runner. app/build.gradle names the Robolectric version, so a new one gets a new key.

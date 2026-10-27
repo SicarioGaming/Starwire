@@ -297,6 +297,9 @@ public final class CoverGlowSettings {
         CREDITS.put("checkbox_enable_perf_overlay_lite", "From Axixi2233, via Artemis and Artemide");
         CREDITS.put("checkbox_dualsense_effects", "Bluetooth route ported from Moonlight V+ by qiin2333; "
                 + "the host's effects reach Java through code from Nightjar by Ramazan Kara");
+        // The share flow, the tunnel and the device rules are new in Starwire; the exporter isn't
+        CREDITS.put("checkbox_usb_share",
+                "USB exporter from Moonlight V+ by qiin2333, built on usbipdcpp by yunsmall (LGPL-3.0)");
     }
 
     /** Where a setting came from, or null for Moonlight's own and Starwire's new settings. */

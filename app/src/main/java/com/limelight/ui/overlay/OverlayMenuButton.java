@@ -45,6 +45,9 @@ public class OverlayMenuButton extends LinearLayout {
     static final int TILE_TEXT_SIZE_SP = 12;
     static final int TILE_SIDE_PADDING_DP = 4;
     static final int TILE_LABEL_LINES = 2;
+    // The detail line under a tile's label
+    private static final int DETAIL_TEXT_SIZE_SP = 11;
+    private static final int DETAIL_LINES = 3;
 
     private static final int DARK = 0xFF0B0F14;
     private static final int FROSTED = 0x1AFFFFFF;
@@ -55,6 +58,7 @@ public class OverlayMenuButton extends LinearLayout {
 
     private ImageView iconView;
     private TextView labelView;
+    private TextView detailView;
     private GradientDrawable background;
     private boolean isSelected = false;
     private int strokeWidth;
@@ -180,6 +184,34 @@ public class OverlayMenuButton extends LinearLayout {
     public void setLabel(String text) {
         labelView.setText(text);
         labelView.setVisibility(text != null && !text.isEmpty() ? VISIBLE : GONE);
+    }
+
+    /**
+     * A smaller line under a tile's label, such as a USB device's state; null removes it
+     */
+    public void setDetail(String text) {
+        if (text == null || text.isEmpty()) {
+            if (detailView != null) {
+                detailView.setVisibility(GONE);
+            }
+            return;
+        }
+        if (detailView == null) {
+            float density = getResources().getDisplayMetrics().density;
+            detailView = new TextView(getContext());
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            params.topMargin = (int) (2 * density);
+            params.gravity = Gravity.CENTER_HORIZONTAL;
+            detailView.setLayoutParams(params);
+            detailView.setTextSize(TypedValue.COMPLEX_UNIT_SP, DETAIL_TEXT_SIZE_SP);
+            detailView.setGravity(Gravity.CENTER);
+            detailView.setMaxLines(DETAIL_LINES);
+            addView(detailView);
+            updateAppearance();
+        }
+        detailView.setText(text);
+        detailView.setVisibility(VISIBLE);
     }
 
     /**
@@ -310,6 +342,10 @@ public class OverlayMenuButton extends LinearLayout {
     private void setContentColor(int color) {
         iconView.setImageTintList(ColorStateList.valueOf(color));
         labelView.setTextColor(color);
+        if (detailView != null) {
+            // A little fainter than the label
+            detailView.setTextColor((color & 0x00FFFFFF) | 0xCC000000);
+        }
     }
 
     public void hideIcon() {

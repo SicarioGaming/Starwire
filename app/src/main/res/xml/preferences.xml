@@ -190,6 +190,11 @@
             android:title="@string/title_checkbox_usb_bind_all"
             android:summary="@string/summary_checkbox_usb_bind_all"
             android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_usb_share"
+            android:title="@string/title_checkbox_usb_share"
+            android:summary="@string/summary_checkbox_usb_share"
+            android:defaultValue="false" />
         <ListPreference
             android:key="analog_scrolling"
             android:title="@string/title_analog_scrolling"

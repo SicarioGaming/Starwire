@@ -479,6 +479,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Or send it over the stream itself, with a choice of microphone **(needs [logabell's Apollo build](https://github.com/logabell/apollo-microphone/releases) on the PC)** | Ported from logabell's Artemis and moonlight-common-c microphone changes ([Artemis PR #537](https://github.com/ClassicOldSong/moonlight-android/pull/537)); echo-cancelled capture is new in Starwire |
 | Per-game settings for the new options (codec, V-Sync, LFR, async decode, display, touch mode, cursor, audio haptics, and from 0.2.1 the jitter buffer) | Extends Moonlight X's per-app settings (MoreOrLessSoftware); the per-game jitter buffer is from Moonlight X too |
 | Coming in 0.3.0: DualSense trigger effects over Bluetooth (Experimental, Android 12 and newer): the game's own adaptive trigger effects, four presets for games that send none, a strength setting, a status line and a Test button. Not tried with a real pad in Starwire yet. A separate test app's light bar change and four trigger effects worked on one | Bluetooth route and pad matching ported from Moonlight V+ (qiin2333); the code that passes the host's effects to Java is from Nightjar (Ramazan Kara); report layout written from Linux's hid-playstation driver, SDL and Nielk1's trigger notes; uses HiddenApiBypass (LSPosed). The rest is new in Starwire |
+| USB devices (Experimental), the phone's side: a setting under Controllers adds a "USB devices" page to the stream menu, which shares a wired device with the PC through the USB/IP exporter inside the app and an encrypted tunnel to the PC's USB helper, after the device rules decide what may be shared (one device at a time, Android 9 or later on 64-bit ARM). Tested only on a computer, against a fake helper on 127.0.0.1; no device has been shared through it on a phone yet | The exporter is ported from Moonlight V+'s usbip-backend (qiin2333), after yunsmall's Android-Usbipdcpp, and built on usbipdcpp (yunsmall, LGPL-3.0) and libusb; the stream menu's page, the tunnel, the device rules and one-device sharing are new in Starwire |
 
 </details>
 
@@ -508,7 +509,7 @@ repos a star:
 | [Artemide](https://github.com/derflacco/moonlight-android) | derflacco | Nano Pacer / Fast V-Sync, Sync and Async LFR, async decode, MediaTek low-latency work, and the version of all the Artemis features above that Starwire ported |
 | [Moonlight (Axixi2233 fork)](https://github.com/Axixi2233/moonlight-android) | Axixi2233 | Full keyboard, shortcuts list, Lite overlay, shortcut file format (via Artemis) |
 | [Moonlight X Turnip](https://github.com/NoCrypt/moonlight-x-turnip) | ncpt (NoCrypt) | Custom Turnip Vulkan driver for PyroWave |
-| [Moonlight V+](https://github.com/qiin2333/moonlight-vplus) | qiin2333 | Ideas: bitrate mid-stream, audio haptics, 1% lows, and skipping a dialog whose screen has closed. Ported: how the DualSense trigger effects reach the pad over Bluetooth (the four send calls, finding the pad) |
+| [Moonlight V+](https://github.com/qiin2333/moonlight-vplus) | qiin2333 | The USB exporter that USB sharing is built on (usbip-backend). Ideas: bitrate mid-stream, audio haptics, 1% lows, and skipping a dialog whose screen has closed. Ported: how the DualSense trigger effects reach the pad over Bluetooth (the four send calls, finding the pad) |
 | [Moonlit Artemis](https://github.com/4had45/moonlit-artemis) | Mohammad Forhad (4had45) | Ideas: monitor switcher, pinch to zoom anytime |
 | [Moonlight Fold](https://github.com/sblocktechnologies/moonlight-fold) | sblocktechnologies | Idea: letting the stream follow a foldable's inner screen |
 | [Nightjar](https://github.com/RamazanKara/nightjar) | Ramazan Kara | Ported: passing the host's DualSense trigger effects from moonlight-common-c to Java |
@@ -516,6 +517,7 @@ repos a star:
 | [VBAN and VB-Cable](https://vb-audio.com/Cable/) | VB-Audio (Vincent Burel) | VBAN, the network audio format Starwire's microphone uses, and VB-Cable, the virtual microphone the receiver plays into (donationware) |
 | [PyroWave](https://github.com/Themaister/pyrowave) | Hans-Kristian Arntzen (Themaister) | The PyroWave codec (MIT) |
 | [libadrenotools](https://github.com/bylaws/libadrenotools) | Billy Laws (bylaws) | Loading a custom Adreno Vulkan driver (BSD-2-Clause) |
+| [usbipdcpp](https://github.com/yunsmall/usbipdcpp) | yunsmall | The USB/IP server inside the app that USB sharing uses (LGPL-3.0). This product uses usbipdcpp (https://github.com/yunsmall/usbipdcpp), licensed under LGPLv3. |
 | [Vibepollo](https://github.com/Nonary/Vibepollo) | Chase Payne (Nonary) | The host Starwire is developed with (fork of Apollo) |
 | [Apollo](https://github.com/ClassicOldSong/Apollo) / [Sunshine](https://github.com/LizardByte/Sunshine) | ClassicOldSong / LizardByte | The hosts Vibepollo is built on |
 | [Claude Code](https://claude.com/claude-code) | Anthropic | Writing the Starwire code, ports, redesign and tests |
@@ -580,7 +582,10 @@ the same value.
 1. Install Android Studio (or just the Android SDK), a JDK 17 or newer (Android Studio comes with
    one), and the exact NDK version in `app/build.gradle`, currently 29.0.14206865. In Android
    Studio that's **SDK Manager → SDK Tools → NDK (Side by side)** with **Show Package Details**
-   ticked; on the command line, `sdkmanager "ndk;29.0.14206865"`.
+   ticked; on the command line, `sdkmanager "ndk;29.0.14206865"`. The USB exporter also needs
+   CMake 3.31.6 (**CMake** in the same list, or `sdkmanager "cmake;3.31.6"`), and its first
+   build downloads the pinned sources of usbipdcpp, libusb, Asio and spdlog from GitHub, each
+   checked against its SHA-256 (`usbip-backend/src/main/cpp/CMakeLists.txt`).
 2. Clone with the submodules:
    ```bash
    git clone --recursive https://github.com/SicarioGaming/Starwire.git

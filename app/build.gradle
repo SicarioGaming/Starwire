@@ -258,6 +258,9 @@ dependencies {
     // Reaches Android's hidden Bluetooth HID calls for the DualSense's trigger effects
     // (Experimental, off by default). Its SHA-256 is checked: gradle/verification-metadata.xml
     implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'
+    // The USB exporter: usbipdcpp, libusb, Asio and spdlog, built from pinned sources
+    // (usbip-backend/src/main/cpp/CMakeLists.txt), from Moonlight V+
+    implementation project(':usbip-backend')
 
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 
@@ -282,4 +285,18 @@ dependencies {
 // Golden images live beside the tests, so a change to them shows up in review
 roborazzi {
     outputDir = file('src/test/screenshots')
+}
+
+// The usual commands cover the USB exporter's module too: its JVM tests, its lint and its device
+// test APK (the module has no flavours, so its tasks are the plain debug ones)
+tasks.configureEach { task ->
+    if (task.name == 'testNonRootDebugUnitTest') {
+        task.dependsOn ':usbip-backend:testDebugUnitTest'
+    }
+    else if (task.name == 'lintNonRootDebug') {
+        task.dependsOn ':usbip-backend:lintDebug'
+    }
+    else if (task.name == 'assembleNonRootDebugAndroidTest') {
+        task.dependsOn ':usbip-backend:assembleDebugAndroidTest'
+    }
 }

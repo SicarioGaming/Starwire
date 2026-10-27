@@ -1,0 +1,62 @@
+plugins { id 'com.android.library' }
+
+// Starwire: the USB exporter from Moonlight V+ (qiin2333), built the way the app is: the app's NDK
+// and minimum Android version, the C++ library linked in statically as in the app's
+// Application.mk, and 64-bit ARM only in a release. Debug builds add x86_64, so the exporter's
+// device tests can run on the emulators too. UsbBuildTest (in the app's JVM tests) checks these
+// against the app's own settings and CI's install lines.
+android {
+    namespace 'com.limelight.usbip'
+    compileSdk 37
+    ndkVersion "29.0.14206865"
+    defaultConfig {
+        minSdk 21
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        consumerProguardFiles 'consumer-rules.pro'
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_static'
+                // Optional pre-fetched source directories for offline/developer builds.
+                ['USBIPDCPP', 'LIBUSB', 'ASIO', 'SPDLOG'].each { dependency ->
+                    def sourceDir = providers.gradleProperty("usbipSource${dependency}").orNull
+                    if (sourceDir) arguments "-DFETCHCONTENT_SOURCE_DIR_${dependency}=${file(sourceDir).absolutePath.replace('\\', '/')}"
+                }
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            ndk { abiFilters 'arm64-v8a', 'x86_64' }
+        }
+        release {
+            // On purpose: USB sharing is for 64-bit ARM phones and tablets only (the app's own
+            // native code still covers every ABI, ChromeOS's x86_64 included)
+            //noinspection ChromeOsAbiSupport
+            ndk { abiFilters 'arm64-v8a' }
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+            // CI installs this CMake with the NDK (build.yml, devices.yml and release.yml)
+            version "3.31.6"
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    // As strict as the app's (app/build.gradle): any warning fails lintDebug, which
+    // gradlew lintNonRootDebug runs too
+    lint {
+        lintConfig rootProject.file('app/lint.xml')
+        warningsAsErrors = true
+        informational 'NewerVersionAvailable', 'GradleDependency', 'AndroidGradlePluginVersion'
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}

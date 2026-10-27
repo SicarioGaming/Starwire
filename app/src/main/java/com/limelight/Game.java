@@ -19,6 +19,8 @@ import com.limelight.binding.input.touch.RelativeTouchContext;
 import com.limelight.binding.input.touch.TrackpadContext;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
 import com.limelight.binding.input.driver.UsbDriverService;
+import com.limelight.binding.usb.share.StreamUsbShare;
+import com.limelight.binding.usb.share.UsbShareTunnel;
 import com.limelight.binding.input.evdev.EvdevListener;
 import com.limelight.binding.input.touch.TouchContext;
 import com.limelight.binding.input.virtual_controller.VirtualController;
@@ -265,6 +267,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private MicrophoneCaptureManager microphoneCaptureManager;
     // The encrypted microphone's problems already told this stream
     private final java.util.Set<Integer> micStatusesShown = new java.util.HashSet<>();
+    // Sharing a wired USB device with the PC (Experimental), while the stream runs
+    private StreamUsbShare usbShare;
     private boolean reportedCrash;
 
     private WifiManager.WifiLock highPerfWifiLock;
@@ -464,6 +468,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         overlayMenuView = findViewById(R.id.overlayMenuView);
         overlayMenuView.setFlipFaceButtons(prefConfig.flipFaceButtons);
         overlayMenuView.setShowBrightness(!isAndroidTV);
+        usbShare = new StreamUsbShare(this, overlayMenuView);
 
         floatingMenuButton = findViewById(R.id.floatingMenuButton);
         // Kept within the window, as the drag always was
@@ -1377,6 +1382,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     @Override
     protected void onDestroy() {
         stopMicrophoneCapture();
+        stopUsbSharing(UsbShareTunnel.END_CLOSING);
         super.onDestroy();
 
         // Unregister broadcast receiver
@@ -2851,6 +2857,19 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
     }
 
+    // The stream menu's USB devices, when the setting is on and this build and phone can share
+    private void startUsbSharing() {
+        usbShare.start(prefConfig.usbShare, new UsbShareTunnel.Target(getIntent().getStringExtra(EXTRA_HOST),
+                getIntent().getStringExtra(EXTRA_PC_UUID)), this);
+    }
+
+    // Gives a shared USB device back to the phone; the stream is ending or the screen closing
+    private void stopUsbSharing(int endReason) {
+        if (usbShare != null) {
+            usbShare.stop(endReason);
+        }
+    }
+
     // Microphone streaming over the stream only works with hosts that accept it (logabell's Apollo
     // build); other hosts never negotiate it, so the stream carries on without the mic. Otherwise
     // the microphone goes to a receiver on the PC, whatever the host: Starwire's own, encrypted
@@ -2965,6 +2984,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     private void stopConnection() {
         stopMicrophoneCapture();
+        // A shared USB device goes back to the phone when the stream ends, however it ends
+        stopUsbSharing(UsbShareTunnel.END_STREAM_ENDED);
         // Give the PC its cursor back before the connection goes away
         final boolean flushHostCursor = hostCursor.onStopping();
 
@@ -3194,6 +3215,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 hideSystemUi(1000);
                 startMicrophoneCapture();
+                startUsbSharing();
 
                 // Show overlay menu hint toast
                 showOverlayMenuHint();
@@ -3732,6 +3754,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 if (hostCursor.onManualFix()) {
                     Toast.makeText(Game.this, R.string.host_cursor_fix_sent, Toast.LENGTH_SHORT).show();
                 }
+            }
+
+            @Override
+            public List<OverlayMenuView.UsbItem> usbDevices() {
+                return usbShare.items();
+            }
+
+            @Override
+            public void onUsbDevice(String key) {
+                usbShare.choose(key);
             }
 
             @Override

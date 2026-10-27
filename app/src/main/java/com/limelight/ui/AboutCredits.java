@@ -25,6 +25,7 @@ public final class AboutCredits {
 
     private static final int MOONLIGHT = R.string.credits_section_moonlight;
     private static final int MICROPHONE = R.string.credits_section_microphone;
+    private static final int USB = R.string.credits_section_usb;
     private static final int VIDEO = R.string.credits_section_video;
     private static final int HOSTS = R.string.credits_section_hosts;
     private static final int TOOLS = R.string.credits_section_tools;
@@ -56,6 +57,9 @@ public final class AboutCredits {
             new Credit(MICROPHONE, "VBAN and VB-Cable", "VB-Audio (Vincent Burel)",
                     R.string.credit_vban, "https://vb-audio.com/Cable/"),
 
+            new Credit(USB, "usbipdcpp", "yunsmall",
+                    R.string.credit_usbipdcpp, "https://github.com/yunsmall/usbipdcpp"),
+
             new Credit(VIDEO, "PyroWave", "Hans-Kristian Arntzen (Themaister)",
                     R.string.credit_pyrowave, "https://github.com/Themaister/pyrowave"),
             new Credit(VIDEO, "libadrenotools", "Billy Laws (bylaws)",
@@ -78,6 +82,6 @@ public final class AboutCredits {
 
     /** The section headings, in order. */
     public static int[] sections() {
-        return new int[] {MOONLIGHT, MICROPHONE, VIDEO, HOSTS, TOOLS};
+        return new int[] {MOONLIGHT, MICROPHONE, USB, VIDEO, HOSTS, TOOLS};
     }
 }

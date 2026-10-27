@@ -63,6 +63,27 @@ steps and the checksums for each version.
   expected: firm resistance, a weapon click, a buzz and off. setReport did nothing there.
   Starwire's presets use other values, and light resistance and heavy pedal use a kind of effect
   that test didn't try. Tested with JVM tests against a fake Bluetooth link.
+- **USB devices (Experimental):** share a wired device plugged into the phone with the PC you
+  stream from. Turn on "USB devices (Experimental)" under Controllers (off by default), and the
+  stream menu gets a "USB devices" page. It lists what's plugged in: which devices can't be shared
+  and why, which ask you first (keyboards and mice), and that the rest are checked in full when you
+  share them. Choosing one asks Android's permission and shares it; choosing it again, unplugging
+  it or ending the stream gives it back, and after a lost connection, or the phone's network going
+  away, it offers to share it again. The device goes through the USB/IP exporter from Moonlight V+
+  (qiin2333), built on usbipdcpp (yunsmall), and an encrypted tunnel to the PC's USB helper, tied
+  to the microphone's pairing ([usb-protocol.md](docs/dev/usb-protocol.md)). Starwire's device
+  rules decide before anything is shared: pads, wheels, sticks and audio devices pass, keyboards
+  and mice need your yes each time, and hubs, storage, network adapters, vendor-specific devices
+  (wired Xbox pads among them, for now) and USB 3 devices are refused, with the reason. A device
+  that turns out to be a keyboard or mouse only once Starwire reads all of it isn't shared, and
+  asks you then. One device at a time, on Android 9 or later on 64-bit ARM phones and tablets:
+  x86_64 Chromebooks and emulators don't get the setting, even ones that run ARM apps. Tested
+  only on a computer: the stream menu's page, the exporter with its device rules and the tunnel
+  together, against a fake PC helper and a stand-in for the exporter's native part on 127.0.0.1.
+  Not tried yet: sharing a USB device on a phone or tablet, the real helper, Windows, and the
+  question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
+  x86_64 in debug builds), and its licences are in Settings > About > Open-source licences. The
+  setting's credit line names Moonlight V+ and usbipdcpp, as Settings > About > Credits does.
 
 ### Changed
 

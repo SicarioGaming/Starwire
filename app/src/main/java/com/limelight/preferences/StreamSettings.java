@@ -45,6 +45,7 @@ import com.limelight.binding.audio.MicrophoneCaptureManager;
 import com.limelight.binding.audio.VbanSender;
 import com.limelight.binding.audio.securemic.MicPairing;
 import com.limelight.binding.audio.securemic.MicPairingStore;
+import com.limelight.binding.usb.share.UsbShareBackends;
 import com.limelight.ui.CoverGlowSettings;
 import com.limelight.ui.overlay.ImportedShortcuts;
 import com.limelight.binding.video.CustomVulkanDriver;
@@ -411,6 +412,15 @@ public class StreamSettings extends Activity {
                         (PreferenceCategory) findPreference("category_gamepad_settings");
                 category.removePreference(findPreference("checkbox_usb_bind_all"));
                 category.removePreference(findPreference("checkbox_usb_driver"));
+            }
+
+            // Sharing USB devices with the PC needs USB host support, and a build and phone that
+            // have the exporter and the tunnel. Until then there's nothing for the setting to do.
+            if (!getActivity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_USB_HOST)
+                    || !UsbShareBackends.available()) {
+                PreferenceCategory category =
+                        (PreferenceCategory) findPreference("category_gamepad_settings");
+                category.removePreference(findPreference(PreferenceConfiguration.USB_SHARE_PREF_STRING));
             }
 
             // Remove PiP mode on devices pre-Oreo, where the feature is not available (some low RAM devices),
