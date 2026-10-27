@@ -13,6 +13,7 @@ import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceFragment;
 import android.preference.PreferenceManager;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.EditText;
 import android.widget.ListAdapter;
@@ -22,6 +23,7 @@ import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.By;
+import androidx.test.uiautomator.Condition;
 import androidx.test.uiautomator.Configurator;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
@@ -170,13 +172,13 @@ public class CustomResolutionTest {
             // Too wide: the dialog says so and stays open, and nothing is saved
             inputs.get(0).setText("9000");
             inputs.get(1).setText("900");
-            dialogButton(device, "button1").click();
+            press(device, "button1");
             device.waitForIdle();
             assertEquals(2, device.findObjects(By.clazz(EditText.class)).size());
             assertEquals("1920x1080", prefs.getString("list_resolution", null));
 
             inputs.get(0).setText("1600");
-            dialogButton(device, "button1").click();
+            press(device, "button1");
             assertClosed(device, "the custom resolution dialog");
             assertEquals("1600x900", prefs.getString("list_resolution", null));
             // The bitrate follows the new size, as it does for the listed ones
@@ -192,13 +194,13 @@ public class CustomResolutionTest {
             openListWithCustomButton(scenario, device, "list_fps").click();
             inputs = waitForInputs(device, 1);
             inputs.get(0).setText("0");
-            dialogButton(device, "button1").click();
+            press(device, "button1");
             device.waitForIdle();
             assertEquals(1, device.findObjects(By.clazz(EditText.class)).size());
             assertEquals("60", prefs.getString("list_fps", null));
 
             inputs.get(0).setText(ODD_FPS);
-            dialogButton(device, "button1").click();
+            press(device, "button1");
             assertClosed(device, "the custom frame rate dialog");
             assertEquals(ODD_FPS, prefs.getString("list_fps", null));
             assertEquals(PreferenceConfiguration.getDefaultBitrate("1600x900", ODD_FPS),
@@ -246,6 +248,45 @@ public class CustomResolutionTest {
         return button;
     }
 
+    // Presses a button of the custom value dialog through its own click action, as a remote's OK
+    // button or TalkBack does, instead of tapping the middle of it. A refused value puts an error
+    // on the field, shown in a popup window of its own under the right end of the field, which in
+    // the one-field frame rate dialog is where OK is. Typing puts the error away, but UI Automator
+    // sets the text without typing, so the error stays. On Android TV 14 (2026-10-27) the tap
+    // meant for OK went to that popup (the log says "Interaction with: PopupWindow") and the
+    // dialog stayed open with 37 in it. Android 6 left it open too. The popup only shows on a
+    // field with focus, which Android 9 and later phones don't give it, and on Android 5 it ended
+    // 3 pixels above the middle of OK, so the tap worked there by luck. A press that always
+    // reaches the button also means a dialog that stays open did refuse the value.
+    private static void press(UiDevice device, String id) {
+        // On screen, as a person would see it, with the keyboard put away if it hides the button
+        dialogButton(device, id);
+        // A window's contents can be missing for a moment, so look again until it's there
+        Condition<UiDevice, AccessibilityNodeInfo> found = d -> buttonNode(id);
+        AccessibilityNodeInfo button = device.wait(found, WAIT_MS);
+        if (button == null) {
+            fail("the dialog's " + id + " can't be pressed (" + whatsOpen(device) + ")");
+        }
+        assertTrue("the dialog's " + id + " didn't take the press",
+                button.performAction(AccessibilityNodeInfo.ACTION_CLICK));
+        device.waitForIdle();
+    }
+
+    private static AccessibilityNodeInfo buttonNode(String id) {
+        for (AccessibilityWindowInfo window : Automation.uiAutomation().getWindows()) {
+            AccessibilityNodeInfo root = window.getRoot();
+            if (root == null) {
+                continue;
+            }
+            for (AccessibilityNodeInfo node : root.findAccessibilityNodeInfosByViewId("android:id/" + id)) {
+                if (node.isVisibleToUser()) {
+                    return node;
+                }
+            }
+        }
+        return null;
+    }
+
     private static boolean keyboardShowing() {
         for (AccessibilityWindowInfo window : Automation.uiAutomation().getWindows()) {
             if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
@@ -256,8 +297,7 @@ public class CustomResolutionTest {
     }
 
     private static void assertClosed(UiDevice device, String dialog) {
-        // Android 6's emulator left the frame rate dialog open (2026-10-23) and its log was gone
-        // by the time the run ended, so the message says what was on screen
+        // The message says what was on screen, as an emulator's log may be gone by the end of a run
         if (!device.wait(Until.gone(By.clazz(EditText.class)), WAIT_MS)) {
             fail(dialog + " didn't close (" + whatsOpen(device) + ")");
         }
