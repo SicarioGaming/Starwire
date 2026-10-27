@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.limelight.RepoFiles;
+import com.limelight.nvstream.NvConnectionListener;
 import com.limelight.nvstream.jni.MoonBridge;
 
 import org.junit.Test;
@@ -18,7 +19,8 @@ import java.util.regex.Pattern;
 /**
  * callbacks.c calls back into MoonBridge by name and JNI signature, which the compiler can't
  * check: a typo only shows as a crash when the callback first runs. This compares every one with
- * the real Java method.
+ * the real Java method. Also the DualSense trigger callback from the host (0x5503), which
+ * moonlight-common-c parsed but Starwire never asked for before 0.3.0.
  */
 public class NativeBridgeTest {
     private static final Pattern LOOKUP = Pattern.compile(
@@ -47,6 +49,36 @@ public class NativeBridgeTest {
         }
         assertTrue("no lookups found in callbacks.c", checked > 20);
         assertTrue("JNI signatures that don't match: " + wrong, wrong.isEmpty());
+    }
+
+    @Test
+    public void theHostsTriggerEffectsReachJava() throws Exception {
+        String callbacks = RepoFiles.read("app/src/main/jni/moonlight-core/callbacks.c");
+        assertTrue("moonlight-common-c isn't given the trigger callback",
+                callbacks.contains(".setAdaptiveTriggers = BridgeClSetAdaptiveTriggers,"));
+        assertTrue(callbacks.contains("\"bridgeClSetAdaptiveTriggers\", \"(SBBB[B[B)V\""));
+        // Both 10-byte blocks are copied whole, and the local references freed on this long-lived thread
+        assertTrue(callbacks.contains("NewByteArray(env, DS_EFFECT_PAYLOAD_SIZE)"));
+        int call = callbacks.indexOf("CallStaticVoidMethod(env, GlobalBridgeClass, BridgeClSetAdaptiveTriggersMethod");
+        assertTrue(call > 0);
+        assertTrue("the arrays aren't freed after the call", callbacks.indexOf("DeleteLocalRef(env, leftArray)", call) > call
+                && callbacks.indexOf("DeleteLocalRef(env, rightArray)", call) > call);
+        // Out of memory: each array is checked before the next JNI call, which mustn't run with an
+        // exception pending
+        int function = callbacks.indexOf("void BridgeClSetAdaptiveTriggers(");
+        int leftMade = callbacks.indexOf("NewByteArray(env, DS_EFFECT_PAYLOAD_SIZE)", function);
+        int rightMade = callbacks.indexOf("NewByteArray(env, DS_EFFECT_PAYLOAD_SIZE)", leftMade + 1);
+        int leftChecked = callbacks.indexOf("leftArray == NULL", leftMade);
+        assertTrue("the left array isn't checked before the right one is made",
+                function > 0 && leftChecked > leftMade && leftChecked < rightMade);
+        assertTrue(callbacks.indexOf("rightArray == NULL", rightMade) > rightMade);
+
+        Method listener = NvConnectionListener.class.getMethod("setAdaptiveTriggers",
+                short.class, byte.class, byte.class, byte.class, byte[].class, byte[].class);
+        assertTrue("a default, so other listeners needn't change", listener.isDefault());
+
+        String game = RepoFiles.read("app/src/main/java/com/limelight/Game.java");
+        assertTrue(game.contains("controllerHandler.handleSetAdaptiveTriggers(controllerNumber, eventFlags, typeLeft, typeRight, left, right)"));
     }
 
     @Test

@@ -361,6 +361,7 @@ public class MoonBridge {
         }
     }
 
+    // The host's DualSense trigger effects (0x5503); left and right are 10 bytes each
     public static void bridgeClSetAdaptiveTriggers(short controllerNumber, byte eventFlags, byte typeLeft,
                                                    byte typeRight, byte[] left, byte[] right) {
         if (connectionListener != null) {
