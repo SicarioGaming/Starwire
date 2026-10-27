@@ -84,6 +84,30 @@ steps and the checksums for each version.
   question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
   x86_64 in debug builds), and its licences are in Settings > About > Open-source licences. The
   setting's credit line names Moonlight V+ and usbipdcpp, as Settings > About > Credits does.
+- **The PC's side of sharing a USB device from the phone.** Starwire's USB helper
+  for Windows (`windows/setup-usb.cmd`) can now take a device over the encrypted USB tunnel
+  ([usb-protocol.md](docs/dev/usb-protocol.md)): from a phone paired with the PC's microphone
+  receiver, once USB sharing is on in its menu and Allow USB is ticked there for that phone. It
+  checks the device against the device rules, attaches it with usbip-win2's driver through a
+  relay on the PC itself, checks what the device tells Windows, and detaches only its own device
+  when the session ends. USB sharing is off until you turn it on, and the firewall rule covers
+  Private and Domain networks only. The app's side (USB devices, above) and this helper haven't
+  been tried together yet. Tested on Windows 11 with a fake driver and a test phone over 127.0.0.1, and
+  with the shared test vectors and device rules' cases. It hasn't talked to a real phone or
+  attached a real device, and setup-usb.ps1 has only been tried without installing anything.
+  The helper's tunnel server was checked against a hostile local network, and these hold in its
+  tests: when a session is stuck because the relay is blocked writing to a phone that stopped
+  reading, or blocked writing to a driver that stopped reading, unpairing, Stop sharing and
+  turning USB off still close the sockets, end the session and detach the device; the number of
+  waiting connections stays within its cap and the per-address record is pruned under a flood, so
+  the per-connection worker threads stay bounded; each address is rate limited to one new waiting
+  connection every two seconds, so one host can't churn the waiting room or starve another's BIND;
+  a BIND whose connection is closed stops waiting and reads no pairings; a flood of BINDs leaves a
+  pairing-file read a second for the sharing phone's pairing check and the menu; the running
+  pairing check ends the session if the pairings file can't be read twice in a row; and the menu
+  reads the paired phones off the icon's thread. The tests run over 127.0.0.1 with a fake driver
+  and a test phone; the send timeouts are turned off in the teardown tests, so they prove the
+  teardown itself finishes. Not tried with a real phone, a real device or the real driver.
 
 ### Changed
 

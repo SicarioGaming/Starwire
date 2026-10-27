@@ -19,9 +19,15 @@ anything. The app's JVM tests check all of this against the vectors and the rule
 Starwire's end of the tunnel against a fake helper and a fake exporter on 127.0.0.1. The stream
 menu's USB devices page drives the two together (`RealUsbShareBackends.java`), and
 `UsbShareWiredTest` runs that whole path, HELLO to END, against a fake helper and a stand-in for
-the exporter's native part on 127.0.0.1. None of it has run on a phone or with the real helper.
-The helper's end of the tunnel, its device rules and its relay aren't in code, no device has gone
-through any of it, and nothing here has been tried on Windows.
+the exporter's native part on 127.0.0.1. The helper's side is in code too (`windows/`): the TLS
+server, BIND against the receiver's pairings, the per-phone Allow USB list, the device rules, the
+relay and the USB/IP checks, and each way a session ends. Its tests run on Windows against the
+shared vectors and device rules' cases, and drive the whole path over 127.0.0.1 with a fake driver
+and a test phone. The app and the real helper haven't talked to each other yet, nothing has run on
+a phone, no real device has gone through either side, and the helper hasn't run against the real
+usbip-win2 driver. The helper's branch had drifted from `feature/usb-tunnel`'s copy of this
+contract (the waiting-room rule and the split of the pairing-file reads below); the two are to be
+reconciled on `feature/usb-tunnel`, which holds the canonical contract.
 
 ## In plain words
 
@@ -237,11 +243,14 @@ version, so any Starwire can read why any helper refused it, "no version in comm
 Rules for the helper:
 
 - **Waiting connections.** At most 4 connections that haven't finished their BIND, and at most 1
-  from each address: a new connection from an address that already has one takes its place. When
-  4 are waiting, a new connection pushes out the oldest if that one has waited at least 2 s, as
-  the microphone's receiver does with its pending sessions; otherwise the new one is closed at
-  once. So one host can't keep the real phone out by holding every place. Each connection gets
-  10 s from its TCP connection to a valid BIND.
+  from each address. Each address may start a new waiting connection at most once every 2 s (its
+  grace time): one that comes sooner is closed at once, so a single host can't churn the waiting
+  room or burn pairing-file reads by reconnecting over and over. When 4 are waiting, a new
+  connection from a fresh address pushes out the oldest, and only the oldest, once it has waited
+  its grace time, as the microphone's receiver does with its pending sessions; otherwise the new
+  one is closed at once. No address pushes out another address's connection any other way. So one
+  host can't keep the real phone out by holding every place. Each connection gets 10 s from its
+  TCP connection to a valid BIND.
 - **The answer to BIND.** It answers the frame that comes where BIND should in this order, and
   the first that applies wins:
   1. A header that doesn't read (see "Frames"): it closes the connection.
@@ -263,9 +272,11 @@ Rules for the helper:
   on a volume that can't swap files) fails, so pairing and unpairing fail. The helper's tests
   check that the receiver can still pair and unpair while the helper reads the file over and
   over.
-- **At most 4 reads a second**, in all. A BIND that comes when they're used up waits its turn,
-  within its 10 s. So a host that sends BINDs back to back can't keep the file open, or make the
-  helper decrypt keys, as often as it likes.
+- **At most 4 reads a second**, in all, and BINDs get 3 of them. The 4th is kept for the
+  sharing phone's pairing check and the helper's menu, so connections that keep sending BINDs
+  can't hold up an unpair. A BIND that comes when its 3 are used up waits its turn, within its
+  10 s, and stops waiting if its connection is closed. So a host that sends BINDs back to back
+  can't keep the file open, or make the helper decrypt keys, as often as it likes.
 - **Only the one key.** It finds deviceId's line in constant time and decrypts only that line's
   key (`MicPairingStore.Load` decrypts every line's). With no such line, it decrypts a dummy key
   instead, one it encrypted itself at start, and checks the MAC against a random key, so an
