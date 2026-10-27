@@ -2753,13 +2753,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private void confirmUsbInput(String name, UsbShareController.Answer answer) {
         boolean[] answered = {false};
         usbConfirmDialog = new AlertDialog.Builder(this)
-                .setTitle(R.string.usb_confirm_title)
-                .setMessage(getString(R.string.usb_confirm_message, name))
-                .setPositiveButton(R.string.usb_confirm_share, (d, which) -> {
+                .setTitle(R.string.usb_share_confirm_title)
+                .setMessage(getString(R.string.usb_share_confirm_message, name))
+                .setPositiveButton(R.string.usb_share_confirm_share, (d, which) -> {
                     answered[0] = true;
                     answer.onAnswer(true);
                 })
-                .setNegativeButton(R.string.usb_confirm_cancel, null)
+                .setNegativeButton(R.string.usb_share_confirm_cancel, null)
                 .setOnDismissListener(d -> {
                     if (!answered[0]) {
                         answered[0] = true;

@@ -458,7 +458,7 @@ public class OverlayMenuView extends LinearLayout {
                 gridButtons.get(gridButtons.size() - 1).setDetail(usbItems.get(i).detail);
             }
             if (usbItems.isEmpty()) {
-                addTile(R.drawable.ic_overlay_usb, getContext().getString(R.string.usb_none_plugged_in), ACTION_NONE);
+                addTile(R.drawable.ic_overlay_usb, getContext().getString(R.string.usb_share_none_plugged_in), ACTION_NONE);
             }
             addTile(0, getContext().getString(R.string.overlay_menu_back), ACTION_BACK);
         } else {

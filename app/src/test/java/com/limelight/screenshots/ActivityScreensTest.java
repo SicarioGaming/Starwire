@@ -235,11 +235,11 @@ public class ActivityScreensTest {
         menu.setGameInfo(GAMES[0], "1920 x 1080, 120 FPS", AppIcons.accentFor(GAMES[0]));
         menu.setCover(AppIcons.tile(activity, GAMES[0]));
         List<OverlayMenuView.UsbItem> devices = new ArrayList<>();
-        devices.add(new OverlayMenuView.UsbItem("1", "Wireless Controller", activity.getString(R.string.usb_state_shared)));
-        devices.add(new OverlayMenuView.UsbItem("2", "USB Keyboard", activity.getString(R.string.usb_verdict_ask)));
-        devices.add(new OverlayMenuView.UsbItem("3", "USB Flash Drive", activity.getString(R.string.usb_verdict_refused,
-                activity.getString(R.string.usb_rule_storage))));
-        devices.add(new OverlayMenuView.UsbItem("4", "USB Headset", activity.getString(R.string.usb_verdict_allowed)));
+        devices.add(new OverlayMenuView.UsbItem("1", "Wireless Controller", activity.getString(R.string.usb_share_state_shared)));
+        devices.add(new OverlayMenuView.UsbItem("2", "USB Keyboard", activity.getString(R.string.usb_share_verdict_ask)));
+        devices.add(new OverlayMenuView.UsbItem("3", "USB Flash Drive", activity.getString(R.string.usb_share_verdict_refused,
+                activity.getString(R.string.usb_share_rule_storage))));
+        devices.add(new OverlayMenuView.UsbItem("4", "USB Headset", activity.getString(R.string.usb_share_verdict_allowed)));
         menu.setMenuActionListener((OverlayMenuView.MenuActionListener) Proxy.newProxyInstance(
                 OverlayMenuView.MenuActionListener.class.getClassLoader(),
                 new Class<?>[] {OverlayMenuView.MenuActionListener.class},

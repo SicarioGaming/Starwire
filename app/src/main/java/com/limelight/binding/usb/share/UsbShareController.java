@@ -192,7 +192,7 @@ public final class UsbShareController {
         }
         if (session != null) {
             if (session.entry != e) {
-                ui.showMessage(context.getString(R.string.usb_one_at_a_time, session.entry.name));
+                ui.showMessage(context.getString(R.string.usb_share_one_at_a_time, session.entry.name));
             }
             else if (!session.stopping) {
                 // Stop, or give up on one still on its way
@@ -278,7 +278,7 @@ public final class UsbShareController {
         }
         s.device = result == UsbDevices.GRANTED ? devices.device(s.entry.key) : null;
         if (s.device == null) {
-            int note = result == UsbDevices.BLOCKED ? R.string.error_usb_prohibited : R.string.usb_permission_denied;
+            int note = result == UsbDevices.BLOCKED ? R.string.error_usb_prohibited : R.string.usb_share_permission_denied;
             finish(s, State.IDLE, context.getString(note));
         }
         else if (s.entry.verdict.asks()) {
@@ -408,7 +408,7 @@ public final class UsbShareController {
             s.entry.verdict = UsbVerdict.ALLOW;
         }
         set(s.entry, State.SHARED);
-        ui.showMessage(context.getString(R.string.usb_shared_toast, s.entry.name));
+        ui.showMessage(context.getString(R.string.usb_share_shared_toast, s.entry.name));
     }
 
     private void connectFailed(Session s, RuntimeException why) {
@@ -453,7 +453,7 @@ public final class UsbShareController {
         }
         if (ending.canShareAgain() && s.shared) {
             finish(s, State.LOST, null);
-            ui.showMessage(context.getString(R.string.usb_lost_toast, e.name));
+            ui.showMessage(context.getString(R.string.usb_share_lost_toast, e.name));
             return;
         }
         String note = UsbShareText.ended(context, ending);
@@ -483,7 +483,7 @@ public final class UsbShareController {
         boolean wasShared = s.shared;
         stop(s, State.IDLE, null, UsbShareTunnel.END_UNPLUGGED);
         if (wasShared) {
-            ui.showMessage(context.getString(R.string.usb_unplugged_toast, s.entry.name));
+            ui.showMessage(context.getString(R.string.usb_share_unplugged_toast, s.entry.name));
         }
     }
 

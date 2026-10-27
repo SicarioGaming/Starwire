@@ -207,11 +207,11 @@ public class UsbDevicesPageTest {
         show();
         button(str(R.string.overlay_menu_usb_devices)).performClick();
         shadowOf(Looper.getMainLooper()).idle();
-        OverlayMenuButton none = button(str(R.string.usb_none_plugged_in));
+        OverlayMenuButton none = button(str(R.string.usb_share_none_plugged_in));
         assertTrue(none.isSelected());
         press(KeyEvent.KEYCODE_BUTTON_A);
         assertTrue(chosen.isEmpty());
-        assertTrue(button(str(R.string.usb_none_plugged_in)).isSelected());
+        assertTrue(button(str(R.string.usb_share_none_plugged_in)).isSelected());
     }
 
     // A refresh with the page closed, or on another page, leaves the menu alone

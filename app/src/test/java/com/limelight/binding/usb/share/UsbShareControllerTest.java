@@ -83,10 +83,10 @@ public class UsbShareControllerTest {
         assertEquals(0x1209, usb.entry(PAD).vendorId);
         assertEquals(0x0001, usb.entry(PAD).productId);
         // A pad's report descriptor decides, once the device can be opened
-        assertEquals(str(R.string.usb_verdict_unchecked), detail(PAD));
-        assertEquals(str(R.string.usb_verdict_ask), detail(KEYBOARD));
-        assertEquals(str(R.string.usb_verdict_refused, str(R.string.usb_rule_storage)), detail(STICK));
-        assertEquals(str(R.string.usb_verdict_allowed), detail(HEADSET));
+        assertEquals(str(R.string.usb_share_verdict_unchecked), detail(PAD));
+        assertEquals(str(R.string.usb_share_verdict_ask), detail(KEYBOARD));
+        assertEquals(str(R.string.usb_share_verdict_refused, str(R.string.usb_share_rule_storage)), detail(STICK));
+        assertEquals(str(R.string.usb_share_verdict_allowed), detail(HEADSET));
     }
 
     @Test
@@ -95,11 +95,11 @@ public class UsbShareControllerTest {
         usb.activate(PAD);
         assertEquals(State.PERMISSION, state(PAD));
         assertEquals(Collections.singletonList(PAD), devices.asked);
-        assertEquals(str(R.string.usb_state_permission), detail(PAD));
+        assertEquals(str(R.string.usb_share_state_permission), detail(PAD));
 
         devices.answer(UsbDevices.GRANTED);
         assertEquals(State.CONNECTING, state(PAD));
-        assertEquals(str(R.string.usb_state_connecting), detail(PAD));
+        assertEquals(str(R.string.usb_share_state_connecting), detail(PAD));
         // The tunnel connects off the main thread, to this stream's PC
         FakeUsb.Tunnel tunnel = backends.tunnel();
         assertEquals(0, tunnel.connects);
@@ -119,8 +119,8 @@ public class UsbShareControllerTest {
 
         tunnel.shareAck();
         assertEquals(State.SHARED, state(PAD));
-        assertEquals(str(R.string.usb_state_shared), detail(PAD));
-        assertEquals(str(R.string.usb_shared_toast, "Test pad"), ui.lastMessage());
+        assertEquals(str(R.string.usb_share_state_shared), detail(PAD));
+        assertEquals(str(R.string.usb_share_shared_toast, "Test pad"), ui.lastMessage());
         assertTrue(usb.isBusy());
         // The exporter's own check let it through, so that's the verdict now
         assertEquals(UsbVerdict.ALLOW, usb.entry(PAD).verdict());
@@ -134,7 +134,7 @@ public class UsbShareControllerTest {
         usb.activate(PAD);
         assertEquals(Collections.singletonList(UsbShareTunnel.END_STOPPED), tunnel.closes);
         assertEquals(State.STOPPING, state(PAD));
-        assertEquals(str(R.string.usb_state_stopping), detail(PAD));
+        assertEquals(str(R.string.usb_share_state_stopping), detail(PAD));
         // Choosing it again while it's being given back does nothing more
         usb.activate(PAD);
         assertEquals(1, tunnel.closes.size());
@@ -145,7 +145,7 @@ public class UsbShareControllerTest {
         assertEquals(1, exporter.stops);
         assertFalse(exporter.running);
         assertEquals(State.IDLE, state(PAD));
-        assertEquals(str(R.string.usb_verdict_allowed), detail(PAD));
+        assertEquals(str(R.string.usb_share_verdict_allowed), detail(PAD));
         assertFalse(usb.isBusy());
         assertEquals(1, ui.messages.size());
     }
@@ -171,7 +171,7 @@ public class UsbShareControllerTest {
     public void aKeyboardIsSharedOnlyAfterAYes() {
         usb.activate(KEYBOARD);
         assertEquals(State.CONFIRM, state(KEYBOARD));
-        assertEquals(str(R.string.usb_state_confirm), detail(KEYBOARD));
+        assertEquals(str(R.string.usb_share_state_confirm), detail(KEYBOARD));
         assertSame(usb.entry(KEYBOARD), ui.confirming);
         assertTrue(backends.tunnels.isEmpty());
 
@@ -230,7 +230,7 @@ public class UsbShareControllerTest {
 
         assertEquals(State.CONFIRM, state(PAD));
         assertEquals(1, ui.questions);
-        assertEquals(str(R.string.usb_verdict_ask), UsbShareText.verdict(context, usb.entry(PAD).verdict()));
+        assertEquals(str(R.string.usb_share_verdict_ask), UsbShareText.verdict(context, usb.entry(PAD).verdict()));
         ui.answer.onAnswer(true);
         worker.runAll();
         assertEquals(2, backends.tunnels.size());
@@ -252,7 +252,7 @@ public class UsbShareControllerTest {
         assertEquals(State.IDLE, state(PAD));
         assertFalse(usb.isBusy());
         assertEquals(1, backends.tunnels.size());
-        assertEquals(str(R.string.usb_verdict_ask), detail(PAD));
+        assertEquals(str(R.string.usb_share_verdict_ask), detail(PAD));
     }
 
     // A yes is for one share: sharing the keyboard again asks again
@@ -280,7 +280,7 @@ public class UsbShareControllerTest {
         assertFalse(backends.tunnel().bindAck());
         assertEquals(State.IDLE, state(PAD));
         assertFalse(usb.isBusy());
-        String refused = str(R.string.usb_verdict_refused, str(R.string.usb_rule_too_fast));
+        String refused = str(R.string.usb_share_verdict_refused, str(R.string.usb_share_rule_too_fast));
         assertEquals(refused, detail(PAD));
         assertEquals(refused, ui.lastMessage());
         // From then on it's refused without asking Android again
@@ -302,7 +302,7 @@ public class UsbShareControllerTest {
         usb.activate(STICK);
         assertTrue(devices.asked.isEmpty());
         assertFalse(usb.isBusy());
-        assertEquals(str(R.string.usb_verdict_refused, str(R.string.usb_rule_storage)), ui.lastMessage());
+        assertEquals(str(R.string.usb_share_verdict_refused, str(R.string.usb_share_rule_storage)), ui.lastMessage());
     }
 
     @Test
@@ -310,7 +310,7 @@ public class UsbShareControllerTest {
         devices.autoAnswer = UsbDevices.DENIED;
         usb.activate(PAD);
         assertEquals(State.IDLE, state(PAD));
-        assertEquals(str(R.string.usb_permission_denied), detail(PAD));
+        assertEquals(str(R.string.usb_share_permission_denied), detail(PAD));
         assertTrue(backends.tunnels.isEmpty());
         assertFalse(usb.isBusy());
 
@@ -324,7 +324,7 @@ public class UsbShareControllerTest {
         share(PAD);
         devices.unplug(PAD);
         assertEquals(Collections.singletonList(UsbShareTunnel.END_UNPLUGGED), backends.tunnel().closes);
-        assertEquals(str(R.string.usb_unplugged_toast, "Test pad"), ui.lastMessage());
+        assertEquals(str(R.string.usb_share_unplugged_toast, "Test pad"), ui.lastMessage());
         assertNull(usb.entry(PAD));
         assertEquals(3, usb.entries().size());
         backends.tunnel().endAsAsked();
@@ -399,8 +399,8 @@ public class UsbShareControllerTest {
         backends.tunnel().end(Ending.LOST, 0, 0);
         assertEquals(1, first.stops);
         assertEquals(State.LOST, state(PAD));
-        assertEquals(str(R.string.usb_state_lost), detail(PAD));
-        assertEquals(str(R.string.usb_lost_toast, "Test pad"), ui.lastMessage());
+        assertEquals(str(R.string.usb_share_state_lost), detail(PAD));
+        assertEquals(str(R.string.usb_share_lost_toast, "Test pad"), ui.lastMessage());
         assertFalse(usb.isBusy());
 
         // Share again: the same flow, a new tunnel and exporter
@@ -464,11 +464,11 @@ public class UsbShareControllerTest {
         worker.runAll();
         FakeUsb.Tunnel tunnel = backends.tunnel();
         tunnel.bindAck();
-        tunnel.messageId = R.string.usb_verdict_refused;
-        tunnel.ruleId = R.string.usb_rule_mismatch;
+        tunnel.messageId = R.string.usb_share_verdict_refused;
+        tunnel.ruleId = R.string.usb_share_rule_mismatch;
         tunnel.end(Ending.NOT_SHARED, 2, UsbVerdict.RULE_MISMATCH);
         assertEquals(1, backends.exporter().stops);
-        assertEquals(str(R.string.usb_verdict_refused, str(R.string.usb_rule_mismatch)), detail(PAD));
+        assertEquals(str(R.string.usb_share_verdict_refused, str(R.string.usb_share_rule_mismatch)), detail(PAD));
     }
 
     @Test
@@ -477,7 +477,7 @@ public class UsbShareControllerTest {
         usb.activate(HEADSET);
         assertEquals(1, devices.asked.size());
         assertEquals(State.IDLE, state(HEADSET));
-        assertEquals(str(R.string.usb_one_at_a_time, "Test pad"), ui.lastMessage());
+        assertEquals(str(R.string.usb_share_one_at_a_time, "Test pad"), ui.lastMessage());
     }
 
     // Stop, then another device at once: the first one's tunnel isn't over yet, so the second
@@ -488,7 +488,7 @@ public class UsbShareControllerTest {
         usb.activate(PAD);
         usb.activate(HEADSET);
         assertEquals(1, devices.asked.size());
-        assertEquals(str(R.string.usb_one_at_a_time, "Test pad"), ui.lastMessage());
+        assertEquals(str(R.string.usb_share_one_at_a_time, "Test pad"), ui.lastMessage());
         assertTrue(usb.isBusy());
 
         backends.tunnel().endAsAsked();
