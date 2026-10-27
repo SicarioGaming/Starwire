@@ -42,9 +42,13 @@ import java.security.spec.ECGenParameterSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -74,6 +78,12 @@ public class UsbTunnelTest {
     public String provider;
 
     private final AtomicLong now = new AtomicLong(5_000_000);
+    // Every look at the clock, so a test can wait until the watchdog has seen the time it set
+    private final AtomicLong reads = new AtomicLong();
+    private final UsbTunnel.Clock clock = () -> {
+        reads.incrementAndGet();
+        return now.get();
+    };
     private final List<Closeable> closeLater = new ArrayList<>();
     private TlsProvider tls;
     private FakeHelper helper;
@@ -111,7 +121,7 @@ public class UsbTunnelTest {
 
     // ---------------------------------------------------------------- set-up
     private UsbTunnel tunnel(UsbTunnel.Identities identities, SecureRandom random) {
-        return new UsbTunnel(exporter, events, now::get, random, identities, 2);
+        return new UsbTunnel(exporter, events, clock, random, identities, 2);
     }
 
     private static SecureRandom seeded(long seed) throws Exception {
@@ -944,16 +954,80 @@ public class UsbTunnelTest {
         connect();
         sharing();
         assertThrows(IllegalStateException.class, this::connect);
-        UsbTunnel other = new UsbTunnel(exporter, new TunnelEvents(), now::get, seeded(8), SwutTls::newIdentity, 2);
+        UsbTunnel other = new UsbTunnel(exporter, new TunnelEvents(), clock, seeded(8), SwutTls::newIdentity, 2);
         assertThrows(IllegalStateException.class,
                 () -> other.connect("127.0.0.1", helper.port(), pairing()));
         tunnel.close();
         events.awaitEnded();
         // Free again once it's ended
         TunnelEvents otherEvents = new TunnelEvents();
-        UsbTunnel next = new UsbTunnel(exporter, otherEvents, now::get, seeded(8), SwutTls::newIdentity, 2);
+        UsbTunnel next = new UsbTunnel(exporter, otherEvents, clock, seeded(8), SwutTls::newIdentity, 2);
         next.connect("127.0.0.1", helper.port(), null);
         assertEquals(UsbTunnel.Ending.NO_PAIRING, otherEvents.awaitEnded().kind);
+    }
+
+    // A stop while the exporter is still taking the device lets no new share in until the
+    // exporter has given that device back and the listener has heard, so two are never held
+    @Test
+    public void noNewShareUntilTheExporterHasGivenTheDeviceBack() throws Exception {
+        CountDownLatch begun = new CountDownLatch(1);
+        CountDownLatch letGo = new CountDownLatch(1);
+        exporter.startBegun = begun;
+        exporter.startWaitsFor = letGo;
+        Set<Thread> watchdogs = threadsNamed("UsbTunnelWatch");
+        connect();
+        Thread watchdog = newThreadNamed("UsbTunnelWatch", watchdogs);
+        byte[] hello = hello();
+        byte[] bind = bindFor(hello);
+        helper.send(SwutCodec.bindAck(usbKey(), hello, helper.phoneFp(), helper.helperFp(), bind));
+        assertTrue(begun.await(FakeHelper.SAFETY_MS, TimeUnit.MILLISECONDS));
+        tunnel.close();
+        assertArrayEquals(SwutCodec.end(SwutCodec.END_STOPPED, 0), helper.read());
+        assertTrue("more after END", helper.readUntilClosed().isEmpty());
+        // Over on the network (the watchdog has stopped), but start() still has the device
+        watchdog.join(FakeHelper.SAFETY_MS);
+        assertFalse(watchdog.isAlive());
+        assertTrue(tunnel.isConnected());
+        assertThrows(IllegalStateException.class, this::connect);
+        UsbTunnel other = new UsbTunnel(exporter, new TunnelEvents(), clock, seeded(8), SwutTls::newIdentity, 2);
+        assertThrows(IllegalStateException.class, () -> other.connect("127.0.0.1", helper.port(), pairing()));
+        assertEquals(1, exporter.starts.get());
+        assertEquals(0, exporter.stops.get());
+        assertTrue(events.order().isEmpty());
+
+        letGo.countDown();
+        UsbTunnel.Ending e = events.awaitEnded();
+        assertEquals(UsbTunnel.Ending.STOPPED, e.kind);
+        assertEquals(1, exporter.stops.get());
+        assertEquals(0, exporter.held.get());
+        assertFalse(tunnel.isConnected());
+        // Free again, now the device is back
+        exporter.startWaitsFor = null;
+        connect();
+        sharing();
+        tunnel.close();
+        assertEquals(UsbTunnel.Ending.STOPPED, events.awaitEnded().kind);
+        assertEquals(1, exporter.mostHeld);
+        assertEquals(0, exporter.held.get());
+    }
+
+    // The tunnel's threads with this name that are running now
+    private static Set<Thread> threadsNamed(String name) {
+        Set<Thread> found = new HashSet<>();
+        for (Thread t : Thread.getAllStackTraces().keySet()) {
+            if (name.equals(t.getName()) && t.isAlive()) {
+                found.add(t);
+            }
+        }
+        return found;
+    }
+
+    // The one thread with this name that wasn't running before
+    private static Thread newThreadNamed(String name, Set<Thread> before) {
+        Set<Thread> now = threadsNamed(name);
+        now.removeAll(before);
+        assertEquals("new threads named " + name, 1, now.size());
+        return now.iterator().next();
     }
 
     @Test

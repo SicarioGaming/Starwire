@@ -6,6 +6,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -24,6 +26,12 @@ final class FakeExporter implements UsbTunnel.Exporter, Closeable {
     // Runs in connect(), before the connection is made
     volatile Runnable beforeConnect;
     volatile int authorized = -1;
+    // start() says it's begun, then waits for this, if set
+    volatile CountDownLatch startBegun;
+    volatile CountDownLatch startWaitsFor;
+    // How many devices it holds now, and at most: start() takes one, stop() gives it back
+    final AtomicInteger held = new AtomicInteger();
+    volatile int mostHeld;
     final AtomicInteger starts = new AtomicInteger();
     final AtomicInteger connects = new AtomicInteger();
     final AtomicInteger stops = new AtomicInteger();
@@ -37,6 +45,22 @@ final class FakeExporter implements UsbTunnel.Exporter, Closeable {
     @Override
     public byte[] start() throws IOException {
         starts.incrementAndGet();
+        mostHeld = Math.max(mostHeld, held.incrementAndGet());
+        CountDownLatch begun = startBegun;
+        CountDownLatch until = startWaitsFor;
+        if (begun != null) {
+            begun.countDown();
+        }
+        if (until != null) {
+            try {
+                if (!until.await(FakeHelper.SAFETY_MS, TimeUnit.MILLISECONDS)) {
+                    throw new IOException("the test never let start() return");
+                }
+            }
+            catch (InterruptedException e) {
+                throw new IOException(e);
+            }
+        }
         if (failStart != null) {
             throw failStart;
         }
@@ -68,6 +92,7 @@ final class FakeExporter implements UsbTunnel.Exporter, Closeable {
     @Override
     public void stop() {
         stops.incrementAndGet();
+        held.decrementAndGet();
     }
 
     /** The tunnel's connection, which must come from the port it authorised. */

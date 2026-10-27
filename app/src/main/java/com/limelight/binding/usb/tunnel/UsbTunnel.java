@@ -33,7 +33,8 @@ import javax.net.ssl.SSLSocket;
  * exporter on 127.0.0.1, until either side ends it.
  *
  * One device is shared at a time, in the whole app: connect() refuses a second tunnel while one
- * is connecting or sharing. After it ends, the same tunnel can connect again ("share again").
+ * is connecting, sharing or still giving its device back. Once the listener hears it ended, the
+ * same tunnel can connect again ("share again").
  *
  * Four threads of its own for each connection, none of them the caller's: "UsbTunnel" connects,
  * does the handshake and then reads from the helper; "UsbTunnelSend" writes every frame after
@@ -90,7 +91,11 @@ public final class UsbTunnel {
         /** The PC took the device, and its traffic now goes through the tunnel. */
         void onSharing();
 
-        /** The connection ended, however it ended. Called once for each connect(). */
+        /**
+         * The connection ended, however it ended, and the exporter has given the device back.
+         * Called once for each connect(). From here on connect() can be called again, from
+         * here too; the next connection's calls wait until this one returns.
+         */
         void onEnded(Ending ending);
     }
 
@@ -283,6 +288,9 @@ public final class UsbTunnel {
     private final Object lock = new Object();
     // Guarded by lock: the connection now, or the last one
     private Session session;
+    // Held for each call to the listener, so onSharing() never comes after onEnded(), and the next
+    // connection's calls wait for the last one's onEnded()
+    private final Object callbackLock = new Object();
 
     public UsbTunnel(Exporter exporter, Listener listener) {
         this(exporter, listener, () -> System.nanoTime() / 1_000_000, new SecureRandom(), SwutTls::newIdentity, TICK_MS);
@@ -320,6 +328,9 @@ public final class UsbTunnel {
         long cutAt;           // when a proper close gives up and cuts the connection; 0 for none
         int closeRequest;
         boolean lostRequest;
+        // finish() has begun: nothing more to do but give the device back and tell the listener
+        boolean finishing;
+        // The device is back and the listener told: connect() may start another
         boolean finished;
         Socket plain;
         SSLSocket tls;
@@ -328,11 +339,10 @@ public final class UsbTunnel {
         Thread pump;
         final BlockingQueue<byte[]> out = new ArrayBlockingQueue<>(QUEUED_FRAMES);
 
-        // Guarded by exporterLock, so stop() never runs while start() still is
+        // Guarded by exporterLock, so stop() never runs while start() or connect() still is
         final Object exporterLock = new Object();
         boolean exporterStarted;
-        // Guarded by callbackLock, so onSharing() never comes after onEnded()
-        final Object callbackLock = new Object();
+        // Guarded by the tunnel's callbackLock: onEnded() has been called
         boolean told;
 
         Session(String host, int port) {
@@ -462,7 +472,7 @@ public final class UsbTunnel {
                 // socket. Close that too, unless a proper close is still sending its END.
                 boolean closing;
                 synchronized (lock) {
-                    closing = s.cutAt != 0 && !s.finished;
+                    closing = s.cutAt != 0 && !s.finishing;
                 }
                 if (!closing) {
                     cut(s);
@@ -687,7 +697,7 @@ public final class UsbTunnel {
             s.pump = pump;
         }
         pump.start();
-        synchronized (s.callbackLock) {
+        synchronized (callbackLock) {
             if (!s.told) {
                 listener.onSharing();
             }
@@ -835,7 +845,7 @@ public final class UsbTunnel {
         while (true) {
             Runnable act = null;
             synchronized (lock) {
-                if (s.finished) {
+                if (s.finishing) {
                     return;
                 }
                 long now = clock.nowMs();
@@ -950,22 +960,24 @@ public final class UsbTunnel {
         }
     }
 
+    // Gives the device back, then frees the app's one share and tells the listener. Until the
+    // exporter's stop() returns, isConnected() stays true and connect() refuses another, so two
+    // devices are never held at once.
     private void finish(Session s) {
         Ending ending;
         Thread sender;
         Thread pump;
         synchronized (lock) {
-            if (s.finished) {
+            if (s.finishing) {
                 return;
             }
             if (s.ending == null) {
                 s.ending = Ending.of(Ending.LOST);
             }
-            s.finished = true;
+            s.finishing = true;
             ending = s.ending;
             sender = s.sender;
             pump = s.pump;
-            ACTIVE.compareAndSet(s, null);
             lock.notifyAll();
         }
         Thread self = Thread.currentThread();
@@ -986,7 +998,12 @@ public final class UsbTunnel {
             }
         }
         LimeLog.info("USB tunnel ended: " + ending);
-        synchronized (s.callbackLock) {
+        synchronized (callbackLock) {
+            synchronized (lock) {
+                s.finished = true;
+                ACTIVE.compareAndSet(s, null);
+                lock.notifyAll();
+            }
             s.told = true;
             try {
                 listener.onEnded(ending);
