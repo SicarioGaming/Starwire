@@ -21,21 +21,35 @@ import java.io.FileOutputStream;
 
 /**
  * The helpers that let the device tests run back to Android 5: where a test writes its files,
- * and granting a permission. Each failed on the Android 5 and 6 emulators before (2026-10-23).
+ * and granting a permission. Before (2026-10-23), writing a file failed on the Android 5
+ * emulator, and granting a permission on the Android 5 and 6 emulators.
  */
 @RunWith(AndroidJUnit4.class)
 public class TestSetupTest {
     private final Context target = InstrumentationRegistry.getInstrumentation().getTargetContext();
 
+    // Shared storage, when there is some, is where device-test.sh pulls the files from
     @Test
     public void filesGoToSharedStorageWhenThereIsSome() {
-        File shared = target.getExternalFilesDir(null);
-        if (shared != null) {
-            assertEquals(shared, TestFiles.dir(target));
+        File shared = new File(target.getCacheDir(), "shared-storage");
+        Context withSharedStorage = new ContextWrapper(target) {
+            @Override
+            public File getExternalFilesDir(String type) {
+                return shared;
+            }
+        };
+        assertEquals(shared, TestFiles.dir(withSharedStorage));
+        assertEquals(shared, TestFiles.file(withSharedStorage, "a.png").getParentFile());
+    }
+
+    // What the tests that save screenshots do, wherever this device puts the file
+    @Test
+    public void aTestCanSaveAFileOnThisDevice() throws Exception {
+        File file = TestFiles.file(target, "test-setup-check.txt");
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(1);
         }
-        else {
-            assertEquals(target.getFilesDir(), TestFiles.dir(target));
-        }
+        assertTrue(file.delete());
     }
 
     @Test

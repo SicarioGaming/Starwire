@@ -11,7 +11,9 @@ import java.io.File;
  *
  * An Android 5 emulator without an SD card has none: getExternalFilesDir() returns null there,
  * so new File(null, name) was just the name, and writing it failed with "EROFS (Read-only file
- * system)" in the root folder. Eight layout tests failed that way on the Android 5.0 leg.
+ * system)" in the root folder. Fifteen tests that save a screenshot failed that way on the
+ * Android 5.0 leg (2026-10-23): AppViewTest 5, CoverGlowTest 6, ScreenWidthTest 3 and
+ * SettingsWidthTest 1.
  */
 public final class TestFiles {
     private TestFiles() {}
