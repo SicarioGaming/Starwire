@@ -1,7 +1,10 @@
 package com.limelight.binding.usb.tunnel;
 
 import java.io.Closeable;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -26,6 +29,12 @@ final class FakeExporter implements UsbTunnel.Exporter, Closeable {
     // Runs in connect(), before the connection is made
     volatile Runnable beforeConnect;
     volatile int authorized = -1;
+    // The tunnel's end of the connection, as connect() gave it. The real exporter closes this one
+    // itself when the device is unplugged (UsbExporter.release).
+    volatile Socket given;
+    // If set, the tunnel's reads from its end wait for this first, as if they hadn't yet seen
+    // the connection close. Only the end of the session lets them go, by interrupting them.
+    volatile CountDownLatch readsWaitFor;
     // start() says it's begun, then waits for this, if set
     volatile CountDownLatch startBegun;
     volatile CountDownLatch startWaitsFor;
@@ -81,12 +90,51 @@ final class FakeExporter implements UsbTunnel.Exporter, Closeable {
             return new Socket();
         }
         InetAddress loopback = InetAddress.getByName("127.0.0.1");
-        Socket s = new Socket();
+        CountDownLatch until = readsWaitFor;
+        Socket s = until != null ? new HeldReads(until) : new Socket();
         s.setReuseAddress(false);
         s.bind(new InetSocketAddress(loopback, 0));
         authorized = s.getLocalPort();
         s.connect(new InetSocketAddress(loopback, server.getLocalPort()), timeoutMs);
+        given = s;
         return s;
+    }
+
+    // A socket whose reads wait for a latch before they start
+    private static final class HeldReads extends Socket {
+        private final CountDownLatch until;
+
+        HeldReads(CountDownLatch until) {
+            this.until = until;
+        }
+
+        @Override
+        public InputStream getInputStream() throws IOException {
+            return new FilterInputStream(super.getInputStream()) {
+                @Override
+                public int read() throws IOException {
+                    hold();
+                    return super.read();
+                }
+
+                @Override
+                public int read(byte[] b, int at, int length) throws IOException {
+                    hold();
+                    return super.read(b, at, length);
+                }
+            };
+        }
+
+        private void hold() throws IOException {
+            try {
+                if (!until.await(FakeHelper.SAFETY_MS, TimeUnit.MILLISECONDS)) {
+                    throw new IOException("the test never let the read go");
+                }
+            }
+            catch (InterruptedException e) {
+                throw new InterruptedIOException("interrupted while held");
+            }
+        }
     }
 
     @Override

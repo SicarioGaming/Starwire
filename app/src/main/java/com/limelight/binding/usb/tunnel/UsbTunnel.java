@@ -333,6 +333,7 @@ public final class UsbTunnel {
         // The session thread's own
         byte[] usbKey;
         byte[] deviceId;
+        OutputStream toExporter;
         boolean tcpConnected;
 
         int phase = CONNECTING;
@@ -703,6 +704,9 @@ public final class UsbTunnel {
             }
             local.setTcpNoDelay(true);
             fromExporter = local.getInputStream();
+            // Both ways here, where a closed connection means END 2: the exporter closes the
+            // tunnel's end itself when the device is unplugged, which can come before the relay starts
+            s.toExporter = local.getOutputStream();
         }
         catch (IOException e) {
             LimeLog.warning("USB tunnel: no connection to the exporter: " + e);
@@ -726,11 +730,10 @@ public final class UsbTunnel {
     // The helper's frames, to the exporter, until the session ends
     private void relay(Session s) throws IOException, Ended {
         InputStream in;
-        OutputStream toExporter;
         synchronized (lock) {
             in = s.tls.getInputStream();
-            toExporter = s.local.getOutputStream();
         }
+        OutputStream toExporter = s.toExporter;
         while (true) {
             byte[] f = readFrame(in);
             heard(s);

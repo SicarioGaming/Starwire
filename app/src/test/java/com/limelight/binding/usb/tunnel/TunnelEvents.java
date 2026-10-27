@@ -13,9 +13,15 @@ final class TunnelEvents implements UsbTunnel.Listener {
     final List<String> order = new ArrayList<>();
     private final BlockingQueue<Boolean> sharing = new LinkedBlockingQueue<>();
     private final BlockingQueue<UsbTunnel.Ending> endings = new LinkedBlockingQueue<>();
+    // Runs in onSharing(), on the tunnel's thread, before it's recorded
+    volatile Runnable whenSharing;
 
     @Override
     public void onSharing() {
+        Runnable r = whenSharing;
+        if (r != null) {
+            r.run();
+        }
         synchronized (order) {
             order.add("sharing");
         }
