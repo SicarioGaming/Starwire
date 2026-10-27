@@ -5,8 +5,16 @@ import com.limelight.binding.audio.securemic.SwmcCodec;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
+import javax.crypto.ShortBufferException;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * The USB tunnel's own frames, "SWUT" version 1, exactly as docs/dev/usb-protocol.md describes
@@ -143,7 +151,74 @@ public final class SwutCodec {
         if (pairKey == null || pairKey.length != KEY_LENGTH || deviceId == null || deviceId.length != ID_LENGTH) {
             throw new IllegalArgumentException("a 32-byte pairing key and an 8-byte device id");
         }
-        return SwmcCodec.hkdf(null, pairKey, concat(LABEL_AUTH, deviceId), KEY_LENGTH);
+        return hkdf(pairKey, concat(LABEL_AUTH, deviceId), new ArrayList<>());
+    }
+
+    private static final String HMAC = "HmacSHA256";
+
+    /**
+     * HKDF-SHA256 with no salt, its first 32 bytes (RFC 5869), as SwmcCodec.hkdf works it out,
+     * but this one wipes its PRK: with no salt the PRK is the same for K_usb and the microphone's
+     * K_auth, so it would give both. Each copy of the PRK made here, the one HMAC took included,
+     * goes in copies and is wiped, and HMAC is keyed with zeros again. Best effort: an HMAC
+     * provider may still keep a copy of its own until it's collected.
+     */
+    static byte[] hkdf(byte[] ikm, byte[] info, List<byte[]> copies) throws GeneralSecurityException {
+        Mac mac = Mac.getInstance(HMAC);
+        byte[] prk = new byte[KEY_LENGTH];
+        copies.add(prk);
+        try {
+            mac.init(new SecretKeySpec(new byte[KEY_LENGTH], HMAC));
+            mac.update(ikm);
+            mac.doFinal(prk, 0);
+            mac.init(new CountedKey(prk, copies));
+            mac.update(info);
+            mac.update((byte) 1);
+            return mac.doFinal();
+        }
+        catch (ShortBufferException e) {
+            throw new GeneralSecurityException(e);
+        }
+        finally {
+            try {
+                mac.init(new SecretKeySpec(new byte[KEY_LENGTH], HMAC));
+            }
+            catch (InvalidKeyException e) {
+                // The copies are wiped below either way
+            }
+            for (byte[] copy : copies) {
+                Arrays.fill(copy, (byte) 0);
+            }
+        }
+    }
+
+    // A key HMAC can take that notes each copy of itself it hands out, so they can all be wiped
+    private static final class CountedKey implements SecretKey {
+        private static final long serialVersionUID = 1L;
+        private final transient byte[] key;
+        private final transient List<byte[]> copies;
+
+        CountedKey(byte[] key, List<byte[]> copies) {
+            this.key = key;
+            this.copies = copies;
+        }
+
+        @Override
+        public String getAlgorithm() {
+            return HMAC;
+        }
+
+        @Override
+        public String getFormat() {
+            return "RAW";
+        }
+
+        @Override
+        public byte[] getEncoded() {
+            byte[] copy = key.clone();
+            copies.add(copy);
+            return copy;
+        }
     }
 
     /** A certificate's fingerprint: SHA-256 of its DER bytes, as TLS sent them. */

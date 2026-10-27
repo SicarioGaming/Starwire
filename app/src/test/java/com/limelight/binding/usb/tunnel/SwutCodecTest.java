@@ -19,14 +19,19 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPublicKey;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+
+import javax.crypto.Mac;
 
 /**
  * SWUT v1, the USB tunnel's own frames (docs/dev/usb-protocol.md): every line of the vectors file
@@ -36,6 +41,36 @@ import java.util.Random;
  * fuzz).
  */
 public class SwutCodecTest {
+
+    // K_usb's HKDF gives RFC 5869's no-salt case and what the mic's HKDF gives, on the JDK's HMAC
+    // and on Conscrypt's, and wipes each copy of its PRK it made or handed to HMAC
+    @Test
+    public void theUsbKeysHkdfWipesItsPrk() throws Exception {
+        for (String which : new String[] {TlsProvider.JDK, TlsProvider.CONSCRYPT}) {
+            try (TlsProvider p = TlsProvider.use(which)) {
+                String expected = TlsProvider.JDK.equals(which) ? "SunJCE" : "Conscrypt";
+                assertEquals(expected, Mac.getInstance("HmacSHA256").getProvider().getName());
+                List<byte[]> copies = new ArrayList<>();
+                byte[] ikm = new byte[22];
+                Arrays.fill(ikm, (byte) 0x0b);
+                assertEquals("8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d",
+                        hex(SwutCodec.hkdf(ikm, new byte[0], copies)));
+                assertTrue("only " + copies.size() + " copies seen", copies.size() >= 2);
+                for (byte[] copy : copies) {
+                    assertArrayEquals("a copy of the PRK wasn't wiped", new byte[32], copy);
+                }
+                SecureRandom r = TlsProvider.seeded(12);
+                for (int i = 0; i < 8; i++) {
+                    byte[] key = new byte[32];
+                    byte[] info = new byte[1 + 5 * i];
+                    r.nextBytes(key);
+                    r.nextBytes(info);
+                    assertArrayEquals(SwmcCodec.hkdf(null, key, info, 32), SwutCodec.hkdf(key, info, new ArrayList<>()));
+                }
+                assertArrayEquals(hex(SwutVectors.read().get("key.usb")), usbKey());
+            }
+        }
+    }
 
     private static byte[] usbKey() throws Exception {
         return SwutCodec.usbKey(SwutVectors.PAIR_KEY, SwutVectors.DEVICE_ID);

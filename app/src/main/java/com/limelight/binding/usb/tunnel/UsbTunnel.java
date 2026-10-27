@@ -392,9 +392,11 @@ public final class UsbTunnel {
 
     /**
      * Starts sharing a device with the USB helper at host. The pairing is the microphone's with
-     * this PC, read from MicPairingStore for this connection: K_usb is worked out from it here and
-     * the copy of its key is wiped (the pairing itself isn't changed). Null means not paired, and
-     * the listener hears so. The exporter gets the device only after a BIND_ACK that checks out.
+     * this PC, read from MicPairingStore for this connection: K_usb is worked out from a copy of
+     * its key here, and the copy is wiped. The pairing itself isn't changed, so the caller wipes
+     * its key once this returns, as the contract asks, unless something else still uses that
+     * pairing (the microphone has its own). Null means not paired, and the listener hears so. The
+     * exporter gets the device only after a BIND_ACK that checks out.
      *
      * @throws IllegalStateException while this or another tunnel is connecting or sharing
      */
