@@ -7,6 +7,11 @@ include(FetchContent)
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
 endif()
+# Starwire: CMake 3.30 and later warn about FetchContent_Populate with declared details, which
+# this file relies on, so it keeps the old behaviour until it moves to FetchContent_MakeAvailable
+if(POLICY CMP0169)
+    cmake_policy(SET CMP0169 OLD)
+endif()
 
 # Fixed revisions; fetched sources and license files remain in the build tree.
 FetchContent_Declare(usbipdcpp TIMEOUT 600 URL https://codeload.github.com/yunsmall/usbipdcpp/tar.gz/1355113f030c4c13404030e6e7426bceb6085276

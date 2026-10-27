@@ -74,18 +74,15 @@ public final class UsbIpBackend implements AutoCloseable {
                 is64Bit ? Build.SUPPORTED_64_BIT_ABIS : Build.SUPPORTED_32_BIT_ABIS);
     }
 
+    // Starwire builds the exporter for 64-bit ARM only (usbip-backend/build.gradle), and for x86_64
+    // in debug builds, where the device tests call the native layer directly. A 32-bit process has
+    // no exporter library to load, so ARMv7 isn't supported here.
     static boolean isSupported(int sdkInt, boolean is64Bit, String[] processAbis) {
-        if (sdkInt < 28 || processAbis == null) return false;
-        String target = is64Bit ? "arm64-v8a" : "armeabi-v7a";
+        if (sdkInt < 28 || !is64Bit || processAbis == null) return false;
         for (String abi : processAbis) {
-            if (target.equals(abi)) return true;
+            if ("arm64-v8a".equals(abi)) return true;
         }
         return false;
-    }
-
-    /** ARMv7 can be tested, but has not yet been validated on physical hardware. */
-    public static boolean isExperimentalArmv7() {
-        return isSupported() && !android.os.Process.is64Bit();
     }
 
     public synchronized Future<Export> export(UsbDevice device) {
