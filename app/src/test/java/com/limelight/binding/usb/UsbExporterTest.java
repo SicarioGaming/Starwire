@@ -304,7 +304,7 @@ public class UsbExporterTest {
     // can't let go of its own locks, so once this is true of the caller it stays true. These
     // tests compile against android.jar, which has no java.lang.management, so it's reached by
     // reflection: they run on a full JDK.
-    static boolean blockedBy(Thread owner, Thread thread) {
+    private static boolean blockedBy(Thread owner, Thread thread) {
         try {
             Object threads = Class.forName("java.lang.management.ManagementFactory")
                     .getMethod("getThreadMXBean").invoke(null);
@@ -680,10 +680,11 @@ public class UsbExporterTest {
     }
 
     // The two tests above see a wait through onAnotherThread, so its rule has tests of its own.
-    // A thread whose task has returned is BLOCKED on its own Thread object as it ends, and that
-    // isn't waiting for the caller. currentDoesntWaitForAStopUnderWay failed that way now and
-    // then (once on CI, 27 Oct 2026): current() returned at once, and its thread got there before
-    // its starter had let go of that monitor. Here a third thread holds it, so the moment lasts
+    // A thread whose task has returned takes its own Thread object's monitor as it ends, and is
+    // BLOCKED while another thread holds it. That isn't waiting for the caller.
+    // currentDoesntWaitForAStopUnderWay failed that way now and then (once on CI, 27 Oct 2026):
+    // current() returned at once, and its thread got there before its starter had let go of that
+    // monitor. Here a third thread holds it, so the thread stays BLOCKED until the test lets go
     @Test
     public void aThreadThatIsEndingIsntWaitingForTheCaller() throws Exception {
         CountDownLatch go = new CountDownLatch(1);
