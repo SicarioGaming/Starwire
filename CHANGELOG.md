@@ -13,6 +13,13 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **USB sharing, the phone's end of the tunnel** ([usb-protocol.md](docs/dev/usb-protocol.md)):
+  TLS to the PC's USB helper, tied to the microphone's pairing, then the device's traffic both
+  ways. Nothing in the app uses it yet. It's tested on a PC against a fake helper and a fake
+  exporter only, not on a phone, with the real helper or with a USB device.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

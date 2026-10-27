@@ -11,10 +11,13 @@ byte.
 
 **Status.** Written before the code. It has had one security review (Rv-1, first round), whose
 findings are fixed here, but not its second round or the maintainer's sign-off, so it can still
-change. Only the frames, keys and MACs exist so far (`SwutCodec.java`), checked by the app's JVM
-tests against the vectors. The device rules' cases are written, but no code decides them yet.
-There's no tunnel, no helper, no relay and no device rules in code, no device has gone through
-any of it, and nothing here has been tried on Windows.
+change. The frames, keys and MACs exist (`SwutCodec.java`), and so does Starwire's end of the
+tunnel (`UsbTunnel.java` and `SwutTls.java`: TLS, BIND, SHARE, the relay to the exporter, and
+each way a session ends). The app's JVM tests check them against the vectors, and Starwire's end
+against a fake helper and a fake exporter on 127.0.0.1. Starwire's end hasn't run on a phone, or
+with the real helper or exporter. The device rules' cases are written, but no code decides them
+yet. The helper's end of the tunnel, its relay and the device rules aren't in code, no device has
+gone through any of it, and nothing here has been tried on Windows.
 
 ## In plain words
 
