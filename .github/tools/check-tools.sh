@@ -741,6 +741,7 @@ if [ $status -ne 0 ]; then
     printf '%s\n' "$commits_out" | grep -v '^ok ' >&2 || true
     fail "check-commits.sh --self-test exited $status"
 fi
+grep '^skipped: ' <<< "$commits_out" || true
 ok "check-commits.sh tells good commit messages and branch names from bad ones"
 
 # 15. check-version.sh sorts its planted tag names, versions and releases (in a throwaway repo of
@@ -754,6 +755,7 @@ if [ $status -ne 0 ]; then
     printf '%s\n' "$version_out" | grep -v '^ok ' >&2 || true
     fail "check-version.sh --self-test exited $status"
 fi
+grep '^skipped: ' <<< "$version_out" || true
 ok "check-version.sh tells good release tags and version bumps from bad ones"
 
 # 16. RELEASING.md says how to add and fetch, without tags, every fork remote check-publish.sh
