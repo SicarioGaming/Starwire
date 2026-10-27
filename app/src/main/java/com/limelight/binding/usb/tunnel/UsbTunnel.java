@@ -267,6 +267,16 @@ public final class UsbTunnel {
         SwutTls.Identity next(SecureRandom random) throws GeneralSecurityException;
     }
 
+    /** K_usb from a copy of K_pair (SwutCodec.usbKey), so the tests can see both are wiped. */
+    interface Keys {
+        byte[] usbKey(byte[] pairKey, byte[] deviceId) throws GeneralSecurityException;
+    }
+
+    /** The plain socket TLS runs over, so the tests can hold up what it sends. */
+    interface Sockets {
+        Socket plain();
+    }
+
     // The connection that's connecting or sharing, in the whole app
     private static final AtomicReference<Session> ACTIVE = new AtomicReference<>();
 
@@ -281,6 +291,8 @@ public final class UsbTunnel {
     private final Clock clock;
     private final SecureRandom random;
     private final Identities identities;
+    private final Keys keys;
+    private final Sockets sockets;
     private final long tickMs;
 
     private final Object lock = new Object();
@@ -296,6 +308,11 @@ public final class UsbTunnel {
 
     UsbTunnel(Exporter exporter, Listener listener, Clock clock, SecureRandom random, Identities identities,
               long tickMs) {
+        this(exporter, listener, clock, random, identities, SwutCodec::usbKey, Socket::new, tickMs);
+    }
+
+    UsbTunnel(Exporter exporter, Listener listener, Clock clock, SecureRandom random, Identities identities,
+              Keys keys, Sockets sockets, long tickMs) {
         if (exporter == null || listener == null) {
             throw new IllegalArgumentException("an exporter and a listener");
         }
@@ -304,6 +321,8 @@ public final class UsbTunnel {
         this.clock = clock;
         this.random = random;
         this.identities = identities;
+        this.keys = keys;
+        this.sockets = sockets;
         this.tickMs = tickMs;
     }
 
@@ -387,7 +406,7 @@ public final class UsbTunnel {
         if (pairing != null) {
             byte[] pairKey = pairing.key.clone();
             try {
-                s.usbKey = SwutCodec.usbKey(pairKey, pairing.deviceId);
+                s.usbKey = keys.usbKey(pairKey, pairing.deviceId);
             }
             catch (GeneralSecurityException e) {
                 throw new IllegalStateException("no HMAC-SHA256 on this phone", e);
@@ -522,7 +541,7 @@ public final class UsbTunnel {
             throw new Ended(Ending.NOT_HOME_NETWORK);
         }
         SwutTls.Identity me = identities.next(random);
-        Socket plain = new Socket();
+        Socket plain = sockets.plain();
         synchronized (lock) {
             s.plain = plain;
             if (s.ending != null) {
@@ -677,7 +696,7 @@ public final class UsbTunnel {
         }
         InputStream fromExporter;
         try {
-            if (local == null || !local.isConnected()) {
+            if (local == null) {
                 throw new IOException("the exporter gave no connection");
             }
             local.setTcpNoDelay(true);

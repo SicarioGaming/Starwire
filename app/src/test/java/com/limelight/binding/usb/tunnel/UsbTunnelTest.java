@@ -5,6 +5,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -32,6 +33,7 @@ import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -41,6 +43,7 @@ import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -932,12 +935,17 @@ public class UsbTunnelTest {
         assertEquals(UsbTunnel.Ending.STOPPED, events.awaitEnded().kind);
     }
 
+    // One KEEPALIVE for each quiet second, not one each time the watchdog looks
     @Test
     public void aQuietSecondSendsAKeepalive() throws Exception {
         connect();
-        sharing();
+        Socket local = sharing();
         now.addAndGet(UsbTunnel.KEEPALIVE_MS);
         assertArrayEquals(SwutCodec.keepalive(), helper.read());
+        awaitWatched();
+        byte[] ping = hex("aa");
+        local.getOutputStream().write(ping);
+        assertArrayEquals("another KEEPALIVE, with no quiet second since", SwutCodec.data(ping, 0, 1), helper.read());
         now.addAndGet(UsbTunnel.KEEPALIVE_MS);
         assertArrayEquals(SwutCodec.keepalive(), helper.read());
         tunnel.close();
@@ -1073,6 +1081,318 @@ public class UsbTunnelTest {
             assertNotEquals(R.string.usb_rule_unknown, UsbTunnel.ruleText(rule));
         }
         assertEquals(R.string.usb_rule_unknown, UsbTunnel.ruleText(11));
+    }
+
+    // ---------------------------------------------------------------- what the review found untested
+    // Each answer gets its own 10 s, counted from what it answers: HELLO from the start, BIND_ACK
+    // from BIND, SHARE_ACK from SHARE
+    @Test
+    public void eachAnswerGetsItsOwnTenSeconds() throws Exception {
+        connect();
+        helper.accept();
+        now.addAndGet(UsbTunnel.ANSWER_MS - 1);
+        awaitWatched();
+        byte[] hello = hello();
+        helper.send(hello);
+        byte[] bind = helper.read();
+        now.addAndGet(UsbTunnel.ANSWER_MS - 1);
+        awaitWatched();
+        helper.send(SwutCodec.bindAck(usbKey(), hello, helper.phoneFp(), helper.helperFp(), bind));
+        assertArrayEquals(exporter.share, helper.read());
+        now.addAndGet(UsbTunnel.ANSWER_MS - 1);
+        awaitWatched();
+        helper.send(SwutCodec.shareAck(SwutCodec.SHARE_ATTACHING, 0));
+        Socket local = exporter.accept();
+        closeLater.add(local);
+        events.awaitSharing();
+        tunnel.close();
+        assertEquals(UsbTunnel.Ending.STOPPED, events.awaitEnded().kind);
+    }
+
+    // An END where SHARE_ACK should be is the PC's END, passed on and not answered
+    @Test
+    public void anEndInsteadOfShareAckIsPassedOnAndNotAnswered() throws Exception {
+        connect();
+        bound();
+        helper.send(SwutCodec.end(SwutCodec.END_USB_OFF, 0));
+        UsbTunnel.Ending e = events.awaitEnded();
+        assertEquals(e.toString(), UsbTunnel.Ending.ENDED_BY_PC, e.kind);
+        assertEquals(SwutCodec.END_USB_OFF, e.code);
+        assertEquals(R.string.usb_tunnel_usb_off, e.messageId());
+        assertTrue("Starwire answered an END", helper.readUntilClosed().isEmpty());
+        assertEquals(0, exporter.connects.get());
+        assertEquals(1, exporter.stops.get());
+    }
+
+    // Wi-Fi gone before BIND_ACK: cut at once, nothing sent, the exporter never asked, and
+    // "Share again" offered
+    @Test
+    public void losingTheNetworkBeforeBindAckCutsItWithoutTheDevice() throws Exception {
+        connect();
+        bindFor(hello());
+        tunnel.networkLost();
+        UsbTunnel.Ending e = events.awaitEnded();
+        assertEquals(UsbTunnel.Ending.LOST, e.kind);
+        assertTrue(e.canShareAgain());
+        assertTrue(helper.readUntilClosed().isEmpty());
+        assertEquals(0, exporter.starts.get());
+        assertEquals(0, exporter.stops.get());
+    }
+
+    // After END, TLS is closed properly, with close_notify, before the connection. On TLS 1.2,
+    // where an alert shows on the wire as a record type of its own (21)
+    @Test
+    public void aStopClosesTlsProperlyAfterItsEnd() throws Exception {
+        helper.close();
+        helper = new FakeHelper(SwutTls.newIdentity(seeded(5)), new String[] {"TLSv1.2"}, null);
+        Tap tap = new Tap(helper.port());
+        closeLater.add(tap);
+        tunnel.connect("127.0.0.1", tap.port(), pairing());
+        sharing();
+        tunnel.close();
+        assertArrayEquals(SwutCodec.end(SwutCodec.END_STOPPED, 0), helper.read());
+        assertEquals(UsbTunnel.Ending.STOPPED, events.awaitEnded().kind);
+        List<Integer> types = tap.recordTypesFromPhone();
+        assertEquals(types.toString(), Integer.valueOf(Tap.ALERT), types.get(types.size() - 1));
+        assertEquals(types.toString(), Integer.valueOf(Tap.APPLICATION_DATA), types.get(types.size() - 2));
+        assertEquals(types.toString(), 1, Collections.frequency(types, Tap.ALERT));
+    }
+
+    // A stop whose END can't go out (the helper stopped reading, every buffer on the way is full)
+    // is cut CLOSE_MS later, and still ends as the stop it was
+    @Test
+    public void aStopThatCantGoOutIsCutAfterTwoSeconds() throws Exception {
+        List<HeldSocket> plain = new ArrayList<>();
+        tunnel = new UsbTunnel(exporter, events, clock, seeded(1), SwutTls::newIdentity, SwutCodec::usbKey, () -> {
+            HeldSocket s = new HeldSocket();
+            plain.add(s);
+            return s;
+        }, 2);
+        connect();
+        Socket local = sharing();
+        plain.get(0).hold = true;
+        tunnel.close();
+        awaitWatched();
+        now.addAndGet(UsbTunnel.CLOSE_MS - 1);
+        awaitWatched();
+        assertTrue(tunnel.isConnected());
+        assertEquals(Arrays.asList("sharing"), events.order());
+        now.addAndGet(1);
+        UsbTunnel.Ending e = events.awaitEnded();
+        assertEquals(UsbTunnel.Ending.STOPPED, e.kind);
+        assertEquals(SwutCodec.END_STOPPED, e.code);
+        assertTrue(closedByPeer(local));
+        assertEquals(1, exporter.stops.get());
+        assertFalse(tunnel.isConnected());
+    }
+
+    // K_pair's copy is wiped as soon as K_usb is worked out, and K_usb once BIND_ACK checks out,
+    // when a session ends before that, and when connect() is turned away. The caller's pairing
+    // is left as it was.
+    @Test
+    public void theKeysAreWipedOnceTheyHaveDoneTheirWork() throws Exception {
+        List<byte[]> pairKeys = new ArrayList<>();
+        List<byte[]> usbKeys = new ArrayList<>();
+        UsbTunnel.Keys watched = (pairKey, deviceId) -> {
+            byte[] k = SwutCodec.usbKey(pairKey, deviceId);
+            synchronized (pairKeys) {
+                pairKeys.add(pairKey);
+                usbKeys.add(k);
+            }
+            return k;
+        };
+        tunnel = new UsbTunnel(exporter, events, clock, seeded(1), SwutTls::newIdentity, watched, Socket::new, 2);
+        MicPairing p = pairing();
+        tunnel.connect("127.0.0.1", helper.port(), p);
+        assertWiped(pairKeys.get(0));
+        assertArrayEquals(SwutVectors.PAIR_KEY, p.key);
+        bound();
+        assertWiped(usbKeys.get(0));
+        tunnel.close();
+        events.awaitEnded();
+        helper.readUntilClosed();
+
+        // Refused before BIND_ACK: wiped by the time the session's thread is done
+        Set<Thread> sessions = threadsNamed("UsbTunnel");
+        connect();
+        Thread session = newThreadNamed("UsbTunnel", sessions);
+        bindFor(hello());
+        helper.send(SwutCodec.refuse(SwutCodec.REFUSE_NOT_PAIRED));
+        events.awaitEnded();
+        session.join(FakeHelper.SAFETY_MS);
+        assertFalse(session.isAlive());
+        assertWiped(pairKeys.get(1));
+        assertWiped(usbKeys.get(1));
+        helper.readUntilClosed();
+
+        // Turned away while another share is going
+        connect();
+        bindFor(hello());
+        UsbTunnel other = new UsbTunnel(exporter, new TunnelEvents(), clock, seeded(8), SwutTls::newIdentity, watched,
+                Socket::new, 2);
+        assertThrows(IllegalStateException.class, () -> other.connect("127.0.0.1", helper.port(), pairing()));
+        assertEquals(4, usbKeys.size());
+        assertWiped(pairKeys.get(3));
+        assertWiped(usbKeys.get(3));
+        tunnel.close();
+        events.awaitEnded();
+    }
+
+    private static void assertWiped(byte[] key) {
+        assertArrayEquals("not wiped", new byte[key.length], key);
+    }
+
+    // Waits until the watchdog has looked at the clock since the test last moved it, and done
+    // whatever that called for. Only the watchdog looks while nothing is sent or heard.
+    private void awaitWatched() throws InterruptedException {
+        long enough = reads.get() + 2;
+        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(FakeHelper.SAFETY_MS);
+        while (reads.get() < enough) {
+            if (System.nanoTime() > until) {
+                fail("the watchdog never looked at the clock");
+            }
+            Thread.sleep(1);
+        }
+    }
+
+    // A plain socket whose writes can be held, as if the helper had stopped reading and every
+    // buffer on the way were full. Closing it makes a held write fail, as closing a real one does.
+    private static final class HeldSocket extends Socket {
+        volatile boolean hold;
+        private final CountDownLatch closed = new CountDownLatch(1);
+
+        @Override
+        public OutputStream getOutputStream() throws IOException {
+            OutputStream out = super.getOutputStream();
+            return new OutputStream() {
+                @Override
+                public void write(int b) throws IOException {
+                    write(new byte[] {(byte) b}, 0, 1);
+                }
+
+                @Override
+                public void write(byte[] b, int at, int length) throws IOException {
+                    if (hold) {
+                        // Held until it's closed: longer than any wait in the test, so a tunnel
+                        // that never cuts it fails the test instead of being let go
+                        try {
+                            closed.await(6L * FakeHelper.SAFETY_MS, TimeUnit.MILLISECONDS);
+                        }
+                        catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        throw new java.net.SocketException("Socket closed");
+                    }
+                    out.write(b, at, length);
+                }
+
+                @Override
+                public void flush() throws IOException {
+                    out.flush();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    HeldSocket.this.close();
+                }
+            };
+        }
+
+        @Override
+        public synchronized void close() throws IOException {
+            super.close();
+            closed.countDown();
+        }
+    }
+
+    // Passes TCP through to the helper unchanged, and keeps what the phone sent, to read its TLS
+    // records' types
+    private static final class Tap implements Closeable {
+        static final int ALERT = 21;
+        static final int APPLICATION_DATA = 23;
+
+        private final ServerSocket server;
+        private final ByteArrayOutputStream fromPhone = new ByteArrayOutputStream();
+        private final Thread thread;
+        private volatile Thread up;
+        private volatile Socket phone;
+        private volatile Socket pc;
+
+        Tap(int pcPort) throws IOException {
+            InetAddress loopback = InetAddress.getByName("127.0.0.1");
+            server = new ServerSocket(0, 1, loopback);
+            server.setSoTimeout(FakeHelper.SAFETY_MS);
+            thread = new Thread(() -> {
+                try {
+                    phone = server.accept();
+                    pc = new Socket();
+                    pc.connect(new InetSocketAddress(loopback, pcPort), FakeHelper.SAFETY_MS);
+                    copy(pc, phone, null);
+                    up = copy(phone, pc, fromPhone);
+                }
+                catch (IOException e) {
+                    // The test sees what came through
+                }
+            });
+            thread.start();
+        }
+
+        int port() {
+            return server.getLocalPort();
+        }
+
+        private static Thread copy(Socket from, Socket to, ByteArrayOutputStream keep) {
+            Thread t = new Thread(() -> {
+                byte[] b = new byte[4096];
+                try {
+                    InputStream in = from.getInputStream();
+                    OutputStream out = to.getOutputStream();
+                    for (int n; (n = in.read(b)) > 0; ) {
+                        if (keep != null) {
+                            synchronized (keep) {
+                                keep.write(b, 0, n);
+                            }
+                        }
+                        out.write(b, 0, n);
+                    }
+                    to.shutdownOutput();
+                }
+                catch (IOException e) {
+                    // One side closed
+                }
+            });
+            t.start();
+            return t;
+        }
+
+        /** The type of each TLS record the phone sent, once it has closed its side. */
+        List<Integer> recordTypesFromPhone() throws InterruptedException {
+            thread.join(FakeHelper.SAFETY_MS);
+            Thread fromPhoneCopy = up;
+            assertNotNull("the phone never connected", fromPhoneCopy);
+            fromPhoneCopy.join(FakeHelper.SAFETY_MS);
+            assertFalse("the phone never closed its side", fromPhoneCopy.isAlive());
+            byte[] b;
+            synchronized (fromPhone) {
+                b = fromPhone.toByteArray();
+            }
+            List<Integer> types = new ArrayList<>();
+            for (int at = 0; at + 5 <= b.length; ) {
+                types.add(b[at] & 0xFF);
+                at += 5 + ((b[at + 3] & 0xFF) << 8 | (b[at + 4] & 0xFF));
+            }
+            return types;
+        }
+
+        @Override
+        public void close() throws IOException {
+            server.close();
+            for (Socket s : new Socket[] {phone, pc}) {
+                if (s != null) {
+                    s.close();
+                }
+            }
+        }
     }
 
     // ---------------------------------------------------------------- someone in the middle
