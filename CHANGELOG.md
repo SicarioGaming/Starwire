@@ -34,7 +34,8 @@ steps and the checksums for each version.
   together, against a fake PC helper and a stand-in for the exporter's native part on 127.0.0.1.
   Not tried yet: sharing a USB device on a phone or tablet, the real helper, Windows, and the
   question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
-  x86_64 in debug builds), and its licences are in Settings > About > Open-source licences.
+  x86_64 in debug builds), and its licences are in Settings > About > Open-source licences. The
+  setting's credit line names Moonlight V+ and usbipdcpp, as Settings > About > Credits does.
 
 ## [0.2.1] - 2026-10-23
 

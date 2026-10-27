@@ -294,6 +294,9 @@ public final class CoverGlowSettings {
             CREDITS.put(key, turnip);
         }
         CREDITS.put("checkbox_enable_perf_overlay_lite", "From Axixi2233, via Artemis and Artemide");
+        // The share flow, the tunnel and the device rules are new in Starwire; the exporter isn't
+        CREDITS.put("checkbox_usb_share",
+                "USB exporter from Moonlight V+ by qiin2333, built on usbipdcpp by yunsmall (LGPL-3.0)");
     }
 
     /** Where a setting came from, or null for Moonlight's own and Starwire's new settings. */
