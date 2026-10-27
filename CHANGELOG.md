@@ -23,6 +23,9 @@ steps and the checksums for each version.
   stream menu, or nothing. It's off (Disabled) by default, so the swipe goes to the game until you
   pick something else. Moonlight X, where it comes from, opens the slider by default. Checked by
   tests, not yet tried in a stream.
+- **Shortcuts for Windows' virtual desktops in the stream menu:** Win+Ctrl+Left and
+  Win+Ctrl+Right (previous and next desktop) side by side, then Win+Tab (Task View), on the
+  Shortcuts page. Checked by tests, not yet tried in a stream.
 
 ### Changed
 

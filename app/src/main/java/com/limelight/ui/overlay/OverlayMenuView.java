@@ -96,6 +96,7 @@ public class OverlayMenuView extends LinearLayout {
     public static final short VK_RETURN = 0x0D;
     public static final short VK_ESCAPE = 0x1B;
     public static final short VK_LEFT = 0x25;
+    public static final short VK_RIGHT = 0x27;
     public static final short VK_B = 0x42;
     public static final short VK_D = 0x44;
     public static final short VK_G = 0x47;
@@ -112,14 +113,22 @@ public class OverlayMenuView extends LinearLayout {
     private static class Shortcut {
         final int labelResId;
         final short[] keys;
+        // What TalkBack reads instead of the label, or 0 for the label
+        int spokenResId;
 
         Shortcut(int labelResId, short... keys) {
             this.labelResId = labelResId;
             this.keys = keys;
         }
+
+        Shortcut spoken(int resId) {
+            spokenResId = resId;
+            return this;
+        }
     }
 
-    // Same set and order as Artemide's "Send keys" menu
+    // Artemide's "Send keys" menu in the same order, then Windows' previous and next virtual
+    // desktop, which share a row like the arrow keys, then Task View
     private static final Shortcut[] SHORTCUTS = {
         new Shortcut(R.string.overlay_menu_send_esc, VK_ESCAPE),
         new Shortcut(R.string.overlay_menu_send_f11, VK_F11),
@@ -135,6 +144,12 @@ public class OverlayMenuView extends LinearLayout {
         new Shortcut(R.string.overlay_menu_send_ctrl_alt_shift_f1, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_F1),
         new Shortcut(R.string.overlay_menu_send_ctrl_alt_shift_f12, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_F12),
         new Shortcut(R.string.overlay_menu_send_win_alt_b, VK_LWIN, VK_LMENU, VK_B),
+        new Shortcut(R.string.overlay_menu_send_win_ctrl_left, VK_LWIN, VK_LCONTROL, VK_LEFT)
+            .spoken(R.string.overlay_menu_a11y_win_ctrl_left),
+        new Shortcut(R.string.overlay_menu_send_win_ctrl_right, VK_LWIN, VK_LCONTROL, VK_RIGHT)
+            .spoken(R.string.overlay_menu_a11y_win_ctrl_right),
+        new Shortcut(R.string.overlay_menu_send_win_tab, VK_LWIN, VK_TAB)
+            .spoken(R.string.overlay_menu_a11y_win_tab),
     };
 
     private static final short[] TASK_MANAGER_KEYS = {VK_LCONTROL, VK_LSHIFT, VK_ESCAPE};
@@ -373,10 +388,15 @@ public class OverlayMenuView extends LinearLayout {
         gridToggles.clear();
 
         if (page == PAGE_SHORTCUTS) {
-            // Artemide's built-in key shortcuts then Back
+            // The built-in key shortcuts then Back
             columns = PAGE_COLUMNS;
             for (int i = 0; i < SHORTCUTS.length; i++) {
                 addTile(0, getContext().getString(SHORTCUTS[i].labelResId), ACTION_SHORTCUT_BASE + i);
+                // Where the keys alone don't say what a shortcut does, TalkBack says that too
+                if (SHORTCUTS[i].spokenResId != 0) {
+                    gridButtons.get(gridButtons.size() - 1)
+                        .setContentDescription(getContext().getString(SHORTCUTS[i].spokenResId));
+                }
             }
             // Then any shortcuts imported from a file (Settings > In-stream menu)
             importedShortcuts = ImportedShortcuts.load(getContext());

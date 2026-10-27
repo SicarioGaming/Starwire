@@ -382,6 +382,9 @@ public class OverlayMenuViewTest {
             str(com.limelight.R.string.overlay_menu_send_ctrl_alt_shift_f1),
             str(com.limelight.R.string.overlay_menu_send_ctrl_alt_shift_f12),
             str(com.limelight.R.string.overlay_menu_send_win_alt_b),
+            str(com.limelight.R.string.overlay_menu_send_win_ctrl_left),
+            str(com.limelight.R.string.overlay_menu_send_win_ctrl_right),
+            str(com.limelight.R.string.overlay_menu_send_win_tab),
         };
         for (String shortcut : shortcuts) {
             listener.lastKeys = null;
