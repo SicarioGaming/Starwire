@@ -342,12 +342,22 @@ public class OverlayMenuViewTest {
         press(first ? KeyEvent.KEYCODE_DPAD_RIGHT : KeyEvent.KEYCODE_DPAD_LEFT);
         assertTrue(selected(tiles[side]));
 
-        // Down twice: the bottom row, then Close, which sits above Quit and Disconnect
+        // Down twice: the bottom row, then Close
         press(KeyEvent.KEYCODE_DPAD_DOWN);
         assertTrue(selected(tiles[Math.min(side + columns, last)]));
         press(KeyEvent.KEYCODE_DPAD_DOWN);
         assertTrue(selected(com.limelight.R.string.overlay_menu_close));
-        press(KeyEvent.KEYCODE_DPAD_DOWN);
+        // Close sits above Quit and Disconnect, except on screens under 480 dp tall (a phone or a
+        // 1080p handheld held sideways), where all three share one row. This used to press down
+        // there too, and failed on the 1080p handheld legs (432 dp tall).
+        if (context.getResources().getConfiguration().screenHeightDp < OverlayMenuView.COMPACT_HEIGHT_DP) {
+            press(KeyEvent.KEYCODE_DPAD_DOWN);
+            assertTrue("down from Close left the one-row bar", selected(com.limelight.R.string.overlay_menu_close));
+            press(KeyEvent.KEYCODE_DPAD_RIGHT);
+        }
+        else {
+            press(KeyEvent.KEYCODE_DPAD_DOWN);
+        }
         assertTrue(selected(com.limelight.R.string.overlay_menu_quit_session));
         press(KeyEvent.KEYCODE_DPAD_RIGHT);
         assertTrue(selected(com.limelight.R.string.overlay_menu_disconnect));

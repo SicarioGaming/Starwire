@@ -173,8 +173,8 @@ public class OverlayMenuView extends LinearLayout {
     private int columns = MAIN_COLUMNS;
 
     // The bar: Close (index 0) on its own row, then Quit and Disconnect side by side; or all
-    // three in one row on short screens
-    private static final int COMPACT_HEIGHT_DP = 480;
+    // three in one row on short screens (the tests read the height too)
+    static final int COMPACT_HEIGHT_DP = 480;
     private boolean compactBar;
     private List<OverlayMenuButton> barButtons;
     private List<Integer> barActions;
