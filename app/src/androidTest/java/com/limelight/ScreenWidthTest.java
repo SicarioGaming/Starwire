@@ -220,6 +220,7 @@ public class ScreenWidthTest {
 
     // Lays the screen out by hand at the display's size (works with the screen off) and saves it
     private static String layOutAndSave(Activity activity, String what) {
+        long start = SystemClock.uptimeMillis();
         DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
         int width = metrics.widthPixels, height = metrics.heightPixels;
         View root = activity.getWindow().getDecorView();
@@ -237,6 +238,11 @@ public class ScreenWidthTest {
         catch (java.io.IOException e) {
             throw new RuntimeException(e);
         }
+        // This runs on the main thread, which takes nothing else meanwhile. On fold-z-36
+        // (2026-10-27) a game screen closed while the test was drawing and didn't take its focus
+        // change for 5 s. The log says how long a picture holds the main thread on each device.
+        android.util.Log.i("ScreenWidthTest", name + ": laid out, drawn and saved in "
+                + (SystemClock.uptimeMillis() - start) + " ms");
         return name;
     }
 
