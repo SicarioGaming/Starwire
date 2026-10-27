@@ -91,6 +91,7 @@ static class StarwireUsbTunnelTests
             StreamCheck();
             Tls();
             Renegotiation();
+            TeardownWrites();
             TcpOwnership();
             phoneCert = UsbTlsIdentity.Create(Container("phone"), Seeded(7));
             ServerBind();
@@ -99,6 +100,8 @@ static class StarwireUsbTunnelTests
             ShareRefusals();
             SessionEnds();
             UsbOff();
+            StuckTeardown();
+            BoundedWorkers();
             Service();
         }
         catch (Exception e) {
@@ -783,26 +786,54 @@ static class StarwireUsbTunnelTests
         UsbWaitingRoom room = new UsbWaitingRoom(clock);
         List<string> closed = new List<string>();
         Func<string, Action> closer = name => delegate { closed.Add(name); };
+
+        // 1 per address and a per-address rate limit: a second connection from an address within
+        // its 2 s grace is closed by the caller (the room returns null) and does NOT take the
+        // first one's place. Before the fix a flood from one address kept replacing itself, each
+        // one pushing out the last and burning a pairing-file read.
         UsbWaitingRoom.Ticket a1 = room.Admit("10.0.0.1", closer("a1"));
-        UsbWaitingRoom.Ticket a2 = room.Admit("10.0.0.1", closer("a2"));
-        Check("a new connection from an address that has one waiting takes its place", a2 != null && closed.Count == 1
-            && closed[0] == "a1" && room.Count == 1 && !room.Leave(a1));
-        room.Admit("10.0.0.2", closer("b"));
-        room.Admit("10.0.0.3", closer("c"));
-        room.Admit("10.0.0.4", closer("d"));
+        UsbWaitingRoom.Ticket a1b = room.Admit("10.0.0.1", closer("a1b"));
+        Check("a second connection from an address within its grace is refused, and the first keeps its place",
+            a1 != null && a1b == null && room.Count == 1 && closed.Count == 0 && !room.IsGone(a1));
+
+        UsbWaitingRoom.Ticket b = room.Admit("10.0.0.2", closer("b"));
+        UsbWaitingRoom.Ticket c = room.Admit("10.0.0.3", closer("c"));
+        UsbWaitingRoom.Ticket d = room.Admit("10.0.0.4", closer("d"));
+        Check("four addresses fill the room", room.Count == 4 && b != null && c != null && d != null && closed.Count == 0);
+
         clock.Advance(1999);
         UsbWaitingRoom.Ticket e = room.Admit("10.0.0.5", closer("e"));
-        Check("with 4 waiting, none for 2 s, a 5th is closed at once", e == null && room.Count == 4 && closed.Count == 1);
+        Check("with 4 waiting and the oldest not past 2 s, a fresh address is closed, evicting no one",
+            e == null && room.Count == 4 && closed.Count == 0);
         clock.Advance(1);
         UsbWaitingRoom.Ticket f = room.Admit("10.0.0.6", closer("f"));
-        Check("once the oldest has waited 2 s, a new one pushes it out", f != null && closed.Count == 2 && closed[1] == "a2" && room.Count == 4);
-        Check("one that was pushed out can't finish its BIND", !room.Leave(a2));
+        Check("once the oldest has waited 2 s, a fresh address pushes out only the oldest",
+            f != null && closed.Count == 1 && closed[0] == "a1" && room.Count == 4 && room.IsGone(a1));
+        Check("the pushed-out connection can't finish its BIND", !room.Leave(a1));
+
+        // After its grace an address may start a new connection, which takes over its old one
+        UsbWaitingRoom.Ticket b2 = room.Admit("10.0.0.2", closer("b2"));
+        Check("after its grace, an address's new connection takes over its old one, evicting no other address",
+            b2 != null && room.IsGone(b) && closed.Contains("b") && room.Count == 4);
         Check("one that finished its BIND leaves", room.Leave(f) && room.Count == 3);
-        clock.Advance(7999);
-        Check("nobody runs out of time before 10 s", room.Sweep() == 0);
-        clock.Advance(1);
-        Check("10 s after its TCP connection, a connection without a valid BIND is closed", room.Sweep() == 3 && room.Count == 0
-            && closed.Contains("b") && closed.Contains("c") && closed.Contains("d"));
+
+        // The rate-limit record is pruned once its grace is past, so it stays bounded
+        clock.Advance(2000);
+        room.Admit("10.0.0.50", closer("x"));
+        Check("the per-address record is pruned to the last grace window", room.Tracked <= 2);
+
+        // 10 s from each connection's start closes one that never finished its BIND
+        FakeClock c2 = new FakeClock();
+        UsbWaitingRoom room2 = new UsbWaitingRoom(c2);
+        List<string> closed2 = new List<string>();
+        Func<string, Action> closer2 = name => delegate { closed2.Add(name); };
+        room2.Admit("10.0.1.1", closer2("p"));
+        room2.Admit("10.0.1.2", closer2("q"));
+        c2.Advance(9999);
+        Check("nobody runs out of time before 10 s", room2.Sweep() == 0);
+        c2.Advance(1);
+        Check("10 s after its TCP connection, a connection without a valid BIND is closed",
+            room2.Sweep() == 2 && room2.Count == 0 && closed2.Contains("p") && closed2.Contains("q"));
     }
 
     // ---------------------------------------------------------------- the relay's USB/IP checks
@@ -1025,6 +1056,52 @@ static class StarwireUsbTunnelTests
             again.Dispose();
         }
         Check("no certificate isn't a P-256 one", !UsbTlsIdentity.IsP256(null));
+    }
+
+    // Teardown must never wait on a write to a phone that stopped reading. TryWrite takes the write
+    // lock only if it comes free within its time, so the end of a session can't hang behind another
+    // thread blocked holding it. Deterministic: a helper thread holds the lock while this runs.
+    static void TeardownWrites()
+    {
+        MemoryStream m = new MemoryStream();
+        SwutStream frames = new SwutStream(m, new FakeClock(), () => true);
+        Check("TryWrite writes when the lock is free", frames.TryWrite(Swut.Keepalive(), 2000) && m.ToArray().Length == Swut.Keepalive().Length);
+
+        // Another thread holds the write lock and never lets go, as a relay thread blocked writing
+        // to a stuck phone would
+        ManualResetEvent holding = new ManualResetEvent(false);
+        ManualResetEvent release = new ManualResetEvent(false);
+        BlockingStream blocker = new BlockingStream(holding, release);
+        SwutStream held = new SwutStream(blocker, new FakeClock(), () => true);
+        Thread t = new Thread(delegate() {
+            held.Write(Swut.Keepalive());   // blocks inside the stream, holding the write lock
+        });
+        t.IsBackground = true;
+        t.Start();
+        Check("a thread blocked in a write holds the lock", holding.WaitOne(WaitMs));
+        Stopwatch w = Stopwatch.StartNew();
+        bool got = held.TryWrite(Swut.End(Swut.EndStopped, 0), 300);
+        long took = w.ElapsedMilliseconds;
+        Check("TryWrite gives up instead of waiting forever for a held lock", !got && took >= 250 && took < 5000);
+        release.Set();
+        t.Join(WaitMs);
+    }
+
+    // A stream whose first write blocks until released, so a test can hold SwutStream's write lock
+    sealed class BlockingStream : Stream
+    {
+        readonly ManualResetEvent holding, release;
+        public BlockingStream(ManualResetEvent holding, ManualResetEvent release) { this.holding = holding; this.release = release; }
+        public override void Write(byte[] b, int at, int n) { holding.Set(); release.WaitOne(WaitMs); }
+        public override void Flush() { }
+        public override bool CanRead { get { return false; } }
+        public override bool CanSeek { get { return false; } }
+        public override bool CanWrite { get { return true; } }
+        public override long Length { get { return 0; } }
+        public override long Position { get { return 0; } set { } }
+        public override int Read(byte[] b, int at, int n) { return 0; }
+        public override long Seek(long o, SeekOrigin r) { return 0; }
+        public override void SetLength(long v) { }
     }
 
     // SslStream lets the phone renegotiate TLS 1.2, and hands back another certificate afterwards:
@@ -1459,7 +1536,13 @@ static class StarwireUsbTunnelTests
         public bool NoDriver;
         public readonly List<string> Log = new List<string>();
 
-        public Rig(string name)
+        public Rig(string name) : this(name, 0)
+        {
+        }
+
+        // perAddressEveryMs 0 (the default) turns off the per-address rate limit, so a test can
+        // open many connections from 127.0.0.1; the waiting-room tests pass the real 2 s.
+        public Rig(string name, long perAddressEveryMs)
         {
             string folder = PairingsFolder(name);
             Pairings = Path.Combine(folder, "mic-pairings.dat");
@@ -1483,6 +1566,7 @@ static class StarwireUsbTunnelTests
             };
             Options.AutoTick = false;
             Options.WatchFiles = false;
+            Options.PerAddressEveryMs = perAddressEveryMs;
             Options.RelayPeerOk = delegate(IPEndPoint local, IPEndPoint remote, out string why) {
                 int owner = TcpOwners.OwnerOf(remote, local);
                 why = owner == pid ? null : "owned by " + owner;
@@ -1627,10 +1711,11 @@ static class StarwireUsbTunnelTests
 
     static void ServerWaiting()
     {
-        using (Rig rig = new Rig("waiting")) {
-            // A connection that another one from its address pushes out just as its thread starts.
+        using (Rig rig = new Rig("waiting", UsbWaitingRoom.PerAddressEveryMs)) {
+            // A connection that a later one from its address pushes out just as its thread starts.
             // Before the fix, its thread then threw on the closed connection, and an exception that
-            // leaves a thread ends the whole helper: anyone on the network could stop it.
+            // leaves a thread ends the whole helper: anyone on the network could stop it. The
+            // replacement now needs the address's 2 s grace to have passed.
             int admitted = 0;
             rig.Options.AfterAdmit = t => {
                 if (Interlocked.Increment(ref admitted) == 1) {
@@ -1639,28 +1724,36 @@ static class StarwireUsbTunnelTests
             };
             Socket first = RawConnect(rig.Port, "127.0.0.2");
             WaitUntil(() => Thread.VolatileRead(ref admitted) == 1);
+            rig.Clock.Advance(2000);
             Socket replacing = RawConnect(rig.Port, "127.0.0.2");
             Check("a connection pushed out just as its thread starts is closed", Closed(first));
             rig.Options.AfterAdmit = null;
             replacing.Close();
             first.Close();
             WaitUntil(() => rig.Server.Room.Count == 0);
+            rig.Clock.Advance(2000);
             using (TestPhone p = TestPhone.Connect(rig.Port)) {
                 Check("  and the helper carries on: a phone still gets its BIND_ACK", p.AckChecksOut(p.Bind(PairKey, DeviceId), PairKey, DeviceId));
             }
-            rig.Clock.Advance(1000);
+            rig.Clock.Advance(2000);
             List<Socket> open = new List<Socket>();
             for (int i = 2; i <= 5; i++) {
                 open.Add(RawConnect(rig.Port, "127.0.0." + i));
             }
             Check("4 connections from 4 addresses wait for their BIND", WaitUntil(() => rig.Server.Room.Count == 4));
+            // A second connection from an address that already has one waiting, within its grace,
+            // is closed and does not evict that address's own connection or any other's
+            Socket sameAddr = RawConnect(rig.Port, "127.0.0.3");
+            Check("a second connection from an address within its grace is refused, evicting nobody", Closed(sameAddr)
+                && WaitUntil(() => rig.Server.Room.Count == 4));
             Socket fifth = RawConnect(rig.Port, "127.0.0.6");
-            Check("a 5th, with none waiting for 2 s yet, is closed at once", Closed(fifth) && rig.Server.Room.Count == 4);
+            Check("a 5th fresh address, with none waiting 2 s yet, is closed at once", Closed(fifth) && rig.Server.Room.Count == 4);
             rig.Clock.Advance(2000);
             Socket sixth = RawConnect(rig.Port, "127.0.0.7");
-            Check("once they've waited 2 s, a new one pushes out the oldest", Closed(open[0]) && WaitUntil(() => rig.Server.Room.Count == 4));
+            Check("once they've waited 2 s, a fresh address pushes out only the oldest", Closed(open[0]) && WaitUntil(() => rig.Server.Room.Count == 4));
             Socket again = RawConnect(rig.Port, "127.0.0.3");
-            Check("a new one from an address that has one waiting takes its place", Closed(open[1]));
+            Check("after its grace, a new connection from an address that has one takes its place", Closed(open[1])
+                && WaitUntil(() => rig.Server.Room.Count == 4));
             rig.Clock.Advance(8000);
             rig.Server.Tick();
             Check("10 s after their TCP connections, those still without a BIND are closed", Closed(open[2]) && Closed(open[3])
@@ -1671,7 +1764,7 @@ static class StarwireUsbTunnelTests
             rig.Options.AddressOk = a => !a.Equals(IPAddress.Parse("127.0.0.9"));
             Socket foreign = RawConnect(rig.Port, "127.0.0.9");
             Check("a connection from an address that isn't allowed is closed before TLS", Closed(foreign) && rig.Server.Room.Count == 0);
-            foreach (Socket s in new Socket[] { fifth, sixth, again, foreign }) {
+            foreach (Socket s in new Socket[] { sameAddr, fifth, sixth, again, foreign }) {
                 s.Close();
             }
             foreach (Socket s in open) {
@@ -2030,6 +2123,163 @@ static class StarwireUsbTunnelTests
         p.Dispose();
         waiting.Close();
         rig.Dispose();
+    }
+
+    // A phone that shares a device, imports it, then stops reading while the driver keeps sending.
+    // Returns the phone and a way to stop the flood once the pipeline to the phone is full, so a
+    // teardown has to unblock a relay thread stuck writing to the phone to finish.
+    sealed class Stuck : IDisposable
+    {
+        public TestPhone Phone;
+        volatile bool stop;
+        int attempted, done;
+        Thread flood;
+
+        public static Stuck Make(Rig rig, SwutShare pad)
+        {
+            byte[] ack;
+            Stuck s = new Stuck();
+            s.Phone = rig.Share(PairKey, DeviceId, V["frame.share"], out ack);
+            if (!Import(rig, s.Phone, pad, 2)) {
+                throw new Exception("the stuck setup couldn't import the device");
+            }
+            s.flood = new Thread(delegate() {
+                byte[] data = new byte[1024 * 1024];
+                for (uint seq = 100; seq < 200 && !s.stop; seq++) {
+                    try {
+                        Interlocked.Increment(ref s.attempted);
+                        rig.Driver.Send(CmdSubmit(seq, false, 2, data.Length, null, data, 0));
+                        Interlocked.Increment(ref s.done);
+                    }
+                    catch (Exception) {
+                        return;
+                    }
+                }
+            });
+            s.flood.IsBackground = true;
+            s.flood.Start();
+            // The pipeline is full and the relay's thread is blocked writing to the phone once one
+            // send has gone and another is stuck in flight. The phone never reads, so this stays
+            // true; it's a real condition, not a timed guess.
+            WaitUntil(() => Thread.VolatileRead(ref s.attempted) >= 2 && Thread.VolatileRead(ref s.attempted) - Thread.VolatileRead(ref s.done) >= 1);
+            return s;
+        }
+
+        public void Dispose()
+        {
+            stop = true;
+            if (Phone != null) {
+                Phone.Dispose();
+            }
+            if (flood != null) {
+                flood.Join(WaitMs);
+            }
+        }
+    }
+
+    // Teardown must always finish: with the relay's thread stuck writing to a phone that stopped
+    // reading, unpairing, Stop sharing and USB off must still detach the device and end the session
+    // within a few seconds. Before the fix the end of a session waited behind that stuck write (it
+    // held the write lock), so the device stayed attached and Server.Stop took 40 s.
+    static void StuckTeardown()
+    {
+        SwutShare pad = Pad();
+
+        using (Rig rig = new Rig("stuck-unpair")) {
+            rig.Options.TeardownWriteMs = 1000;
+            using (Stuck s = Stuck.Make(rig, pad)) {
+                int plugouts = rig.Driver.Plugouts.Count;
+                rig.Store.Remove(DeviceId);
+                rig.Server.Recheck();
+                Stopwatch w = Stopwatch.StartNew();
+                rig.Server.Tick();
+                bool done = WaitUntil(() => rig.Server.SessionCount == 0 && rig.Driver.Plugouts.Count == plugouts + 1);
+                Check("unpaired while the relay is stuck writing to the phone: detached and ended within a few seconds ("
+                    + w.ElapsedMilliseconds + " ms)", done && w.ElapsedMilliseconds < 10000 && rig.Driver.Attached == 0);
+            }
+        }
+
+        using (Rig rig = new Rig("stuck-stop")) {
+            rig.Options.TeardownWriteMs = 1000;
+            using (Stuck s = Stuck.Make(rig, pad)) {
+                int plugouts = rig.Driver.Plugouts.Count;
+                Stopwatch w = Stopwatch.StartNew();
+                Check("Stop sharing returns at once, without waiting on the stuck write", rig.Server.StopSharing()
+                    && w.ElapsedMilliseconds < 2000);
+                bool done = WaitUntil(() => rig.Server.SessionCount == 0 && rig.Driver.Plugouts.Count == plugouts + 1);
+                Check("Stop sharing while the relay is stuck: detached and ended within a few seconds ("
+                    + w.ElapsedMilliseconds + " ms)", done && w.ElapsedMilliseconds < 10000 && rig.Driver.Attached == 0);
+            }
+        }
+
+        using (Rig rig = new Rig("stuck-usboff")) {
+            rig.Options.TeardownWriteMs = 1000;
+            Stuck s = Stuck.Make(rig, pad);
+            int plugouts = rig.Driver.Plugouts.Count;
+            Stopwatch w = Stopwatch.StartNew();
+            rig.Server.Stop(Swut.EndUsbOff);
+            long took = w.ElapsedMilliseconds;
+            Check("USB off (Server.Stop) returns within a few seconds while the relay is stuck (" + took + " ms)", took < 10000);
+            Check("  and the device is detached and the session gone", rig.Driver.Plugouts.Count == plugouts + 1
+                && rig.Driver.Attached == 0 && rig.Server.SessionCount == 0);
+            s.Dispose();
+        }
+    }
+
+    // Worker threads and per-connection state must not grow without limit: under churn the waiting
+    // room never holds more than its cap and its per-address record stays bounded, and repeated
+    // stuck sessions are each reclaimed so nothing piles up.
+    static void BoundedWorkers()
+    {
+        using (Rig rig = new Rig("bounded-churn", UsbWaitingRoom.PerAddressEveryMs)) {
+            int over = 0, maxRoom = 0;
+            // 240 connections from 60 addresses, back to back
+            List<Socket> sockets = new List<Socket>();
+            for (int i = 0; i < 240; i++) {
+                Socket sock = null;
+                try {
+                    sock = RawConnect(rig.Port, "127.0." + (i % 60) + ".1");
+                    sockets.Add(sock);
+                }
+                catch (Exception) {
+                }
+                int n = rig.Server.Room.Count;
+                if (n > maxRoom) {
+                    maxRoom = n;
+                }
+                if (n > UsbWaitingRoom.MaxWaiting) {
+                    over++;
+                }
+                if (i % 40 == 0) {
+                    rig.Clock.Advance(250);
+                }
+            }
+            Check("under a flood of connections the waiting room never holds more than its cap", over == 0 && maxRoom <= UsbWaitingRoom.MaxWaiting);
+            Check("the per-address record stays bounded", rig.Server.Room.Tracked <= 128);
+            rig.Clock.Advance(11000);
+            rig.Server.Tick();
+            Check("once their 10 s are up the waiting room drains", WaitUntil(() => rig.Server.Room.Count == 0));
+            foreach (Socket sock in sockets) {
+                try { sock.Close(); } catch (Exception) { }
+            }
+        }
+
+        // Three stuck sessions in a row are each reclaimed: the session list returns to empty and
+        // the server keeps working, so sessions (and their threads) don't accumulate
+        SwutShare pad = Pad();
+        using (Rig rig = new Rig("bounded-stuck")) {
+            rig.Options.TeardownWriteMs = 500;
+            for (int i = 0; i < 3; i++) {
+                using (Stuck s = Stuck.Make(rig, pad)) {
+                    rig.Server.StopSharing();
+                    Check("stuck session " + (i + 1) + " is reclaimed", WaitUntil(() => rig.Server.SessionCount == 0));
+                }
+                rig.Clock.Advance(1000);
+            }
+            using (TestPhone p = TestPhone.Connect(rig.Port)) {
+                Check("the server still takes a BIND after repeated stuck sessions", p.AckChecksOut(p.Bind(PairKey, DeviceId), PairKey, DeviceId));
+            }
+        }
     }
 
     // The menu's side: off until you turn it on, and the line it shows

@@ -26,6 +26,12 @@ steps and the checksums for each version.
   share through it. Tested on Windows 11 with a fake driver and a test phone over 127.0.0.1, and
   with the shared test vectors and device rules' cases. It hasn't talked to a real phone or
   attached a real device, and setup-usb.ps1 has only been tried without installing anything.
+  The helper's tunnel server was hardened against a hostile local network: a stuck session (the
+  relay or driver blocked mid-transfer) is always torn down and the device detached within a few
+  seconds; worker threads and the waiting room stay bounded under connection floods; each address
+  is rate limited so one host can't churn the waiting room or starve the real phone's BIND; a
+  BIND flood can't hold up the pairing check or the helper's menu; and the menu reads the paired
+  phones off its own thread. Covered by new tests over 127.0.0.1.
 
 ## [0.2.1] - 2026-10-23
 

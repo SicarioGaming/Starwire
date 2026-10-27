@@ -230,11 +230,14 @@ version, so any Starwire can read why any helper refused it, "no version in comm
 Rules for the helper:
 
 - **Waiting connections.** At most 4 connections that haven't finished their BIND, and at most 1
-  from each address: a new connection from an address that already has one takes its place. When
-  4 are waiting, a new connection pushes out the oldest if that one has waited at least 2 s, as
-  the microphone's receiver does with its pending sessions; otherwise the new one is closed at
-  once. So one host can't keep the real phone out by holding every place. Each connection gets
-  10 s from its TCP connection to a valid BIND.
+  from each address. Each address may start a new waiting connection at most once every 2 s (its
+  grace time): one that comes sooner is closed at once, so a single host can't churn the waiting
+  room or burn pairing-file reads by reconnecting over and over. When 4 are waiting, a new
+  connection from a fresh address pushes out the oldest, and only the oldest, once it has waited
+  its grace time, as the microphone's receiver does with its pending sessions; otherwise the new
+  one is closed at once. No address pushes out another address's connection any other way. So one
+  host can't keep the real phone out by holding every place. Each connection gets 10 s from its
+  TCP connection to a valid BIND.
 - **The answer to BIND.** It answers the frame that comes where BIND should in this order, and
   the first that applies wins:
   1. A header that doesn't read (see "Frames"): it closes the connection.

@@ -558,14 +558,19 @@ sealed class UsbSettings
 }
 
 // ---------------------------------------------------------------- connections waiting for BIND
-// At most 4 connections that haven't finished their BIND, and at most 1 from each address: a new
-// one from an address that already has one takes its place. When 4 wait, a new one pushes out the
-// oldest if that one has waited 2 s; otherwise the new one is closed at once. Each gets 10 s from
-// its TCP connection to a valid BIND.
+// At most 4 connections that haven't finished their BIND, and at most 1 from each address. Each
+// address may start a new waiting connection at most once every 2 s (the grace time): a connection
+// that comes sooner than that from an address is closed at once, so one host can't churn the
+// waiting room or burn pairing-file reads by reconnecting over and over. When 4 are waiting, a new
+// connection from a fresh address pushes out the oldest, and only the oldest, once it has waited
+// its grace time; no address ever pushes out another address's connection any other way. Each
+// connection gets 10 s from its TCP connection to a valid BIND.
 sealed class UsbWaitingRoom
 {
     public const int MaxWaiting = 4;
     public const long PushOutAfterMs = 2000;
+    // One new waiting connection per address per this long: the per-address rate limit
+    public const long PerAddressEveryMs = 2000;
     public const long BindWithinMs = 10000;
 
     public sealed class Ticket
@@ -586,12 +591,23 @@ sealed class UsbWaitingRoom
     }
 
     readonly IUsbClock clock;
+    readonly long perAddressEveryMs;
     readonly List<Ticket> waiting = new List<Ticket>();
+    // When each address last got a place, so a flood from one address is rate limited. Pruned to
+    // the last grace window, so it stays bounded however many addresses connect.
+    readonly Dictionary<string, long> lastAdmitted = new Dictionary<string, long>(StringComparer.Ordinal);
     readonly object gate = new object();
 
-    public UsbWaitingRoom(IUsbClock clock)
+    public UsbWaitingRoom(IUsbClock clock) : this(clock, PerAddressEveryMs)
+    {
+    }
+
+    // perAddressEveryMs 0 turns the per-address rate limit off (the tests connect many times from
+    // 127.0.0.1); the helper always runs with the real value, one per address per 2 s.
+    public UsbWaitingRoom(IUsbClock clock, long perAddressEveryMs)
     {
         this.clock = clock;
+        this.perAddressEveryMs = perAddressEveryMs;
     }
 
     public int Count
@@ -603,7 +619,19 @@ sealed class UsbWaitingRoom
         }
     }
 
-    // A place for a new connection from this address, or null when it must be closed at once.
+    // The number of addresses being rate limited right now, for the tests
+    public int Tracked
+    {
+        get {
+            lock (gate) {
+                return lastAdmitted.Count;
+            }
+        }
+    }
+
+    // A place for a new connection from this address, or null when it must be closed at once:
+    // because this address got a place less than its grace time ago (rate limited), because it
+    // already has one waiting, or because 4 others are waiting and none has waited its grace yet.
     // close is how to close it if it's pushed out or runs out of time.
     public Ticket Admit(string address, Action close)
     {
@@ -611,30 +639,60 @@ sealed class UsbWaitingRoom
         Ticket t = null;
         lock (gate) {
             long now = clock.Now;
-            for (int i = waiting.Count - 1; i >= 0; i--) {
-                if (waiting[i].Address == address) {
-                    waiting[i].Gone = true;
-                    closing.Add(waiting[i].Close);
-                    waiting.RemoveAt(i);
+            Prune(now);
+            long last;
+            bool rateLimited = lastAdmitted.TryGetValue(address, out last) && now - last < perAddressEveryMs;
+            // Rate limited: it keeps the place it already holds, if any, and the newcomer is left
+            // for the caller to close (the room only closes connections it takes out of the room)
+            if (!rateLimited) {
+                // At most 1 from each address. One it already has stays; a grace time has passed
+                // since that one started (the rate limit above), so this is a real retry and takes
+                // over.
+                for (int i = waiting.Count - 1; i >= 0; i--) {
+                    if (waiting[i].Address == address) {
+                        waiting[i].Gone = true;
+                        closing.Add(waiting[i].Close);
+                        waiting.RemoveAt(i);
+                    }
                 }
-            }
-            if (waiting.Count >= MaxWaiting) {
-                Ticket oldest = waiting[0];
-                if (now - oldest.Since >= PushOutAfterMs) {
-                    oldest.Gone = true;
-                    closing.Add(oldest.Close);
-                    waiting.RemoveAt(0);
+                if (waiting.Count >= MaxWaiting) {
+                    Ticket oldest = waiting[0];
+                    if (now - oldest.Since >= PushOutAfterMs) {
+                        oldest.Gone = true;
+                        closing.Add(oldest.Close);
+                        waiting.RemoveAt(0);
+                    }
                 }
-            }
-            if (waiting.Count < MaxWaiting) {
-                t = new Ticket(address, now, close);
-                waiting.Add(t);
+                if (waiting.Count < MaxWaiting) {
+                    t = new Ticket(address, now, close);
+                    waiting.Add(t);
+                    lastAdmitted[address] = now;
+                }
             }
         }
         foreach (Action a in closing) {
             Quietly(a);
         }
         return t;
+    }
+
+    // Drops addresses whose last place is older than the grace window: they rate limit nobody now
+    void Prune(long now)
+    {
+        if (lastAdmitted.Count == 0) {
+            return;
+        }
+        List<string> gone = null;
+        foreach (KeyValuePair<string, long> e in lastAdmitted) {
+            if (now - e.Value >= perAddressEveryMs) {
+                (gone ?? (gone = new List<string>())).Add(e.Key);
+            }
+        }
+        if (gone != null) {
+            foreach (string a in gone) {
+                lastAdmitted.Remove(a);
+            }
+        }
     }
 
     // Whether it was pushed out, ran out of time or left
@@ -889,6 +947,28 @@ sealed class SwutStream
         }
     }
 
+    // A best-effort write for teardown: takes the write lock only if it comes free within ms (a
+    // phone that stopped reading leaves another thread blocked holding it), and the write itself is
+    // bounded by the socket's own send timeout. True when the frame went out. It never throws.
+    public bool TryWrite(byte[] frame, int ms)
+    {
+        if (!Monitor.TryEnter(writing, ms)) {
+            return false;
+        }
+        try {
+            stream.Write(frame, 0, frame.Length);
+            stream.Flush();
+            Interlocked.Exchange(ref lastSent, clock.Now);
+            return true;
+        }
+        catch (Exception) {
+            return false;
+        }
+        finally {
+            Monitor.Exit(writing);
+        }
+    }
+
     // The next bytes of the USB/IP stream, in DATA frames of at most 16384 bytes
     public void WriteData(byte[] b)
     {
@@ -993,9 +1073,16 @@ sealed class UsbTunnelOptions
     public bool AutoTick = true;
     public int TickEveryMs = 200;
     public int ShareWithinMs = 10000;
+    // One new waiting connection per address per this long. The tests set 0 to connect many times
+    // from 127.0.0.1; the helper runs with the real 2 s.
+    public long PerAddressEveryMs = UsbWaitingRoom.PerAddressEveryMs;
     public int KeepaliveEveryMs = 1000;
     public int SilentForMs = 8000;
     public int WatchEveryMs = 10000;
+    // The socket's send timeout, so no write to a phone that stopped reading blocks for longer
+    public int WriteTimeoutMs = 8000;
+    // At the end of a session, how long it waits to send END before closing the socket anyway
+    public int TeardownWriteMs = 2000;
     // How long the end of a session waits for an attach still in the driver
     public int AttachWaitMs = 30000;
     public bool WatchFiles = true;
@@ -1034,7 +1121,7 @@ sealed class UsbTunnelServer : IDisposable
         limiter = options.Limiter ?? new UsbReadLimiter(clock);
         pairings = new UsbPairingReader(options.PairingsFile, limiter, options.Random);
         allowList = new UsbAllowList(options.AllowFile ?? UsbAllowList.NextTo(options.PairingsFile));
-        room = new UsbWaitingRoom(clock);
+        room = new UsbWaitingRoom(clock, options.PerAddressEveryMs);
         identity = UsbTlsIdentity.Create(options.TlsContainer, options.Random);
     }
 
@@ -1284,7 +1371,7 @@ sealed class UsbTunnelServer : IDisposable
         }
         UsbWaitingRoom.Ticket ticket = room.Admit(address.ToString(), delegate { tcp.Close(); });
         if (ticket == null) {
-            Log("closed a connection from " + address + ": 4 others are waiting for their BIND, none for 2 s yet");
+            Log("closed a connection from " + address + ": it connected again too soon, or 4 others are waiting for their BIND with none past its 2 s");
             Quietly(tcp.Close);
         }
         return ticket;
@@ -1304,6 +1391,8 @@ sealed class UsbTunnelServer : IDisposable
             // the same address took its place, or it ran out of time), so everything that touches
             // it is in here
             tcp.NoDelay = true;
+            // So no write blocks forever on a peer that stopped reading
+            tcp.SendTimeout = options.WriteTimeoutMs;
             ssl = new SslStream(tcp.GetStream(), false, PeerCertificateOk);
             ssl.AuthenticateAsServer(identity.Certificate, true, SslProtocols.Tls12 | UsbTlsIdentity.Tls13, false);
             string why;
@@ -1772,19 +1861,27 @@ sealed class UsbTunnelSession
     void Finish(int reason, int detail, bool send)
     {
         try {
-            if (send) {
-                try {
-                    frames.Write(Swut.End(reason, detail));
-                }
-                catch (Exception) {
-                }
-                server.Log(PhoneName + ": sent END " + reason + (detail != 0 ? ", rule " + detail : ""));
-            }
+            // No more of the driver's data flows into the write to the phone, and a SendToDriver
+            // that was blocked comes back
             if (relay != null) {
                 relay.StopAccepting();
+            }
+            // Tell the phone why, but never wait long on it: one that stopped reading leaves the
+            // relay's thread blocked holding the write lock, so TryWrite gives up after a bound
+            if (send) {
+                if (frames.TryWrite(Swut.End(reason, detail), options.TeardownWriteMs)) {
+                    server.Log(PhoneName + ": sent END " + reason + (detail != 0 ? ", rule " + detail : ""));
+                }
+                else {
+                    server.Log(PhoneName + ": couldn't send END " + reason + " in time; ending the session anyway");
+                }
+            }
+            // Unblock any thread still blocked writing to or reading from the phone, so teardown
+            // doesn't wait on the network, and make a driver that's still attaching give up
+            UsbTunnelServer.Quietly(delegate { tcp.Client.Shutdown(SocketShutdown.Both); });
+            if (relay != null) {
+                relay.CloseDriver();
                 if (attachThread != null && attachThread.IsAlive) {
-                    // Still attaching: closing the relay's connection makes the driver give up
-                    relay.CloseDriver();
                     attachThread.Join(options.AttachWaitMs);
                 }
             }
