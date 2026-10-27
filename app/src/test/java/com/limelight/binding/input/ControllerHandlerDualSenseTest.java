@@ -12,6 +12,7 @@ import android.view.InputDevice;
 import com.limelight.binding.input.dualsense.DualSenseBluetooth;
 import com.limelight.binding.input.dualsense.DualSenseStatus;
 import com.limelight.binding.input.dualsense.FakeHidHost;
+import com.limelight.binding.input.dualsense.LimeLogLines;
 import com.limelight.binding.input.dualsense.PadMatcher;
 import com.limelight.binding.input.dualsense.TriggerEffect;
 import com.limelight.binding.input.dualsense.TriggerPreset;
@@ -25,10 +26,14 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowInputDevice;
 
+import java.util.Arrays;
+import java.util.Collections;
+
 /**
  * How ControllerHandler wires the DualSense code into a stream: each controller it takes on is
  * shown to it, a removed one is reported, the host's trigger effects go only to the controller
- * they name, and stopping the stream turns the triggers off. Android's Bluetooth is FakeHidHost,
+ * they name and are logged only with the DualSense switch on, and stopping the stream turns the
+ * triggers off. Android's Bluetooth is FakeHidHost,
  * on Robolectric's paused main looper; no stream starts (there's no connection).
  */
 @RunWith(RobolectricTestRunner.class)
@@ -67,6 +72,11 @@ public class ControllerHandlerDualSenseTest {
 
     // A controller ControllerHandler takes on, with the number the host knows it by
     private ControllerHandler.InputDeviceContext controller(int id, int vendorId, int productId, int number) {
+        return controller(handler, id, vendorId, productId, number);
+    }
+
+    private static ControllerHandler.InputDeviceContext controller(ControllerHandler handler, int id, int vendorId,
+                                                                  int productId, int number) {
         InputDevice device = ShadowInputDevice.makeInputDeviceNamed("Controller " + id);
         shadowOf(device).setVendorId(vendorId);
         shadowOf(device).setProductId(productId);
@@ -83,6 +93,10 @@ public class ControllerHandlerDualSenseTest {
 
     // Right weapon(2, 6, 8), left feedback(3, 6), for this controller number
     private void hostSends(int controllerNumber) {
+        hostSends(handler, controllerNumber);
+    }
+
+    private static void hostSends(ControllerHandler handler, int controllerNumber) {
         handler.handleSetAdaptiveTriggers((short) controllerNumber, (byte) 0x0C, (byte) 0x21, (byte) 0x25,
                 FEEDBACK, WEAPON);
         idle();
@@ -110,6 +124,28 @@ public class ControllerHandlerDualSenseTest {
         assertEquals(2, link.calls.size());
         assertEquals("weapon(2, 6, 8) on R2", "2544000700000000000000", FakeHidHost.rightTrigger(link.lastTaken()));
         assertEquals("feedback(3, 6) on L2", "21f80300dab62d00000000", FakeHidHost.leftTrigger(link.lastTaken()));
+    }
+
+    @Test
+    public void theHostsEffectsAreLoggedOnlyWithTheSwitchOn() {
+        PreferenceConfiguration prefs = PreferenceConfiguration.readPreferences(activity);
+        prefs.dualSenseEffects = false;
+        ControllerHandler switchedOff = new ControllerHandler(activity, null, null, prefs,
+                DualSenseBluetooth.forStream(activity, prefs, context -> link, Looper.getMainLooper()));
+        try (LimeLogLines log = LimeLogLines.listen()) {
+            controller(switchedOff, 7, PadMatcher.SONY_VENDOR_ID, PadMatcher.DUALSENSE_PRODUCT_ID, 1);
+            hostSends(switchedOff, 1);
+            switchedOff.stop();
+            idle();
+            assertEquals("switch off", Collections.emptyList(), log.effects());
+            assertEquals(0, link.calls.size());
+
+            controller(7, PadMatcher.SONY_VENDOR_ID, PadMatcher.DUALSENSE_PRODUCT_ID, 1);
+            hostSends(1);
+            assertEquals("switch on", Arrays.asList(
+                    "DualSense effect: t=0ms R2 mode=0x25 params=44000700000000000000 sent",
+                    "DualSense effect: t=0ms L2 mode=0x21 params=f80300dab62d00000000 sent"), log.effects());
+        }
     }
 
     @Test

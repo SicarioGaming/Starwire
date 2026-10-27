@@ -14,6 +14,7 @@ import android.view.InputDevice;
 
 import com.limelight.preferences.PreferenceConfiguration;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -25,13 +26,16 @@ import org.robolectric.util.ReflectionHelpers;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * DualSenseBluetooth, the part that runs a stream's or Settings' DualSense: the checks before any
  * hidden call, which controllers count, one pad at a time, the game's effects, the retry and the
- * timeout, and turning the triggers off at the end. It runs on Robolectric's paused main looper
- * with FakeHidHost as Android's Bluetooth, so time only moves when a test moves it.
+ * timeout, turning the triggers off at the end, and the log line for each of the game's effects.
+ * It runs on Robolectric's paused main looper with FakeHidHost as Android's Bluetooth, so time
+ * only moves when a test moves it.
  */
 @RunWith(RobolectricTestRunner.class)
 // PreferenceConfiguration reaches MoonBridge, which loads the native streaming library in its
@@ -51,10 +55,17 @@ public class DualSenseBluetoothTest {
     private final FakeHidHost link = FakeHidHost.working(PAD, PAD_NAME);
     private final List<DualSenseStatus> heard = new ArrayList<>();
     private int linksMade;
+    private LimeLogLines log;
 
     @Before
     public void allowNearbyDevices() {
         shadowOf(context).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT);
+        log = LimeLogLines.listen();
+    }
+
+    @After
+    public void stopListening() {
+        log.close();
     }
 
     private DualSenseBluetooth.LinkFactory fake() {
@@ -158,6 +169,7 @@ public class DualSenseBluetoothTest {
         dualSense.onHostTriggers(7, 0x0C, 0x21, 0x25, new byte[9], WEAPON);
         idle();
         assertEquals(1, link.calls.size());
+        assertEquals("not logged either", Collections.emptyList(), log.effects());
     }
 
     @Test
@@ -179,6 +191,7 @@ public class DualSenseBluetoothTest {
         idle();
         assertEquals(2, link.calls.size());
         assertEquals(1, link.closes);
+        assertEquals("nothing logged after the stop", Collections.emptyList(), log.effects());
     }
 
     @Test
@@ -396,6 +409,90 @@ public class DualSenseBluetoothTest {
         idle();
         assertEquals(0, link.calls.size());
         assertTrue(heard.contains(DualSenseStatus.NO_PAD));
+    }
+
+    @Test
+    public void eachEffectIsLoggedOnceWithTheTimeSinceTheStreamStarted() {
+        DualSenseBluetooth dualSense = stream(TriggerPreset.NONE);
+        dualSense(dualSense, 7);
+        waitFor(2500);
+        gameSends(dualSense, 7);
+        gameSends(dualSense, 7);
+        assertEquals(Arrays.asList(
+                "DualSense effect: t=2500ms R2 mode=0x25 params=44000700000000000000 sent",
+                "DualSense effect: t=2500ms L2 mode=0x21 params=f80300dab62d00000000 sent"), log.effects());
+        assertEquals("the connect and the effects, as without the log", 2, link.calls.size());
+        for (String line : log.effects()) {
+            assertTrue("nothing about the pad: " + line, !line.contains(PAD) && !line.contains(PAD_NAME));
+        }
+    }
+
+    @Test
+    public void anEffectBeforeThePadIsReadyIsLoggedAsHeld() {
+        link.serviceAnswers = false;
+        DualSenseBluetooth dualSense = stream(TriggerPreset.NONE);
+        dualSense(dualSense, 7);
+        assertEquals(DualSenseStatus.CHECKING, dualSense.status());
+        dualSense.onHostTriggers(7, HostTriggerMessage.RIGHT_TRIGGER, 0, 0x25, new byte[10], WEAPON);
+        idle();
+        assertEquals(Collections.singletonList(
+                "DualSense effect: t=0ms R2 mode=0x25 params=44000700000000000000 held (no pad ready)"), log.effects());
+    }
+
+    @Test
+    public void anUnknownModeIsLoggedAsDropped() {
+        DualSenseBluetooth dualSense = stream(TriggerPreset.NONE);
+        dualSense(dualSense, 7);
+        dualSense.onHostTriggers(7, HostTriggerMessage.RIGHT_TRIGGER, 0, 0xFC, new byte[10],
+                Hex.bytes("0102030405060708090a"));
+        idle();
+        assertEquals(Collections.singletonList(
+                "DualSense effect: t=0ms R2 mode=0xfc params=0102030405060708090a dropped (unknown mode, trigger off)"),
+                log.effects());
+        assertEquals(OFF, FakeHidHost.rightTrigger(link.lastTaken()));
+    }
+
+    @Test
+    public void withTheOffPresetTheGamesEffectsAreLoggedAsReplaced() {
+        DualSenseBluetooth dualSense = stream(TriggerPreset.OFF);
+        dualSense(dualSense, 7);
+        gameSends(dualSense, 7);
+        assertEquals(Arrays.asList(
+                "DualSense effect: t=0ms R2 mode=0x25 params=44000700000000000000 replaced by preset off",
+                "DualSense effect: t=0ms L2 mode=0x21 params=f80300dab62d00000000 replaced by preset off"),
+                log.effects());
+        assertEquals("only the connect", 1, link.calls.size());
+    }
+
+    @Test
+    public void stopLogsWhatTheLimitHeldBack() {
+        DualSenseBluetooth dualSense = stream(TriggerPreset.NONE);
+        dualSense(dualSense, 7);
+        for (int force = 0; force < TriggerEffectLog.MAX_LINES_A_SECOND + 2; force++) {
+            byte[] resistance = new byte[10];
+            resistance[1] = (byte) force;
+            dualSense.onHostTriggers(7, HostTriggerMessage.RIGHT_TRIGGER, 0, 0x01, new byte[10], resistance);
+        }
+        idle();
+        assertEquals(TriggerEffectLog.MAX_LINES_A_SECOND, log.effects().size());
+
+        dualSense.stop();
+        idle();
+        List<String> lines = log.effects();
+        assertEquals(Arrays.asList(
+                "DualSense effect: t=0ms 1 change not logged, more than 10 in a second",
+                "DualSense effect: t=0ms R2 mode=0x01 params=000b0000000000000000 sent"),
+                lines.subList(TriggerEffectLog.MAX_LINES_A_SECOND, lines.size()));
+    }
+
+    @Test
+    public void settingsLogsNoEffects() {
+        DualSenseBluetooth dualSense = settings();
+        dualSense(dualSense, 7);
+        gameSends(dualSense, 7);
+        dualSense.stop();
+        idle();
+        assertEquals(Collections.emptyList(), log.effects());
     }
 
     // A controller Android lists, as Settings finds it through InputDevice

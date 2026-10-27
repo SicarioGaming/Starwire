@@ -5,6 +5,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.view.InputDevice;
 
@@ -22,7 +23,8 @@ import java.util.Map;
  * In a stream, ControllerHandler tells it when a controller shows up or goes away and passes on
  * the host's trigger messages. Each DualSense that connects is checked again; anything that fails
  * leaves the pad on today's path, with the reason in the log and in Settings. One DualSense at a
- * time: with two, both stay on today's path. Rumble and the light bar never come here.
+ * time: with two, both stay on today's path. Rumble and the light bar never come here. Each change
+ * in the game's effects gets a line in the log (TriggerEffectLog), in a stream only.
  *
  * The JVM tests run it with a fake link (LinkFactory) on the main looper, so its checks, timeouts
  * and fallbacks are tested without a device or a clock.
@@ -48,6 +50,8 @@ public final class DualSenseBluetooth {
     private final Context context;
     private final boolean inStream;
     private final TriggerRules rules;
+    // A line for each change in the game's effects; null in Settings
+    private final TriggerEffectLog effectLog;
     private final int strength;
     private final StatusListener listener;
     private final LinkFactory linkFactory;
@@ -77,6 +81,7 @@ public final class DualSenseBluetooth {
         this.context = context.getApplicationContext();
         this.inStream = inStream;
         this.rules = new TriggerRules(preset);
+        this.effectLog = inStream ? TriggerEffectLog.forStream(preset) : null;
         this.strength = strength;
         this.listener = listener;
         this.linkFactory = linkFactory;
@@ -208,15 +213,24 @@ public final class DualSenseBluetooth {
                 || right.length < TriggerEffect.PARAMETER_SIZE) {
             return;
         }
+        long atMs = SystemClock.elapsedRealtime();
+        byte[] leftBytes = left.clone();
+        byte[] rightBytes = right.clone();
         HostTriggerMessage message = HostTriggerMessage.fromCallback(0, eventFlags, typeLeft, typeRight,
-                left.clone(), 0, right.clone(), 0);
+                leftBytes, 0, rightBytes, 0);
         worker.post(() -> {
             if (stopped || !pads.containsKey(deviceId)) {
                 return;
             }
             // Kept in the rules either way, for a session that starts later
             rules.onGameMessage(message);
-            if (session != null && deviceId == sessionDevice && !syncPosted) {
+            boolean toPad = session != null && deviceId == sessionDevice;
+            // Logged as sent before the send runs; the send takes the latest effects
+            if (effectLog != null) {
+                effectLog.onGameMessage(atMs, message.triggers, typeLeft, typeRight, leftBytes, rightBytes,
+                        rules.gameTookOver(), toPad);
+            }
+            if (toPad && !syncPosted) {
                 // One send for however many messages arrive before it runs
                 syncPosted = true;
                 worker.post(syncGame);
@@ -277,6 +291,9 @@ public final class DualSenseBluetooth {
             }
             stopped = true;
             worker.removeCallbacksAndMessages(null);
+            if (effectLog != null) {
+                effectLog.finish();
+            }
             if (session != null) {
                 session.release();
             }

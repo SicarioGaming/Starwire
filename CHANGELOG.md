@@ -63,6 +63,16 @@ steps and the checksums for each version.
   expected: firm resistance, a weapon click, a buzz and off. setReport did nothing there.
   Starwire's presets use other values, and light resistance and heavy pedal use a kind of effect
   that test didn't try. Tested with JVM tests against a fake Bluetooth link.
+- **A log line for each DualSense trigger effect a game sends,** while Trigger effects is on, so
+  a screen recording can be matched to the effects the game really sent. Each line starts with
+  `DualSense effect:` and gives the time since the stream screen opened, the trigger (R2 or L2),
+  the effect's mode and bytes in hex as the PC sent them, and what Starwire did with it: passed
+  it on to the pad, held it because no pad was ready yet, turned the trigger off for a mode it
+  doesn't pass on, or ignored it for the Off preset. A trigger's effect is logged when it
+  changes, not each time the game sends it again. After 10 lines in a second, counted from the
+  first of them, changes are only counted until that second is up. Then a line says how many
+  were left out, if any, and each trigger's last change is logged with its own time. Nothing
+  about the pad, the PC or you is in it. Checked by JVM tests, not yet read on a device.
 - **USB devices (Experimental):** share a wired device plugged into the phone with the PC you
   stream from. Turn on "USB devices (Experimental)" under Controllers (off by default), and the
   stream menu gets a "USB devices" page. It lists what's plugged in: which devices can't be shared
