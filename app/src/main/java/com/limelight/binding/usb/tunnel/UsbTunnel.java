@@ -14,7 +14,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
-import java.security.cert.Certificate;
 import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -22,7 +21,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 
 /**
@@ -546,7 +544,6 @@ public final class UsbTunnel {
                 throw new Ended(null, null);
             }
         }
-        SwutTls.restrict(tls);
         // Starwire refuses renegotiation: BIND tied the session to the first handshake's certificates
         AtomicInteger handshakes = new AtomicInteger();
         tls.addHandshakeCompletedListener(event -> {
@@ -555,17 +552,10 @@ public final class UsbTunnel {
                 cutWith(s, Ending.of(Ending.PROTOCOL_ERROR));
             }
         });
-        tls.startHandshake();
-        SSLSession tlsSession = tls.getSession();
-        SwutTls.checkSession(tlsSession);
-        Certificate[] mine = tlsSession.getLocalCertificates();
-        Certificate[] theirs = tlsSession.getPeerCertificates();
-        if (mine == null || mine.length != 1 || theirs == null || theirs.length != 1) {
-            throw new SSLException("each side must show exactly one certificate");
-        }
         // Each fingerprint as this side saw it in its finished handshake
-        byte[] phoneFp = SwutCodec.fingerprint(mine[0].getEncoded());
-        byte[] helperFp = SwutCodec.fingerprint(theirs[0].getEncoded());
+        byte[][] fingerprints = SwutTls.handshake(tls);
+        byte[] phoneFp = fingerprints[0];
+        byte[] helperFp = fingerprints[1];
         InputStream in = tls.getInputStream();
         OutputStream out = tls.getOutputStream();
 

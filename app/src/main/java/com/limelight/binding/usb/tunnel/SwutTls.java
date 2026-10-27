@@ -10,6 +10,7 @@ import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
@@ -18,6 +19,7 @@ import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -120,6 +122,25 @@ final class SwutTls {
         }
         socket.setEnabledProtocols(protocols);
         socket.setEnabledCipherSuites(suites);
+    }
+
+    /**
+     * Restricts the socket to the contract's TLS, does the handshake and checks what it agreed,
+     * whatever the platform let through: the version, the suite, and one certificate each. Returns
+     * each certificate's fingerprint as this side saw it in the finished handshake, the phone's
+     * first.
+     */
+    static byte[][] handshake(SSLSocket socket) throws IOException, GeneralSecurityException {
+        restrict(socket);
+        socket.startHandshake();
+        SSLSession session = socket.getSession();
+        checkSession(session);
+        Certificate[] mine = session.getLocalCertificates();
+        Certificate[] theirs = session.getPeerCertificates();
+        if (mine == null || mine.length != 1 || theirs == null || theirs.length != 1) {
+            throw new SSLException("each side must show exactly one certificate");
+        }
+        return new byte[][] {SwutCodec.fingerprint(mine[0].getEncoded()), SwutCodec.fingerprint(theirs[0].getEncoded())};
     }
 
     /** Checks what the finished handshake agreed, whatever the platform let through. */
