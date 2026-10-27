@@ -13,6 +13,19 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **USB sharing, the phone's side (not in the stream menu yet):** the USB/IP exporter from
+  Moonlight V+ (qiin2333), built on usbipdcpp (yunsmall), is now inside the app, with
+  Starwire's device rules. They decide before anything is shared: pads, wheels, sticks and audio
+  devices pass, keyboards and mice need your yes, and hubs, storage, network adapters,
+  vendor-specific devices (wired Xbox pads among them, for now) and USB 3 devices are refused, with
+  the reason. One device at a time, on Android 9 or later on 64-bit ARM. Only tested on a
+  computer, against the rules' shared cases: no USB device has been shared through it on a phone
+  or tablet yet, and nothing in the app starts it until the stream menu gets its USB item. The
+  APK carries the exporter for 64-bit ARM (and x86_64 in debug builds), and its licences are in
+  Settings > About > Open-source licences.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

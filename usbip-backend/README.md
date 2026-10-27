@@ -1,142 +1,48 @@
-# Android USB/IP backend
+# The USB exporter (usbip-backend)
 
-This module exports one Android USB device and carries USB/IP through Moonlight's
-reverse TLS tunnel to Sunshine. It builds pinned usbipdcpp and libusb sources into
-the app; no root command, second installed server app, Qt, or RUSB component is
-required on Android.
+This module is Moonlight V+'s Android USB/IP exporter, by qiin2333 and the V+ contributors
+([qiin2333/moonlight-vplus](https://github.com/qiin2333/moonlight-vplus), GPL-3.0), brought into
+Starwire with `git cherry-pick -x` so each change keeps its author. It builds usbipdcpp (yunsmall,
+LGPL-3.0) and libusb into the app from pinned sources, and shares one Android USB device as a
+USB/IP server. Its way of handing Android's file descriptor to libusb follows yunsmall's
+[Android-Usbipdcpp](https://github.com/yunsmall/Android-Usbipdcpp). V+'s own README, with V+'s
+tests on its devices, is at
+[e8f69de0](https://github.com/qiin2333/moonlight-vplus/blob/e8f69de08c104c97c95a0db3b5c9a3ca58506054/usbip-backend/README.md).
 
-The validated target is Android 9+ ARM64. Android 9+ ARMv7 (`armeabi-v7a`)
-is available experimentally, including devices with a 32-bit Android userspace
-on a 64-bit-capable SoC. The app packages both ARM native libraries by default.
-ARMv7 has not yet been validated end-to-end on physical hardware; the USB panel
-and diagnostics app display this limitation. Other architectures remain unavailable
-in the forwarding UI without loading native code; `x86_64` is a native-test target only.
+This product uses usbipdcpp (https://github.com/yunsmall/usbipdcpp), licensed under LGPLv3.
 
-## Enable forwarding
+## What Starwire took, and what it changed
 
-1. On Windows, install the usbip-win2 transport/driver using Sunshine's USB/IP
-   component manager. In Sunshine Web settings → Input, enable experimental USB
-   device forwarding, save, and restart Sunshine. Only trust paired clients whose
-   USB devices you are willing to attach to Windows.
-2. Pair Moonlight with Sunshine and start a stream. Open the stream menu → USB
-   forwarding and enable it for this host (off by default, remembered per host).
-3. Connect an external device through OTG, explicitly select it, and grant Android
-   USB permission. Enabling the switch alone never shares a device.
-4. Stop sharing, disable the switch, or leave the stream to release the device.
+- **Taken:** the CMake build of usbipdcpp, libusb, Asio and spdlog at fixed revisions with their
+  SHA-256, V+'s patch to usbipdcpp's accept loop, the JNI layer (`usbip_jni.cpp`, `NativeUsbIp`),
+  `UsbIpBackend` and the device tests.
+- **Left out:** V+'s TLS tunnel to Sunshine (`UsbReverseTunnel`), its test certificates and keys,
+  the diagnostics app and V+'s Kotlin stream menu. Starwire carries the device's traffic through
+  its own encrypted tunnel to its own PC helper ([usb-protocol.md](../docs/dev/usb-protocol.md)).
+- **Changed for Starwire:** the app's NDK and minimum Android version, the C++ library linked in
+  statically, 64-bit ARM only in a release (x86_64 too in a debug build, for the emulators' tests),
+  no ARMv7, and CMake 3.31.6. Two native calls are Starwire's own: the device's speed and a HID
+  interface's report descriptor, which Starwire's device rules read before anything is exported.
+- **Starwire's own code on top:** `UsbExporter`, `UsbDeviceRules` and `UsbPermission` in
+  `app/src/main/java/com/limelight/binding/usb/`. They share one device at a time, after the
+  device rules, through one exporter that listens only while that device is shared.
 
-Connection credentials are obtained over the existing paired, certificate-pinned
-HTTPS connection; no build variables or manual tokens are needed. Older hosts,
-disabled hosts, and connection failures have visible status and retry controls.
-The capability request rejects redirects and has a 5-second total call timeout
-and a 4096-byte response limit; a CA-trusted but unpaired certificate is rejected.
-The host TCP port defaults to its main port + 7 (normally 47996); setting
-`usb_forwarding_port` to 0 selects this automatic mode, while 1024–65535 overrides it.
-Clients use the advertised port. Remote networks must also allow/forward that
-port. The feature does not configure router forwarding automatically.
+## Only the connection Starwire authorised
 
-## Ownership and transport
+The exporter listens on 127.0.0.1, and every app on the phone can reach 127.0.0.1. So, as in V+,
+Starwire binds its own socket to a free local port first, authorises that exact source port in
+native code, then connects. The patched accept loop uses the authorisation once and closes every
+other connection. Starwire's socket has `SO_REUSEADDR` off, so on Linux no other socket can bind
+the same port while it's authorised. A JVM test checks the option is off; no other app has tried
+it on a device.
 
-`UsbIpBackend` opens only the device selected by the user after Android grants USB
-permission. A process-wide owner and a single executor serialize export, release,
-detach, and shutdown. Native code duplicates the USB file descriptor and keeps it
-alive until all USB/IP callbacks stop.
+## Tests
 
-`UsbReverseTunnel` authenticates Sunshine with the paired leaf certificate, presents
-the paired Moonlight client identity, and sends the host-lifetime token and bus ID in
-the bounded JSON handshake. It then forwards the raw USB/IP stream with blocking
-backpressure. Closing the Activity or stream closes TLS off the UI thread before the
-native export is released.
-
-The capability endpoint is HTTPS-only and requires an actual paired certificate,
-not a caller-supplied client ID. Tokens are memory-only, marked `no-store`, and
-rotate when Sunshine restarts. Reopen the forwarding panel after a host restart
-to obtain current credentials. This opt-in is not a per-device trust policy and
-does not make arbitrary USB classes safe or supported.
-
-Android loopback is shared by installed apps, so binding the exporter to
-`127.0.0.1` alone is insufficient. Before connecting, Moonlight binds its local
-socket to an ephemeral source port and authorizes that exact port in native code.
-The patched usbipdcpp accept loop consumes the authorization once and rejects every
-other connection. The socket reservation prevents another app from claiming the
-authorized source port during the handoff.
-
-## Build and test
-
-With Android SDK, NDK 28.2, and JDK 21 installed:
-
-```sh
-./gradlew -p usbip-diagnostics assembleDebug \
-  :usbip-backend:assembleDebug \
-  :usbip-backend:assembleDebugAndroidTest \
-  :usbip-backend:testDebugUnitTest
-./gradlew -p usbip-diagnostics assembleDebug \
-  :usbip-backend:assembleDebugAndroidTest -PusbipTestAbi=armeabi-v7a
-./gradlew :app:assembleNonRootDebug \
-  -PaudioHapticsSdkDir=/path/to/moonlight-audio-haptics
-```
-
-The standalone diagnostics app exercises Android permission and native export
-lifecycle without starting a tunnel. Instrumented tests cover protocol start/stop,
-invalid file descriptors, cleanup, unauthorized loopback rejection, mutual TLS,
-certificate pinning, host rejection, handshake bounds, cancellation, and 256 KiB
-bidirectional forwarding. Hardware-only tests remain opt-in and skip unless every
-required endpoint and bus ID argument is present.
-
-`usbipTestAbi` selects a single ABI for standalone diagnostics/device tests
-(`arm64-v8a`, `armeabi-v7a`, or `x86_64`); omit it for production builds so both
-ARM libraries are included. USB/IP CI compiles diagnostics, AARs and device tests
-for both ARM targets, checks the packaged JNI libraries, and retains the existing
-x86_64 emulator lifecycle tests. Main app CI checks both ARM USB/IP runtimes in
-the Moonlight APK.
-
-Before treating ARMv7 as validated, install a development Moonlight APK on a
-32-bit Android device and test explicit share/permission, Windows enumeration
-through Sunshine/usbip-win2, real device input, detach, reconnect, Stop sharing,
-and stream-exit cleanup. The standalone diagnostic APK only tests the local
-exporter; it does not validate the reverse tunnel or Windows attachment.
-
-End-to-end validation on 2026-09-07 used an OPPO PKJ110 with a Logitech K380
-(`046d:b34d`, Android bus ID `1-6:0`) and Sunshine with usbip-win2 0.9.7.8. Sunshine
-attached the device at VHCI hub port 1; Windows enumerated 11 composite/HID nodes
-with problem code 0. The device remained attached during the stream. Leaving the
-Activity closed the tunnel without `NetworkOnMainThreadException`, removed the VHCI
-port, and removed all matching live PnP nodes.
-
-This proves enumeration, control traffic, sustained attachment, and deterministic
-teardown through the production Moonlight/Sunshine path. It does not yet establish
-support for every USB class or capture independent physical key/mouse input reports.
-
-## Runtime setup validation (2026-09-09)
-
-Meizu 17 + K380 (`046d:b34d`, bus ID `1-5:0`) streamed to the installed
-Sunshine built from `3e142f7d1` plus the runtime-setup changes. The normal USB
-panel fetched credentials over paired HTTPS without build-time secrets. This
-test caught and fixed a route-construction bug: the legacy HTTP helper encodes
-one path segment, so passing the entire API route produced `%2F` and a false 404.
-
-After explicit device selection and Android permission, Windows imported the
-device at VHCI port 1 and enumerated 11 matching PnP nodes with status `OK`.
-Turning the host-specific switch off removed the port and all matching live
-nodes. Re-enabling and explicitly selecting again imported at port 1; exiting
-the stream removed the port and nodes again, and Android listed the keyboard
-as a local input device. No physical key-report or other USB-class claim is made.
-The first permission-grant attempt attached briefly then released; its cause
-remains unverified. The subsequent explicit-share/disable and re-share/stream-exit
-cycles passed. Qt's new runtime-setup UI flow is a separate pending validation.
-The final strict-HTTPS build (no redirects, exact paired certificate, 5-second
-call timeout) was retested on the same device: capability retrieval succeeded,
-11 matching PnP nodes were `OK`, and explicit Stop removed the port and all nodes.
-
-## Dependency provenance
-
-- FD integration reference: yunsmall/Android-Usbipdcpp at
-  `8653028e8197c08456f9495fa71eab3b6e7926a9` (GPL-3.0).
-- USB/IP core: yunsmall/usbipdcpp at
-  `1355113f030c4c13404030e6e7426bceb6085276` (LGPL-3.0), with a build-time
-  connection-filter patch in `patch_usbipdcpp.cmake`.
-- libusb 1.0.29 (LGPL-2.1-or-later), Asio 1.30.2 (Boost Software License), and
-  spdlog 1.15.3 (MIT, including bundled fmt notices).
-
-Dependencies are source-built from fixed revisions and verified hashes. Release
-artifacts must include their notices and corresponding reproducible source/build
-instructions.
+- `./gradlew testNonRootDebugUnitTest` runs this module's JVM tests too
+  (`UsbIpBackendSupportTest`), with the app's `UsbBuildTest`, `UsbDeviceRulesTest`,
+  `UsbExporterTest` and `UsbPermissionTest`.
+- `./gradlew assembleNonRootDebugAndroidTest` builds this module's device tests too
+  (`NativeUsbIpTest`, `UsbIpBackendLifecycleTest`, from V+). The app's own device test,
+  `UsbExporterLoopbackTest`, runs the real exporter on 127.0.0.1 with no USB device.
+- Not tried yet: any of the device tests on a phone or an emulator, and any real USB device
+  shared through this exporter from Starwire.
