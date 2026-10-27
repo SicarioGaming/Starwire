@@ -513,11 +513,11 @@
     <string name="summary_checkbox_enable_perf_overlay_lite">One short line at the top: data rate, ping, decode time, dropped frames and FPS</string>
     <string name="title_checkbox_prevent_packet_loss">Prevent packet loss</string>
     <string name="summary_checkbox_prevent_packet_loss">Keeps the Wi-Fi connection busy with a tiny packet every 20 ms, so devices that drop packets in Wi-Fi power saving stay awake. Uses slightly more battery.</string>
-    <string name="title_virtual_display_mode">Display on the PC</string>
-    <string name="summary_virtual_display_mode">Where the host streams from. Host default leaves it to Vibepollo\'s own setting.</string>
+    <string name="title_virtual_display_mode">Virtual display</string>
+    <string name="summary_virtual_display_mode">Apollo and Vibepollo can make a screen just for this device, at the stream\'s resolution and frame rate. Host default leaves it to the PC\'s own setting.</string>
     <string name="virtual_display_mode_host">Host default</string>
-    <string name="virtual_display_mode_virtual">Virtual display</string>
-    <string name="virtual_display_mode_primary">Primary display</string>
+    <string name="virtual_display_mode_virtual">On: a screen made for this device</string>
+    <string name="virtual_display_mode_primary">Off: the PC\'s main monitor</string>
     <string name="applist_menu_start_vdisplay">Start in Virtual Display</string>
     <string name="applist_menu_start_primarydisplay">Start in Primary Display</string>
 

@@ -449,7 +449,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Sync: LFR | Ported from Artemide (derflacco) |
 | Async decode and Async: LFR | Ported from Artemide (derflacco) |
 | Ultra Low Latency: MediaTek's own ultra-low-latency mode follows the setting, and low latency is set again after the decoder starts | Ported from Artemide (derflacco). The base option and its Snapdragon/Exynos/Amlogic flags are from Moonlight X (MoreOrLessSoftware) and Artemis |
-| Virtual Display: "Display on the PC" setting, "Start in Virtual/Primary Display" **(Apollo / Vibepollo)** | Ported from Artemis (Yukino Song), via Artemide |
+| Virtual Display: the "Virtual display" setting (in Settings under PC, and per game) and "Start in Virtual/Primary Display" when long-pressing a game **(Apollo / Vibepollo)** | Ported from Artemis (Yukino Song), via Artemide |
 | Prevent Packet Loss (keeps Wi-Fi awake during streams) | Option from Artemis (Yukino Song), via Artemide; rewritten for Starwire as a small keep-alive ping |
 | Lite performance overlay (one compact line: data rate, ping, decode time, dropped frames, FPS) | Ported from Axixi2233's fork (axi), via Artemis and Artemide; the plain wording is new in Starwire |
 | 1% low FPS in the stats | Idea from Moonlight V+ (qiin2333) and Moonlight X Turnip (NoCrypt) |
