@@ -2137,12 +2137,32 @@ sealed class UsbTray
         });
     }
 
-    // The paired phones, read from the microphone receiver's pairings when the menu opens
+    // The paired phones, read from the microphone receiver's pairings when the menu opens. The
+    // read goes off the icon's thread, so opening the menu never waits on the file (which a flood
+    // of waiting connections could hold up); the items are filled in once it's read.
     void FillPhones()
     {
         phones.DropDownItems.Clear();
-        string problem;
-        List<UsbPhone> list = tunnel.Phones(out problem);
+        phones.DropDownItems.Add(new ToolStripMenuItem("Reading the paired phones...") { Enabled = false });
+        ThreadPool.QueueUserWorkItem(delegate {
+            string problem;
+            List<UsbPhone> list = null;
+            try {
+                list = tunnel.Phones(out problem);
+            }
+            catch (Exception e) {
+                problem = e.Message;
+            }
+            string why = problem;
+            List<UsbPhone> got = list;
+            ui.Post(delegate { ShowPhones(got, why); }, null);
+        });
+    }
+
+    // On the icon's thread, once the pairings have been read off it
+    void ShowPhones(List<UsbPhone> list, string problem)
+    {
+        phones.DropDownItems.Clear();
         if (list == null) {
             phones.DropDownItems.Add(new ToolStripMenuItem("Couldn't read the paired phones: " + problem) { Enabled = false });
             return;
@@ -2155,17 +2175,31 @@ sealed class UsbTray
             UsbPhone phone = p;
             ToolStripMenuItem item = new ToolStripMenuItem(phone.Line.Name + " (" + phone.Line.Id.Substring(0, 8) + ")");
             item.Checked = phone.Allowed;
-            item.Click += delegate {
-                string why;
-                if (!tunnel.SetAllowed(phone.Line, !phone.Allowed, out why)) {
-                    icon.ShowBalloonTip(6000, "Starwire USB", "Couldn't change Allow USB: " + why, ToolTipIcon.Warning);
-                }
-            };
+            item.Click += delegate { SetAllowed(phone); };
             phones.DropDownItems.Add(item);
         }
         if (problem != null) {
             phones.DropDownItems.Add(new ToolStripMenuItem(problem) { Enabled = false });
         }
+    }
+
+    // Ticking or unticking Allow USB reads and writes files, so it too goes off the icon's thread
+    void SetAllowed(UsbPhone phone)
+    {
+        ThreadPool.QueueUserWorkItem(delegate {
+            string why = null;
+            bool ok = false;
+            try {
+                ok = tunnel.SetAllowed(phone.Line, !phone.Allowed, out why);
+            }
+            catch (Exception e) {
+                why = e.Message;
+            }
+            if (!ok) {
+                string message = why;
+                ui.Post(delegate { icon.ShowBalloonTip(6000, "Starwire USB", "Couldn't change Allow USB: " + message, ToolTipIcon.Warning); }, null);
+            }
+        });
     }
 
     void ShowTunnel()
