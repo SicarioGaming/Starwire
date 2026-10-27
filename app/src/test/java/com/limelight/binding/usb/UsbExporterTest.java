@@ -9,6 +9,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.limelight.RepoFiles;
 import com.limelight.binding.usb.tunnel.SwutCodec;
 
 import org.junit.Test;
@@ -637,5 +638,46 @@ public class UsbExporterTest {
             t.join();
         }
         assertNull("current() waited for the stop, or still gave the device", during[0]);
+    }
+
+    // An Export from an earlier share never reaches the exporter of the device shared now
+    @Test
+    public void anOldExportCantConnectToTheNextDevice() throws Exception {
+        UsbExporter.Export old = exporter.start(device("pad"), false);
+        exporter.stop();
+        UsbExporter.Export now = exporter.start(device("pad"), false);
+        natives.calls.clear();
+        try {
+            exporter.connect(old, 1000);
+            fail("connected with an old export");
+        }
+        catch (IllegalStateException expected) {
+        }
+        assertTrue(natives.calls.toString(), natives.calls.isEmpty());
+        assertTrue(sockets.isEmpty());
+        assertNotNull(exporter.connect(now, 1000));
+    }
+
+    // V+'s UsbIpBackend exports devices without the device rules, so nothing in the app shares
+    // through it, or reaches the native exporter, except UsbExporter
+    @Test
+    public void onlyUsbExporterReachesTheNativeExporter() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        java.nio.file.Path main = RepoFiles.file("app/src/main/java").toPath();
+        List<java.nio.file.Path> sources;
+        try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.walk(main)) {
+            sources = files.filter(f -> f.toString().endsWith(".java")).collect(java.util.stream.Collectors.toList());
+        }
+        for (java.nio.file.Path p : sources) {
+            String code = new String(java.nio.file.Files.readAllBytes(p), StandardCharsets.UTF_8);
+            boolean exporterItself = p.getFileName().toString().equals("UsbExporter.java");
+            if (!exporterItself && (code.contains("UsbIpBackend") || code.contains("NativeUsbIp"))) {
+                wrong.add(main.relativize(p).toString());
+            }
+            if (exporterItself && code.replace("UsbIpBackend.isSupported(", "").contains("UsbIpBackend.")) {
+                wrong.add("UsbExporter uses more of UsbIpBackend than isSupported()");
+            }
+        }
+        assertTrue(wrong.toString(), wrong.isEmpty());
     }
 }
