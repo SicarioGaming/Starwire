@@ -25,9 +25,13 @@ steps and the checksums for each version.
   anything fails; the status line says why. Test sends one effect. Rumble and the light bar work
   as before. It asks for the Nearby devices permission and uses a hidden Android call, through
   HiddenApiBypass (LSPosed), whose files Gradle checks by SHA-256. How the reports reach the pad
-  and how the pad is found are ported from Moonlight V+ (qiin2333); passing the host's effects to
-  Java follows Nightjar (Ramazan Kara). **Not tried on a device yet:** no report has reached a
-  real DualSense, and nobody has felt the presets or the strength steps. Tested with JVM tests
+  and how the pad is found are ported from Moonlight V+ (qiin2333), with two changes: setReport is
+  only used on a phone without sendData, and a DualShock 4 is never taken for the pad. The code
+  that passes the host's effects to Java is Nightjar's (Ramazan Kara). Only the trigger modes
+  Nielk1's notes list reach the pad; any other mode turns the trigger off. **Not tried on a pad
+  yet:** Starwire's trigger effects haven't been tried on a real DualSense, and nobody has felt
+  the presets or the strength steps. A separate test app changed a DualSense's light bar through
+  the same hidden sendData call on one tablet; setReport did nothing there. Tested with JVM tests
   against a fake Bluetooth link.
 
 ## [0.2.1] - 2026-10-23

@@ -875,7 +875,7 @@
     <string name="credit_vplus">Ideas: bitrate mid-stream, audio haptics, 1% lows. Ported: how the DualSense trigger effects reach the pad over Bluetooth (the four send calls, finding the pad)</string>
     <string name="credit_moonlit">Ideas: monitor switcher, pinch to zoom anytime</string>
     <string name="credit_fold">Idea: letting the stream follow a foldable\'s inner screen</string>
-    <string name="credit_nightjar">Idea: passing the host\'s DualSense trigger effects from moonlight-common-c to Java</string>
+    <string name="credit_nightjar">Ported: passing the host\'s DualSense trigger effects from moonlight-common-c to Java</string>
     <string name="credit_apollo_microphone">The in-stream microphone: the Android capture, the moonlight-common-c changes, and the Apollo build that receives it</string>
     <string name="credit_vban">VBAN, the network audio format Starwire\'s microphone uses, and VB-Cable, the virtual microphone the receiver plays into (donationware)</string>
     <string name="credit_pyrowave">The PyroWave codec</string>
