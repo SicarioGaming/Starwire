@@ -39,6 +39,7 @@ public class ClaimsTest {
             {"(?i)rebuilds libadrenotools from source", "the libraries are prebuilt"},
             {"(?i)if the driver doesn.{1,2}t work, the system one is used", "a driver that crashes closes Starwire"},
             {"(?i)local network only", "the 0.2.0 microphone isn't protected by being on the local network"},
+            {"(?i)(closed|destroyed)[^.\\n]*\\bcould crash", "no test has shown a late dialog crashing Starwire"},
     };
 
     private static List<String> textFiles() {
@@ -78,6 +79,8 @@ public class ClaimsTest {
         assertEquals(1, claimsIn("The custom Turnip driver is listed with the speed features.").size());
         assertEquals(1, claimsIn("A custom Turnip driver for more speed.").size());
         assertEquals(1, claimsIn("Load a Turnip driver for faster PyroWave.").size());
+        // The late-dialog fix is tested on the JVM only, so nothing has shown the crash it'd stop
+        assertEquals(1, claimsIn("  already closed, which could crash the app.").size());
 
         List<String> found = new ArrayList<>();
         for (String path : textFiles()) {

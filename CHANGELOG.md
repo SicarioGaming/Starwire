@@ -70,6 +70,14 @@ steps and the checksums for each version.
   turned on. Off, as it is by default, the swipe reaches the PC as a touch. As in the other
   modes, a third finger lets go of what the first two were doing on the PC, so touches with three
   or more fingers don't reach it. Checked by tests, not yet tried in a stream.
+- Starwire no longer tries to show an error or a "please wait" box on a screen Android has
+  already closed. That could happen when a connection error or the host's answer came in late.
+  This is tested on a computer, not yet on a phone. The idea is from Moonlight V+ (qiin2333).
+- If you change the bitrate mid-stream again while the last change is still on its way, your
+  latest choice now wins. Before, the older change could reach the host last, or its answer
+  could come back last, and the stream or the menu ended up on the older choice. The changes now
+  go to the host one at a time, and only the latest is shown. This is tested with a stand-in
+  host, not yet with a real PC. The idea is from Moonlight V+ (qiin2333).
 
 ## [0.2.1] - 2026-10-23
 

@@ -65,8 +65,10 @@ public class Dialog implements Runnable {
 
     @Override
     public void run() {
-        // If we're dying, don't bother creating a dialog
-        if (activity.isFinishing())
+        // If we're dying, don't bother creating a dialog. This can run long after it was posted,
+        // and Android can destroy an activity without finishing it (to recreate it, say). A
+        // dialog shown then would belong to a screen that's gone.
+        if (activity.isFinishing() || activity.isDestroyed())
             return;
 
         alert = new AlertDialog.Builder(activity).create();
