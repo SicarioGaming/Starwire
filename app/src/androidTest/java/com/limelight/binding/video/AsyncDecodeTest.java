@@ -23,6 +23,10 @@ import java.util.List;
  * Async decode (from Artemide) against this device's real H.264 decoder: the adapter delivers
  * every frame, Async LFR keeps only the newest, and the codec recovery sequences Starwire uses
  * (flush then start, detach/stop/attach/configure) resume decoding.
+ *
+ * Some decoders keep a few frames back until more input comes, and these tests stop feeding at
+ * the end of a run, so those frames never come out. The plain decoder is measured first, without
+ * the adapter (see measureHeldBack), and the tests expect exactly that many fewer frames.
  */
 @RunWith(AndroidJUnit4.class)
 public class AsyncDecodeTest {
@@ -33,6 +37,8 @@ public class AsyncDecodeTest {
     private static final long TIMEOUT_MS = 5000;
     // How long LFR's test waits for the decoder to finish: a limit, not a pause
     private static final long DECODE_WAIT_MS = 30_000;
+    // A run of frames is over once nothing has gone in or come out for this long
+    private static final long IDLE_MS = 1500;
 
     private static class EncodedFrame {
         final byte[] data;
@@ -48,6 +54,11 @@ public class AsyncDecodeTest {
 
     // Codec config (SPS/PPS) first, then FRAME_COUNT key frames
     private static List<EncodedFrame> stream;
+
+    // How many frames this device's decoder keeps back while no more input comes. The emulator
+    // images' software decoder kept 2 back on Android 9 to 11 and 17 on Android 6 (58 of 60 and
+    // 43 of 60 frames came out, 2026-10-23); the newer images kept none.
+    private static int heldBack;
 
     // Counts frames the adapter drops itself (its output queue holds at most 8 waiting frames)
     private final java.util.concurrent.atomic.AtomicInteger releasedByAdapter = new java.util.concurrent.atomic.AtomicInteger();
@@ -111,6 +122,77 @@ public class AsyncDecodeTest {
         encoder.release();
 
         assertTrue("Encoder produced no codec config", (stream.get(0).flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0);
+
+        heldBack = measureHeldBack();
+        // The recovery tests decode 20 frames before and after; most of them have to come out
+        assertTrue("the decoder keeps " + heldBack + " frames back, too many for these tests", heldBack < 20);
+    }
+
+    // Feeds the whole stream to the plain decoder (no adapter) and takes every frame it lets out
+    // until it lets none out for IDLE_MS, as decode() does. The frames still missing then are the
+    // ones it keeps back. Ending the stream lets them out: every frame has to come out in the
+    // end, or the decoder itself lost some, and that isn't a hold-back to allow for.
+    private static int measureHeldBack() throws Exception {
+        MediaCodec decoder = MediaCodec.createDecoderByType(MIME);
+        try {
+            decoder.configure(MediaFormat.createVideoFormat(MIME, WIDTH, HEIGHT), null, null, 0);
+            decoder.start();
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            int sent = 0;
+            int frames = 0;
+            int out = 0;
+            long lastProgress = System.currentTimeMillis();
+            while (System.currentTimeMillis() - lastProgress < IDLE_MS) {
+                if (sent < stream.size()) {
+                    int in = decoder.dequeueInputBuffer(10_000);
+                    if (in >= 0) {
+                        EncodedFrame f = stream.get(sent++);
+                        ByteBuffer buf = decoder.getInputBuffer(in);
+                        buf.clear();
+                        buf.put(f.data);
+                        decoder.queueInputBuffer(in, 0, f.data.length, f.ptsUs, f.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG);
+                        if ((f.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
+                            frames++;
+                        }
+                        lastProgress = System.currentTimeMillis();
+                    }
+                }
+                int index = decoder.dequeueOutputBuffer(info, 10_000);
+                if (index >= 0) {
+                    if (info.size > 0) {
+                        out++;
+                    }
+                    decoder.releaseOutputBuffer(index, false);
+                    lastProgress = System.currentTimeMillis();
+                }
+            }
+            assertEquals("frames fed to the plain decoder", FRAME_COUNT, frames);
+            int beforeTheEnd = out;
+
+            int in = decoder.dequeueInputBuffer(TIMEOUT_MS * 1000);
+            assertTrue("no input buffer to end the stream with", in >= 0);
+            decoder.queueInputBuffer(in, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+            boolean ended = false;
+            long deadline = System.currentTimeMillis() + DECODE_WAIT_MS;
+            while (!ended && System.currentTimeMillis() < deadline) {
+                int index = decoder.dequeueOutputBuffer(info, 10_000);
+                if (index >= 0) {
+                    // The last frame can come in the same buffer as the end of the stream
+                    if (info.size > 0) {
+                        out++;
+                    }
+                    ended = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
+                    decoder.releaseOutputBuffer(index, false);
+                }
+            }
+            assertTrue("the plain decoder never ended the stream", ended);
+            assertEquals("frames out of the plain decoder once the stream ended", frames, out);
+            return frames - beforeTheEnd;
+        }
+        finally {
+            decoder.stop();
+            decoder.release();
+        }
     }
 
     // A moving gradient so each frame differs
@@ -145,7 +227,8 @@ public class AsyncDecodeTest {
 
     /**
      * Feeds the codec config and then frames [from, to) through the adapter, releasing outputs as
-     * they come. Returns how many decoded frames the adapter handed out.
+     * they come, until all but the frames the decoder keeps back are out or nothing has happened
+     * for IDLE_MS. Returns how many decoded frames the adapter handed out.
      */
     private int decode(MediaCodec decoder, AsyncCodecAdapter adapter, int from, int to) {
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
@@ -159,7 +242,7 @@ public class AsyncDecodeTest {
         int outputs = 0;
         long lastProgress = System.currentTimeMillis();
 
-        while (System.currentTimeMillis() - lastProgress < 1500) {
+        while (System.currentTimeMillis() - lastProgress < IDLE_MS) {
             adapter.drainNoRenderReleaseQueue(decoder, release);
 
             if (sent < toSend.size()) {
@@ -181,7 +264,7 @@ public class AsyncDecodeTest {
                 lastProgress = System.currentTimeMillis();
             }
 
-            if (sent == toSend.size() && outputs + releasedByAdapter.get() >= to - from) {
+            if (sent == toSend.size() && outputs + releasedByAdapter.get() >= to - from - heldBack) {
                 break;
             }
         }
@@ -190,12 +273,14 @@ public class AsyncDecodeTest {
     }
 
     // Decodes frames [from, to) and checks every one came out of the decoder (handed out or
-    // dropped by the adapter's bounded queue), with most handed out
+    // dropped by the adapter's bounded queue), but those the decoder keeps back, with most handed out
     private void assertDecodes(MediaCodec decoder, AsyncCodecAdapter adapter, int from, int to) {
         releasedByAdapter.set(0);
         int outputs = decode(decoder, adapter, from, to);
-        assertEquals(to - from, outputs + releasedByAdapter.get());
-        assertTrue("Only " + outputs + " of " + (to - from) + " handed out", outputs >= (to - from) * 8 / 10);
+        int expected = to - from - heldBack;
+        assertEquals("frames out of the decoder (" + heldBack + " kept back by the decoder)",
+                expected, outputs + releasedByAdapter.get());
+        assertTrue("Only " + outputs + " of " + expected + " handed out", outputs >= expected * 8 / 10);
     }
 
     @Test
@@ -209,8 +294,10 @@ public class AsyncDecodeTest {
 
             // Every decoded frame was either handed out or released, none leaked; and when the
             // reader keeps up, nearly all are handed out
-            assertEquals(FRAME_COUNT, outputs + releasedByAdapter.get());
-            assertTrue("Only " + outputs + " of " + FRAME_COUNT + " handed out", outputs >= FRAME_COUNT * 9 / 10);
+            int expected = FRAME_COUNT - heldBack;
+            assertEquals("frames out of the decoder (" + heldBack + " kept back by the decoder)",
+                    expected, outputs + releasedByAdapter.get());
+            assertTrue("Only " + outputs + " of " + expected + " handed out", outputs >= expected * 9 / 10);
         } finally {
             adapter.detach(decoder, release);
             decoder.release();
@@ -251,22 +338,23 @@ public class AsyncDecodeTest {
             // output buffers (the renderer thread does this each loop). An emulator's software
             // decoder took longer than half a second for 60 frames, so wait for the frames
             // themselves, as long as it takes up to a generous limit.
+            // (Less the frames the decoder keeps back, as no more input comes.)
             long decodeDeadline = android.os.SystemClock.uptimeMillis() + DECODE_WAIT_MS;
-            while (releasedByAdapter.get() + adapter.getOutputQueueSize() < frames
+            while (releasedByAdapter.get() + adapter.getOutputQueueSize() < frames - heldBack
                     && android.os.SystemClock.uptimeMillis() < decodeDeadline) {
                 adapter.drainNoRenderReleaseQueue(decoder, release);
                 Thread.sleep(20);
             }
             adapter.drainNoRenderReleaseQueue(decoder, release);
-            assertEquals("frames out of the decoder (dropped plus waiting) after " + DECODE_WAIT_MS + " ms",
-                    frames, releasedByAdapter.get() + adapter.getOutputQueueSize());
+            assertEquals("frames out of the decoder (dropped plus waiting, " + heldBack + " kept back by the decoder) after "
+                    + DECODE_WAIT_MS + " ms", frames - heldBack, releasedByAdapter.get() + adapter.getOutputQueueSize());
 
             // With LFR, at most one frame is waiting, and it's a late one
             assertTrue("Output queue held " + adapter.getOutputQueueSize(), adapter.getOutputQueueSize() <= 1);
             int out = adapter.dequeueOutputIndex(decoder, info, 100_000, release);
             assertTrue("No frame waiting", out >= 0);
             assertTrue("Waiting frame is not one of the newest: pts " + info.presentationTimeUs,
-                    info.presentationTimeUs >= (FRAME_COUNT - 10) * 33_333L);
+                    info.presentationTimeUs >= (FRAME_COUNT - heldBack - 10) * 33_333L);
             decoder.releaseOutputBuffer(out, false);
         } finally {
             adapter.detach(decoder, release);
