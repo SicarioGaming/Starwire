@@ -9,6 +9,8 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import android.hardware.usb.UsbDevice;
+
 import com.limelight.RepoFiles;
 import com.limelight.binding.usb.tunnel.SwutCodec;
 
@@ -656,6 +658,100 @@ public class UsbExporterTest {
         assertTrue(natives.calls.toString(), natives.calls.isEmpty());
         assertTrue(sockets.isEmpty());
         assertNotNull(exporter.connect(now, 1000));
+    }
+
+    // ---------------------------------------------------------------- start(UsbDevice), the app's call
+    // An exporter whose Android checks and device opening are the opener's
+    private UsbExporter withOpener(UsbExporter.Opener opener) {
+        return new UsbExporter(natives, () -> {
+            FakeSocket s = new FakeSocket(natives.calls, false);
+            sockets.add(s);
+            return s;
+        }, Runnable::run, gone::add, watch, opener);
+    }
+
+    // Android's checks come first, the device is opened only while nothing is shared, and your
+    // yes reaches the device rules unchanged
+    @Test
+    public void theAppsStartChecksThenOpensAndPassesYourYesOn() throws Exception {
+        List<String> steps = new ArrayList<>();
+        List<FakeDevice> opened = new ArrayList<>();
+        UsbExporter app = withOpener(new UsbExporter.Opener() {
+            @Override
+            public void check(UsbDevice device) {
+                steps.add("check");
+            }
+
+            @Override
+            public UsbExporter.Device open(UsbDevice device) throws IOException {
+                steps.add("open");
+                FakeDevice d = new FakeDevice("/dev/bus/usb/001/00" + (opened.size() + 2), caseShare("report_keyboard"));
+                opened.add(d);
+                return d;
+            }
+        });
+        // Only for the keyboard's report, which the stand-in natives read back
+        device("report_keyboard");
+        try {
+            app.start((UsbDevice) null, false);
+            fail("a keyboard was shared without your yes");
+        }
+        catch (UsbExporter.Refused r) {
+            assertEquals("ask", r.decision.toString());
+        }
+        assertTrue(opened.get(0).closed);
+        UsbExporter.Export export = app.start((UsbDevice) null, true);
+        assertEquals(SwutCodec.FLAG_CONFIRMED_INPUT, export.share.flags);
+        assertEquals(List.of("check", "open", "check", "open"), steps);
+
+        // While it's shared, a second start is checked but opens nothing
+        try {
+            app.start((UsbDevice) null, true);
+            fail("a second device was shared");
+        }
+        catch (IllegalStateException expected) {
+        }
+        assertEquals(List.of("check", "open", "check", "open", "check"), steps);
+        assertEquals(2, opened.size());
+        assertSame(export, app.current());
+    }
+
+    // A failed check opens nothing. On a computer, as on a phone that can't share, the app's own
+    // check fails.
+    @Test
+    public void theAppsStartOpensNothingWhenTheCheckFails() throws Exception {
+        List<String> steps = new ArrayList<>();
+        UsbExporter app = withOpener(new UsbExporter.Opener() {
+            @Override
+            public void check(UsbDevice device) {
+                steps.add("check");
+                throw new SecurityException("No USB permission for this device");
+            }
+
+            @Override
+            public UsbExporter.Device open(UsbDevice device) {
+                steps.add("open");
+                throw new AssertionError("opened");
+            }
+        });
+        try {
+            app.start((UsbDevice) null, true);
+            fail("started");
+        }
+        catch (SecurityException expected) {
+        }
+        assertEquals(List.of("check"), steps);
+        try {
+            exporter.start((UsbDevice) null, true);
+            fail("started on a computer");
+        }
+        catch (IOException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("64-bit ARM"));
+        }
+        assertNull(app.current());
+        assertNull(exporter.current());
+        assertTrue(natives.calls.toString(), natives.calls.isEmpty());
+        assertFalse(watch.on);
     }
 
     // V+'s UsbIpBackend exports devices without the device rules, so nothing in the app shares

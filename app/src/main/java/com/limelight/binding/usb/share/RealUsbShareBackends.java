@@ -33,10 +33,6 @@ final class RealUsbShareBackends implements UsbShareBackends.Factory {
 
         UsbExporter exporter(Context app, UsbExporter.Listener listener);
 
-        /** UsbExporter.start(device, inputConfirmed) */
-        UsbExporter.Export start(UsbExporter exporter, UsbDevice device, boolean inputConfirmed)
-                throws UsbExporter.Refused, IOException;
-
         UsbTunnel tunnel(UsbTunnel.Exporter exporter, UsbTunnel.Listener listener);
 
         /** The USB helper's port on the PC */
@@ -55,12 +51,6 @@ final class RealUsbShareBackends implements UsbShareBackends.Factory {
         @Override
         public UsbExporter exporter(Context app, UsbExporter.Listener listener) {
             return new UsbExporter(app, listener);
-        }
-
-        @Override
-        public UsbExporter.Export start(UsbExporter exporter, UsbDevice device, boolean inputConfirmed)
-                throws UsbExporter.Refused, IOException {
-            return exporter.start(device, inputConfirmed);
         }
 
         @Override
@@ -154,7 +144,7 @@ final class RealUsbShareBackends implements UsbShareBackends.Factory {
             synchronized (owners) {
                 UsbExporter.Export e;
                 try {
-                    e = parts.start(exporter, device, inputConfirmed);
+                    e = exporter.start(device, inputConfirmed);
                 }
                 catch (UsbExporter.Refused r) {
                     throw new Refused(verdict(r.decision));

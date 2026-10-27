@@ -73,12 +73,6 @@ public class RealUsbShareBackendsTest {
             }
 
             @Override
-            public UsbExporter.Export start(UsbExporter x, UsbDevice device, boolean inputConfirmed)
-                    throws UsbExporter.Refused, IOException {
-                return exporter.start(x, device, inputConfirmed);
-            }
-
-            @Override
             public UsbTunnel tunnel(UsbTunnel.Exporter x, UsbTunnel.Listener listener) {
                 try {
                     return HelperOnLoopback.tunnel(x, listener, new AtomicLong());

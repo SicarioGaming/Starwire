@@ -20,8 +20,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A real UsbExporter for tests outside this package, on loopback. The native exporter is stood in
  * for by a USB/IP server on 127.0.0.1 that, like usbipdcpp with V+'s change, lets in only the one
  * connection whose source port was authorised. Android's device is stood in for by one made from a
- * SHARE frame's descriptors, plugged in by Android's name for it. Its unplug watch is the test's
- * to fire (unplug()). Every native call and device close is written down, in order.
+ * SHARE frame's descriptors, plugged in by Android's name for it, which UsbExporter.start(device,
+ * inputConfirmed) opens as the app's call does. Its unplug watch is the test's to fire (unplug()).
+ * Every native call and device close is written down, in order.
  */
 public final class ExporterOnLoopback implements Closeable {
     // Only so a broken test fails instead of hanging; no test waits for it to pass
@@ -62,23 +63,26 @@ public final class ExporterOnLoopback implements Closeable {
                 calls.add("watch off");
             }
         };
+        // start(device, inputConfirmed) opens the device here, as if this phone could share and
+        // Android had given Starwire permission, instead of through UsbManager
+        UsbExporter.Opener opener = new UsbExporter.Opener() {
+            @Override
+            public void check(UsbDevice device) {
+            }
+
+            @Override
+            public UsbExporter.Device open(UsbDevice device) throws IOException {
+                SwutCodec.Share share = plugged.get(device.getDeviceName());
+                if (share == null) {
+                    throw new IOException("Android couldn't open the USB device");
+                }
+                return new Device(device.getDeviceName(), device.getProductName(), share);
+            }
+        };
         // Android's unplug broadcast comes on the test's thread, through unplug()
-        UsbExporter x = new UsbExporter(new Natives(), Socket::new, Runnable::run, listener, watch);
+        UsbExporter x = new UsbExporter(new Natives(), Socket::new, Runnable::run, listener, watch, opener);
         exporter = x;
         return x;
-    }
-
-    /**
-     * UsbExporter.start(device, inputConfirmed), with the device opened here, as if Android had
-     * given Starwire permission, instead of through UsbManager
-     */
-    public UsbExporter.Export start(UsbExporter x, UsbDevice device, boolean inputConfirmed)
-            throws UsbExporter.Refused, IOException {
-        SwutCodec.Share share = plugged.get(device.getDeviceName());
-        if (share == null) {
-            throw new IOException("Android couldn't open the USB device");
-        }
-        return x.start(new Device(device.getDeviceName(), device.getProductName(), share), inputConfirmed);
     }
 
     /** Android says the device was unplugged, to the exporter's own unplug watch */

@@ -140,6 +140,18 @@ public final class UsbExporter {
         void stop();
     }
 
+    /**
+     * Android's part of start(UsbDevice): whether this phone may share the device, then the
+     * device opened. So the tests can stand in for it and still start through start(UsbDevice).
+     */
+    interface Opener {
+        /** Throws unless this phone can share USB devices and Starwire has this one's permission */
+        void check(UsbDevice device) throws IOException;
+
+        /** The device, opened. Called under the exporter's lock, with nothing shared. */
+        Device open(UsbDevice device) throws IOException;
+    }
+
     private static final class Active {
         final Export export;
         final Device device;
@@ -155,7 +167,7 @@ public final class UsbExporter {
     private final Sockets sockets;
     private final Executor background;
     private final Listener listener;
-    private final UsbManager usbManager;
+    private final Opener opener;
     private final UnplugWatch unplugWatch;
     // active and watching change only under this object's lock. The watch starts and stops with
     // the export it belongs to, so a stop() or a failed start() never ends another export's.
@@ -168,7 +180,7 @@ public final class UsbExporter {
 
     public UsbExporter(Context context, Listener listener) {
         Context app = context.getApplicationContext();
-        this.usbManager = (UsbManager) app.getSystemService(Context.USB_SERVICE);
+        this.opener = new AndroidOpener((UsbManager) app.getSystemService(Context.USB_SERVICE));
         this.natives = new RealNatives();
         this.sockets = Socket::new;
         this.background = Executors.newSingleThreadExecutor(r -> new Thread(r, "UsbExporter"));
@@ -207,13 +219,19 @@ public final class UsbExporter {
     }
 
     // For the JVM tests: no Android, and the background work runs where the test says
-    UsbExporter(Natives natives, Sockets sockets, Executor background, Listener listener, UnplugWatch unplugWatch) {
-        this.usbManager = null;
+    UsbExporter(Natives natives, Sockets sockets, Executor background, Listener listener, UnplugWatch unplugWatch,
+            Opener opener) {
+        this.opener = opener;
         this.natives = natives;
         this.sockets = sockets;
         this.background = background;
         this.listener = listener;
         this.unplugWatch = unplugWatch;
+    }
+
+    // No UsbManager, so start(UsbDevice) refuses, as on a phone that can't share
+    UsbExporter(Natives natives, Sockets sockets, Executor background, Listener listener, UnplugWatch unplugWatch) {
+        this(natives, sockets, background, listener, unplugWatch, new AndroidOpener(null));
     }
 
     UsbExporter(Natives natives, Sockets sockets, Executor background, Listener listener) {
@@ -247,22 +265,13 @@ public final class UsbExporter {
      * Needs the USB permission first (UsbPermission).
      */
     public Export start(UsbDevice device, boolean inputConfirmed) throws Refused, IOException {
-        if (!isSupported()) {
-            throw new IOException("USB sharing needs Android 9 or later on 64-bit ARM");
-        }
-        if (usbManager == null || !usbManager.hasPermission(device)) {
-            throw new SecurityException("No USB permission for this device");
-        }
+        opener.check(device);
         // The lock for the whole start, so a second one can't open the device meanwhile
         synchronized (this) {
             if (active != null) {
                 throw new IllegalStateException("A USB device is already shared");
             }
-            UsbDeviceConnection connection = usbManager.openDevice(device);
-            if (connection == null) {
-                throw new IOException("Android couldn't open the USB device");
-            }
-            return start(new AndroidDevice(device, connection), inputConfirmed);
+            return start(opener.open(device), inputConfirmed);
         }
     }
 
@@ -474,6 +483,34 @@ public final class UsbExporter {
             return null;
         }
         return new byte[][] {Arrays.copyOfRange(raw, 0, at), Arrays.copyOfRange(raw, at, at + total)};
+    }
+
+    private static final class AndroidOpener implements Opener {
+        // null in the JVM tests
+        private final UsbManager usbManager;
+
+        AndroidOpener(UsbManager usbManager) {
+            this.usbManager = usbManager;
+        }
+
+        @Override
+        public void check(UsbDevice device) throws IOException {
+            if (!isSupported()) {
+                throw new IOException("USB sharing needs Android 9 or later on 64-bit ARM");
+            }
+            if (usbManager == null || !usbManager.hasPermission(device)) {
+                throw new SecurityException("No USB permission for this device");
+            }
+        }
+
+        @Override
+        public Device open(UsbDevice device) throws IOException {
+            UsbDeviceConnection connection = usbManager.openDevice(device);
+            if (connection == null) {
+                throw new IOException("Android couldn't open the USB device");
+            }
+            return new AndroidDevice(device, connection);
+        }
     }
 
     private static final class AndroidDevice implements Device {
