@@ -31,8 +31,9 @@ import org.robolectric.shadows.ShadowAlertDialog;
  * The custom frame rate dialog's OK button, run by Robolectric: a rate it refuses keeps the
  * dialog open with an error on the field, and a good rate entered after that is saved and closes
  * the dialog. Android TV 14 and Android 6 emulators left the dialog open with 37 in it
- * (2026-10-27). That was the device test's tap landing on the refused value's error popup, not
- * OK turning the rate down, and this checks the second half without a screen.
+ * (2026-10-27). On Android TV 14 the log shows the device test's tap landing on the refused
+ * value's error popup, not on OK. Android 6's log was gone, so the same cause is likely there but
+ * not shown. This checks without a screen that OK doesn't turn the rate down.
  * CustomResolutionTest presses the same buttons on devices.
  */
 @RunWith(RobolectricTestRunner.class)
