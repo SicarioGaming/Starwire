@@ -3,10 +3,12 @@ package com.limelight.binding.usb.share;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.os.Build;
 import android.os.Handler;
+import android.widget.Button;
 import android.widget.Toast;
 
 import com.limelight.R;
@@ -128,13 +130,16 @@ public final class StreamUsbShare {
     }
 
     // A keyboard or mouse is shared only after a yes, every time (docs/dev/usb-protocol.md).
-    // Closing the question any other way is a no.
+    // Closing the question any other way is a no. The device's name is its own choice, so it's
+    // in quotes, with its IDs, and can't read as part of the question. Don't share has the focus,
+    // so the press that chose the device, or one more, can't land on Share with a controller.
     private void ask(UsbShareController.Entry device, UsbShareController.Answer answer) {
         dismissQuestion();
         boolean[] answered = {false};
         question = new AlertDialog.Builder(activity)
                 .setTitle(R.string.usb_share_confirm_title)
-                .setMessage(activity.getString(R.string.usb_share_confirm_message, device.name))
+                .setMessage(activity.getString(R.string.usb_share_confirm_message, device.name, device.vendorId,
+                        device.productId))
                 .setPositiveButton(R.string.usb_share_confirm_share, (d, which) -> {
                     answered[0] = true;
                     answer.onAnswer(true);
@@ -147,6 +152,9 @@ public final class StreamUsbShare {
                     }
                 })
                 .show();
+        // Once it's laid out, when Android gives a new window its first focus
+        Button no = question.getButton(DialogInterface.BUTTON_NEGATIVE);
+        no.post(no::requestFocus);
     }
 
     // The phone's default network going away; the tunnel's connection goes over it

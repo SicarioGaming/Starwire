@@ -574,7 +574,7 @@
     <string name="usb_share_state_lost">Connection lost. Share again?</string>
     <string name="usb_share_one_at_a_time">Stop sharing %1$s first. One device is shared at a time.</string>
     <string name="usb_share_confirm_title">Share this keyboard or mouse?</string>
-    <string name="usb_share_confirm_message">While %1$s is shared, the PC gets everything you type or click on it.</string>
+    <string name="usb_share_confirm_message">While \"%1$s\" (%2$04x:%3$04x) is shared, the PC gets everything you type or click on it.</string>
     <string name="usb_share_confirm_share">Share</string>
     <string name="usb_share_confirm_cancel">Don\'t share</string>
     <string name="usb_share_shared_toast">%1$s is shared with the PC.</string>

@@ -15,10 +15,13 @@ import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.net.ConnectivityManager;
 import android.os.Looper;
+import android.view.KeyEvent;
 import android.widget.FrameLayout;
 
 import com.limelight.R;
 import com.limelight.ui.overlay.OverlayMenuView;
+
+import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.junit.After;
 import org.junit.Before;
@@ -74,6 +77,7 @@ public class StreamUsbShareTest {
 
     @After
     public void putTheBuildsOwnBack() {
+        InstrumentationRegistry.getInstrumentation().setInTouchMode(true);
         UsbShareBackends.setForTests(null);
         StreamUsbShare.setWorkerForTests(null);
     }
@@ -238,5 +242,29 @@ public class StreamUsbShareTest {
 
         share.stop(UsbShareTunnel.END_STREAM_ENDED);
         assertFalse(connectivity.getNetworkCallbacks().contains(added.get(0)));
+    }
+
+    // The device's name is its own choice, so it's quoted, with its IDs. Don't share has the
+    // focus, so with a controller the next A is a no, and Share takes a move first.
+    @Test
+    public void theQuestionQuotesTheDeviceAndStartsOnDontShare() {
+        // As after a controller's A, which takes Android out of touch mode
+        InstrumentationRegistry.getInstrumentation().setInTouchMode(false);
+        share.start(true, target, null);
+        share.choose(KEYBOARD);
+        idle();
+        AlertDialog dialog = question();
+        assertEquals("While \"Keyboard\" (054c:0ce6) is shared, the PC gets everything you type or click on it.",
+                shadowOf(dialog).getMessage().toString());
+        assertTrue(dialog.getButton(DialogInterface.BUTTON_NEGATIVE).isFocused());
+
+        // The D-pad's centre, which Android's generic key map makes of a pad's A
+        dialog.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER));
+        dialog.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER));
+        idle();
+        assertFalse(dialog.isShowing());
+        worker.runAll();
+        assertTrue(backends.tunnels.isEmpty());
+        assertEquals(activity.getString(R.string.usb_share_verdict_ask), detail(KEYBOARD));
     }
 }
