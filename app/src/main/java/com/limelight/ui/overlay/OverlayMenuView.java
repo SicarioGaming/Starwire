@@ -378,8 +378,9 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     /**
-     * The USB devices changed: shows them again if their page is open, keeping the selection
-     * where it was.
+     * The USB devices changed: shows them again if their page is open, keeping the selection on
+     * the same device (or on Back), so the next A acts on what was selected. If that device has
+     * gone, the selection stays where it was in the list.
      */
     public void refreshUsbDevices() {
         if (page != PAGE_USB || getVisibility() != VISIBLE) {
@@ -388,10 +389,22 @@ public class OverlayMenuView extends LinearLayout {
         Region region = activeRegion;
         int bar = barIndex;
         int grid = gridIndex;
+        int action = grid >= 0 && grid < gridActions.size() ? gridActions.get(grid) : ACTION_NONE;
+        String key = action >= ACTION_USB_BASE && action - ACTION_USB_BASE < usbItems.size()
+                ? usbItems.get(action - ACTION_USB_BASE).key : null;
         buildMenu();
         if (region == Region.GRID && !gridButtons.isEmpty()) {
+            int index = Math.min(grid, gridButtons.size() - 1);
+            for (int i = 0; i < usbItems.size(); i++) {
+                if (usbItems.get(i).key.equals(key)) {
+                    index = gridActions.indexOf(ACTION_USB_BASE + i);
+                }
+            }
+            if (action == ACTION_BACK) {
+                index = gridActions.indexOf(ACTION_BACK);
+            }
             activeRegion = Region.GRID;
-            setGridIndex(Math.min(grid, gridButtons.size() - 1));
+            setGridIndex(index);
         }
         else {
             activeRegion = Region.BAR;

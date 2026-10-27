@@ -200,6 +200,34 @@ public class UsbDevicesPageTest {
         assertTrue(button(str(R.string.overlay_menu_back)).isSelected());
     }
 
+    // The selection follows the device, not its place: a device before it unplugged, or another
+    // plugged in, and the next A still acts on the one that was selected. Back stays on Back.
+    @Test
+    public void aRefreshFollowsTheSelectedDevice() {
+        items.add(new OverlayMenuView.UsbItem("headset", "Test headset", "Can be shared"));
+        menu.setUsbDevicesShown(true);
+        show();
+        button(str(R.string.overlay_menu_usb_devices)).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        press(KeyEvent.KEYCODE_DPAD_DOWN);
+        press(KeyEvent.KEYCODE_DPAD_DOWN);
+        assertTrue(button("Test headset").isSelected());
+
+        items.remove(0);
+        menu.refreshUsbDevices();
+        assertTrue(button("Test headset").isSelected());
+        press(KeyEvent.KEYCODE_BUTTON_A);
+        assertEquals(List.of("headset"), chosen);
+
+        // Down to Back, then a device comes
+        press(KeyEvent.KEYCODE_DPAD_DOWN);
+        assertTrue(button(str(R.string.overlay_menu_back)).isSelected());
+        items.add(0, new OverlayMenuView.UsbItem("pad", "Test pad", "Checked when you share it"));
+        menu.refreshUsbDevices();
+        assertTrue(button(str(R.string.overlay_menu_back)).isSelected());
+        assertFalse(button("Test headset").isSelected());
+    }
+
     @Test
     public void withNothingPluggedIn() {
         items.clear();
