@@ -9,6 +9,7 @@ import static org.junit.Assert.fail;
 import org.junit.Test;
 
 import java.security.Provider;
+import java.security.Security;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -137,9 +138,13 @@ public class AeadOnAndroid5Test {
         assertEquals(-1, SwmcCodec.openAudio(oldSession, good, good.length, out));
     }
 
-    // A refused packet leaves none of its plaintext in the buffer, with Android 5's GCM (which
-    // writes the plaintext out before it checks the tag) and with the JVM's own. Only the bytes
-    // open could have written are cleared; the rest of the buffer is left alone.
+    // A refused packet leaves none of its plaintext in the buffer, whichever GCM opened it:
+    // Android 5's (which writes the plaintext out before it checks the tag), Conscrypt's (Android
+    // 6.0 and later, and Robolectric brings it to the JVM) and the JDK's own. Each is named here.
+    // Robolectric's tests can leave Conscrypt first in the JVM's list, so the platform's choice
+    // would depend on which tests ran before. open clears the bytes it could have written, and
+    // none of them touch the bytes before the offset. Android 5's and the JDK's leave the rest of
+    // the buffer alone; Conscrypt's clears it too, to the end of the buffer.
     @Test
     public void aRefusedPacketLeavesNoneOfItsPlaintext() throws Exception {
         Map<String, String> v = SwmcVectors.read();
@@ -148,18 +153,26 @@ public class AeadOnAndroid5Test {
         forged[forged.length - 1] ^= 1;
         byte[] tc16 = hex(v.get("kat.gcm_tc16"));
         tc16[tc16.length - 1] ^= 1;
-        for (boolean onAndroid5 : new boolean[] {true, false}) {
-            Aead audio = onAndroid5 ? android5(kAudio) : new Aead(kAudio);
+        for (Provider provider : new Provider[] {ANDROID_5, conscrypt(), Security.getProvider("SunJCE")}) {
+            boolean toTheEnd = provider.getName().equals("Conscrypt");
+            Aead audio = new Aead(kAudio, provider);
             byte[] out = filled(2048);
             assertEquals(-1, SwmcCodec.openAudio(audio, forged, forged.length, out));
-            assertCleared(audio.providerName(), out, 0, 540);
+            assertCleared(audio.providerName(), out, 0, 540, toTheEnd);
 
             // At an offset into the buffer, as Aead.open allows
-            Aead kat = onAndroid5 ? android5(TC16_KEY) : new Aead(TC16_KEY);
+            Aead kat = new Aead(TC16_KEY, provider);
             out = filled(TC16_PT.length + 10);
             assertEquals(-1, kat.open(TC16_IV, 0, TC16_AAD, 0, TC16_AAD.length, tc16, 0, tc16.length, out, 7));
-            assertCleared(kat.providerName(), out, 7, TC16_PT.length);
+            assertCleared(kat.providerName(), out, 7, TC16_PT.length, toTheEnd);
         }
+    }
+
+    // Conscrypt's provider, as Robolectric brings it, without putting it in the JVM's list
+    private static Provider conscrypt() throws Exception {
+        Provider conscrypt = (Provider) Class.forName("org.conscrypt.Conscrypt").getMethod("newProvider").invoke(null);
+        assertEquals("Conscrypt", conscrypt.getName());
+        return conscrypt;
     }
 
     private static byte[] filled(int length) {
@@ -168,10 +181,11 @@ public class AeadOnAndroid5Test {
         return b;
     }
 
-    // out[from..from+length) is zero, and the rest still holds what filled() put there
-    private static void assertCleared(String provider, byte[] out, int from, int length) {
+    // out[from..from+length) is zero, or with toTheEnd, out[from..) is. The rest still holds what
+    // filled() put there.
+    private static void assertCleared(String provider, byte[] out, int from, int length, boolean toTheEnd) {
         for (int i = 0; i < out.length; i++) {
-            boolean inside = i >= from && i < from + length;
+            boolean inside = i >= from && (i < from + length || toTheEnd);
             assertEquals(provider + " byte " + i, inside ? 0 : 0x5A, out[i]);
         }
     }
