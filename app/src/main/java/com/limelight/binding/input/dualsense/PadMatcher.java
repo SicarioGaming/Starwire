@@ -15,7 +15,8 @@ import java.util.regex.Pattern;
  * the one connected HID device named like a DualSense is the pad. Both ideas are ported from
  * Moonlight V+ by qiin2333 (GPL-3.0), AndroidBluetoothHidHostTransport.kt:155-179 and
  * DirectDualSenseBluetoothOutput.kt:99-131 and :143-144 at 5840bab3. Unlike V+, a lone HID device
- * with another name is never used, and two DualSenses are refused: 0.3.0 handles one at a time.
+ * with another name is never used, a name has to say DualSense, and two DualSenses are refused:
+ * 0.3.0 handles one at a time.
  *
  * Plain Java, so the JVM tests run it as the app does.
  */
@@ -61,11 +62,15 @@ public final class PadMatcher {
         return address == null ? null : address.toUpperCase(Locale.ROOT);
     }
 
-    /** A connected HID device whose name Android gives a DualSense over Bluetooth. */
+    /**
+     * A connected HID device named like a DualSense ("DualSense Wireless Controller" on the
+     * maintainer's tablet, "DualSense Edge Wireless Controller" for an Edge). V+ also takes the
+     * plain "Wireless Controller", but that is the DualShock 4's Bluetooth name, and a DualShock 4
+     * must never get the DualSense's reports.
+     */
     public static boolean looksLikeDualSense(HidHost.Device device) {
-        String name = device.name == null ? "" : device.name.trim();
-        return name.toLowerCase(Locale.ROOT).contains("dualsense")
-                || name.equalsIgnoreCase("Wireless Controller");
+        String name = device.name == null ? "" : device.name;
+        return name.toLowerCase(Locale.ROOT).contains("dualsense");
     }
 
     /**

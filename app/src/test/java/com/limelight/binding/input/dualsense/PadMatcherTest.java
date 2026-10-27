@@ -60,10 +60,22 @@ public class PadMatcherTest {
 
     @Test
     public void withoutAnAddressTheOneDualSenseByName() {
+        // "DualSense Wireless Controller" is how the maintainer's tablet lists the pad (26 Oct)
         assertSame(PAD, PadMatcher.find(Arrays.asList(KEYBOARD, PAD), null).device);
-        // The name Android gives a DualSense on some phones
-        HidHost.Device plain = new HidHost.Device("A0:5A:5C:00:00:03", "Wireless Controller");
-        assertSame(plain, PadMatcher.find(Collections.singletonList(plain), null).device);
+    }
+
+    @Test
+    public void aDualShock4IsNeverThePad() {
+        // A DualShock 4 calls itself "Wireless Controller" over Bluetooth. Its reports aren't the
+        // DualSense's, so it must never get them
+        HidHost.Device ds4 = new HidHost.Device("11:22:33:44:55:77", "Wireless Controller");
+        PadMatcher.Result alone = PadMatcher.find(Collections.singletonList(ds4), null);
+        assertNull(alone.device);
+        assertEquals(DualSenseStatus.NO_PAD, alone.status);
+        // A DualSense with no address beside it: the DualSense, not "two pads"
+        PadMatcher.Result both = PadMatcher.find(Arrays.asList(ds4, PAD), null);
+        assertSame(PAD, both.device);
+        assertEquals(DualSenseStatus.READY, both.status);
     }
 
     @Test
@@ -87,7 +99,8 @@ public class PadMatcherTest {
     @Test
     public void namesAreMatchedLoosely() {
         assertTrue(PadMatcher.looksLikeDualSense(new HidHost.Device("x", "  dualsense wireless controller ")));
-        assertTrue(PadMatcher.looksLikeDualSense(new HidHost.Device("x", "WIRELESS CONTROLLER")));
+        assertTrue(PadMatcher.looksLikeDualSense(new HidHost.Device("x", "DualSense Edge Wireless Controller")));
+        assertFalse("a DualShock 4", PadMatcher.looksLikeDualSense(new HidHost.Device("x", "WIRELESS CONTROLLER")));
         assertFalse(PadMatcher.looksLikeDualSense(new HidHost.Device("x", "Wireless Controller 2")));
         assertFalse(PadMatcher.looksLikeDualSense(new HidHost.Device("x", null)));
     }
