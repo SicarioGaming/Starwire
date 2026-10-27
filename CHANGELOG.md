@@ -63,6 +63,14 @@ steps and the checksums for each version.
   expected: firm resistance, a weapon click, a buzz and off. setReport did nothing there.
   Starwire's presets use other values, and light resistance and heavy pedal use a kind of effect
   that test didn't try. Tested with JVM tests against a fake Bluetooth link.
+- **A log line for each DualSense trigger effect a game sends,** while Trigger effects is on, so
+  a screen recording can be matched to the effects the game really sent. Each line starts with
+  `DualSense effect:` and gives the time since the stream screen opened, the trigger (R2 or L2),
+  the effect's mode and bytes as the PC sent them, and what Starwire did with it: sent it to the
+  pad, held it because no pad was ready yet, turned the trigger off for a mode it doesn't pass
+  on, or ignored it for the Off preset. An effect the game sends again is logged once. At most
+  10 lines go out a second, and a line says how many changes were left out. Nothing about the
+  pad, the PC or you is in it. Checked by JVM tests, not yet read on a device.
 
 ### Changed
 
