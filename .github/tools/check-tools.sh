@@ -1003,6 +1003,40 @@ else
 fi
 ok "verify.sh sums counts text with any line endings as text, and still finds unlisted binary files"
 
+# 21. The Upstream changes workflow runs only on the public repo, where its weekly issue belongs.
+# On the private copy every scheduled run failed at the checkout ("repository not found").
+begin
+public_only() {  # prints each job in a workflow, then "public" if a job-level if keeps it to the public repo
+    tr -d '\r' < "$1" | awk -v guard="    if: github.repository == 'SicarioGaming/Starwire'" '
+        /^jobs:/ { injobs = 1; next }
+        injobs && /^[^[:space:]#]/ { injobs = 0 }
+        !injobs { next }
+        /^  [A-Za-z0-9_-]+:[[:space:]]*$/ {
+            if (job != "") print job, where
+            job = $1; sub(/:$/, "", job); where = "everywhere"; next
+        }
+        job != "" { sub(/[[:space:]]+$/, ""); if ($0 == guard) where = "public" }
+        END { if (job != "") print job, where }'
+}
+upstream_jobs=$(public_only .github/workflows/upstream.yml)
+if [ -z "$upstream_jobs" ]; then
+    fail "found no jobs in upstream.yml"
+else
+    while read -r job where; do
+        [ "$where" = public ] ||
+            fail "upstream.yml: the $job job runs on every copy of the repo, not only with if: github.repository == 'SicarioGaming/Starwire'"
+    done <<< "$upstream_jobs"
+fi
+work="$(mktemp -d)"
+printf '%s\n' 'on: push' 'jobs:' '  guarded:' "    if: github.repository == 'SicarioGaming/Starwire'" \
+    '    runs-on: x' '  step-only:' '    runs-on: x' '    steps:' \
+    "      - if: github.repository == 'SicarioGaming/Starwire'" '        run: true' > "$work/guards.yml"
+planted_jobs=$(public_only "$work/guards.yml" | tr '\n' ' ')
+[ "$planted_jobs" = "guarded public step-only everywhere " ] ||
+    fail "the public repo check misread a planted workflow: $planted_jobs"
+rm -rf "$work"
+ok "the Upstream changes workflow runs only on the public repo"
+
 if [ $failures -ne 0 ]; then
     echo "$failures problem(s)" >&2
     exit 1
