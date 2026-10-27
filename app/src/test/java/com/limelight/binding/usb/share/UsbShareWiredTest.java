@@ -349,7 +349,10 @@ public class UsbShareWiredTest {
         assertNull(detail(PAD));
     }
 
-    // The exporter hears of the unplug first: it gives the device back at once, and the PC hears END 2
+    // The exporter hears of the unplug first: it gives the device back at once, and the PC hears END 2.
+    // The tunnel ends the share by itself when the exporter's connection closes, so this passes
+    // without RealUsbShareBackends' notice that the device went away. That notice's test is
+    // RealUsbShareBackendsTest.aShareGivesBackAndHearsAboutOnlyItsOwnDevice.
     @Test
     public void theExportersUnplugWatchEndsTheShare() throws Exception {
         Socket usbip = sharePad();
