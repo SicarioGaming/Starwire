@@ -244,6 +244,12 @@ android {
         // (SecureMicDeviceTest)
         androidTest {
             resources.srcDirs += 'src/test/resources'
+            java.srcDirs += 'src/sharedTest/java'
+        }
+        // Device test tools whose own tests run on the JVM (StuckTestWatchdog, which
+        // device-test.sh runs every device test under)
+        test {
+            java.srcDirs += 'src/sharedTest/java'
         }
     }
 }

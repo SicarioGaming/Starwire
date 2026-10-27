@@ -3,20 +3,24 @@ package com.limelight.testing;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import androidx.test.ext.junit.runners.AndroidJUnit4;
-
+import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.Description;
 import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 /**
- * The watchdog device-test.sh runs every test under. Time is handed in, so these run its timers
- * by hand instead of waiting two minutes.
+ * The watchdog device-test.sh runs every device test under (it lives in src/sharedTest, so it is
+ * built into the device tests and into these). Time is handed in, so these run its timers by hand
+ * instead of waiting two minutes.
  */
-@RunWith(AndroidJUnit4.class)
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 36)
 public class StuckTestWatchdogTest {
     private static final Description FIRST = Description.createTestDescription("com.example.SomeTest", "first");
     private static final Description SECOND = Description.createTestDescription("com.example.SomeTest", "second");
@@ -67,6 +71,35 @@ public class StuckTestWatchdogTest {
     private final Recorder recorder = new Recorder();
     private final StuckTestWatchdog watchdog = new StuckTestWatchdog(scheduler, recorder, 120_000, 30_000);
 
+    // On a device the runner starts each test on its own thread, not the main one. Robolectric
+    // runs these on the main thread, so the test being watched gets a thread of its own.
+    private final CountDownLatch testOver = new CountDownLatch(1);
+    private Thread testThread;
+
+    private void startOnItsOwnThread(Description test) throws InterruptedException {
+        CountDownLatch started = new CountDownLatch(1);
+        testThread = new Thread(() -> {
+            watchdog.testStarted(test);
+            started.countDown();
+            try {
+                testOver.await();
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "the watched test");
+        testThread.start();
+        started.await();
+    }
+
+    @After
+    public void endTheWatchedTest() throws InterruptedException {
+        testOver.countDown();
+        if (testThread != null) {
+            testThread.join();
+        }
+    }
+
     @Test
     public void aTestThatFinishesInTimeIsLeftAlone() {
         watchdog.testStarted(FIRST);
@@ -77,16 +110,16 @@ public class StuckTestWatchdogTest {
     }
 
     @Test
-    public void aStuckTestIsReportedAndItsActivitiesFinished() {
-        watchdog.testStarted(FIRST);
+    public void aStuckTestIsReportedAndItsActivitiesFinished() throws InterruptedException {
+        startOnItsOwnThread(FIRST);
         scheduler.runDue();
         assertEquals(List.of(
                 "report first: stuck for 120 s; its activities were finished so the run could go on",
                 "finish activities"), recorder.events);
-        // What the main thread was doing, and the test's own stack (this thread's)
+        // What the main thread was doing, and the test's own stack
         assertTrue(recorder.details, recorder.details.startsWith("Main thread ("));
         assertTrue(recorder.details, recorder.details.contains("Main thread's message queue:"));
-        assertTrue(recorder.details, recorder.details.contains("Test thread " + Thread.currentThread().getName()));
+        assertTrue(recorder.details, recorder.details.contains("Test thread the watched test ("));
 
         // Finishing its activities let it end: the process stays
         watchdog.testFinished(FIRST);
