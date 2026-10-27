@@ -197,7 +197,11 @@ It's a text file, so its hash depends on line endings and it isn't in `SHA256SUM
 
 The PNG, JPG and ICO files (the app icons and TV banner, the screenshots in `docs/images`, and
 the Windows microphone receiver's icon) are pictures, not code, and aren't listed. `verify.sh`
-fails if any other binary file is added to git without a line in `SHA256SUMS`.
+fails if any other binary file is added to git without a line in `SHA256SUMS`. It counts a file
+as binary when it has a NUL byte, isn't UTF-8, or more than 1 byte in 128 is a control character
+other than a tab, a line ending, a form feed, a backspace or an escape. Text is text whatever its
+line endings, so the recorded `sdkmanager` output in `.github/tools/fixtures`, with CR, CRLF and
+LF line endings, isn't listed.
 
 ## What the custom driver hooks do, and when they run
 

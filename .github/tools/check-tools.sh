@@ -950,6 +950,59 @@ grep -q 'ZIP=Starwire-Microphone-for-Windows.zip' .github/workflows/release.yml 
 rm -rf "$work"
 ok "make-windows-zip.sh ships the microphone's and the USB helper's files, and the workflows make the zip with it"
 
+# 20. verify.sh sums, in a made-up repo: every binary file in git must be in SHA256SUMS, and text
+# isn't binary whatever its line endings. The scan took git's word, and git calls text with a
+# lone CR binary, so sdkmanager's output in fixtures/ (CR, CRLF and LF line endings) failed the
+# Prebuilt files check as an unlisted binary. A file with a NUL byte, one that isn't UTF-8 and
+# one that's mostly control characters are still binary.
+begin
+py=""
+for candidate in python3 python py; do
+    if "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 6))' > /dev/null 2>&1; then py=$candidate; break; fi
+done
+if [ -z "$py" ]; then
+    if [ -n "${CI:-}" ]; then fail "no Python 3 for verify.sh sums"; else echo "skipped: verify.sh sums in a made-up repo (no Python 3)"; fi
+else
+    work="$(mktemp -d)"
+    repo="$work/repo"
+    mkdir -p "$repo/.github/tools/prebuilts"
+    cp "$HERE/prebuilts/verify.sh" "$repo/.github/tools/prebuilts/verify.sh"
+    git init -q "$repo"
+    cp "$HERE/fixtures/sdkmanager-list-22.txt" "$repo/sdkmanager-list.txt"
+    # Like a progress bar: CRLF, then a lone CR before each update, then LF
+    printf 'Loading package information...\r\n[=====     ] 50%%\r[==========] 100%%\nInstalled packages:\r\n' > "$repo/progress.txt"
+    printf '\177ELF\2\1\1\0\0\0' > "$repo/listed.so"
+    printf '%s  listed.so\n' "$(sha256sum < "$repo/listed.so" | cut -c1-64)" > "$repo/.github/tools/prebuilts/SHA256SUMS"
+    sums() {  # runs verify.sh sums on the made-up repo, and sets status and out
+        git -C "$repo" -c core.autocrlf=false add -A
+        set +e
+        out=$(PYTHON=$py sh "$repo/.github/tools/prebuilts/verify.sh" --work "$work/verify" sums 2>&1)
+        status=$?
+        set -e
+    }
+    sums
+    if [ $status -ne 0 ] || ! grep -qE '^MATCH +SHA256SUMS +1 files$' <<< "$out"; then
+        printf '%s\n' "$out" >&2
+        fail "verify.sh sums on text with CR, CRLF and LF line endings: exit $status (expected 0, and SHA256SUMS a MATCH)"
+    fi
+    # (Not nul.txt: Windows keeps that name for its NUL device)
+    for planted in 'zero-byte.txt|a NUL byte|one\0two\n' 'latin1.txt|text that is not UTF-8|caf\351\n' \
+            'control.txt|mostly control characters|ab\1\2\3\4\5\6\n'; do
+        IFS='|' read -r name what content <<< "$planted"
+        # shellcheck disable=SC2059
+        printf "$content" > "$repo/$name"
+        sums
+        if [ $status -ne 1 ] || ! grep -qE "^DIFFERENT +${name//./\\.} +binary file not listed in SHA256SUMS\$" <<< "$out"; then
+            printf '%s\n' "$out" >&2
+            fail "verify.sh sums on $name ($what): exit $status (expected 1, and $name an unlisted binary)"
+        fi
+        git -C "$repo" rm -q --cached "$name"
+        rm "$repo/$name"
+    done
+    rm -rf "$work"
+fi
+ok "verify.sh sums counts text with any line endings as text, and still finds unlisted binary files"
+
 if [ $failures -ne 0 ]; then
     echo "$failures problem(s)" >&2
     exit 1

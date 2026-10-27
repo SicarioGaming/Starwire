@@ -137,6 +137,52 @@ recorded() {
     tr -d '\r' < "$SUMS" | awk -v p="$1" '$2 == p || $2 == "*" p { print $1; exit }'
 }
 
+# Prints the path of every binary file in git. A file is binary when it has a NUL byte, isn't
+# UTF-8, or more than 1 byte in 128 is a control character other than a tab, a line ending, a
+# form feed, a backspace or an escape. The last rule is git's own, but git also calls text with a
+# lone CR binary, so it can't be asked: real tool output like fixtures/sdkmanager-list-22.txt mixes
+# CR, CRLF and LF line endings. It reads what git has, not the checkout.
+binary_files() {
+    "$PY" -I -c '
+import subprocess, sys
+repo = sys.argv[1]
+
+def git(args, given=None):
+    return subprocess.run(["git", "-C", repo] + args, input=given, stdout=subprocess.PIPE, check=True).stdout
+
+files = []
+for entry in git(["ls-files", "-s", "-z"]).split(b"\0"):
+    if entry:
+        meta, path = entry.split(b"\t", 1)
+        mode, blob = meta.split(b" ")[:2]
+        if mode in (b"100644", b"100755"):  # not a submodule or a symbolic link
+            files.append((blob, path))
+contents = git(["cat-file", "--batch"], b"".join(blob + b"\n" for blob, _ in files))
+control = bytes(c for c in range(32) if c not in b"\t\n\r\f\b\x1b") + b"\x7f"
+at = 0
+for blob, path in files:
+    eol = contents.index(b"\n", at)
+    size = int(contents[at:eol].split()[2])
+    data = contents[eol + 1:eol + 1 + size]
+    at = eol + 2 + size
+    if b"\0" in data:
+        binary = True
+    else:
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            binary = True
+        else:
+            if data.endswith(b"\x1a"):  # a DOS end-of-file mark, which git ignores too
+                data = data[:-1]
+            odd = len(data) - len(data.translate(None, control))
+            printable = len(data) - odd - data.count(b"\r") - data.count(b"\n")
+            binary = (printable >> 7) < odd
+    if binary:
+        sys.stdout.buffer.write(path + b"\n")
+' "$(native "$REPO")"
+}
+
 find_python() {
     for p in "${PYTHON:-}" python3 python py; do
         [ -n "$p" ] || continue
@@ -287,12 +333,16 @@ check_sums() {
             echo "CHANGED $path"
         fi
     done > "$WORK/logs/sums.txt"
+    scanned=yes
     if git -C "$REPO" rev-parse --git-dir > /dev/null 2>&1; then
-        # Every file git treats as binary must be listed, apart from images
-        git -C "$REPO" ls-files --eol | awk -F '\t' '$1 ~ /^i\/-text/ { print $2 }' |
-            grep -viE '\.(png|jpe?g|gif|webp|ico|svg)$' | while read -r path; do
+        # Every binary file in git must be listed, apart from images
+        if binary_files > "$WORK/logs/binary-files.txt"; then
+            grep -viE '\.(png|jpe?g|gif|webp|ico|svg)$' "$WORK/logs/binary-files.txt" | while read -r path; do
                 [ -n "$(recorded "$path")" ] || echo "UNLISTED $path"
             done >> "$WORK/logs/sums.txt"
+        else
+            scanned=no
+        fi
     fi
     if [ -s "$WORK/logs/sums.txt" ]; then
         while read -r what path; do
@@ -306,6 +356,7 @@ check_sums() {
     else
         result "MATCH" "SHA256SUMS" "$(tr -d '\r' < "$SUMS" | grep -c .) files"
     fi
+    [ "$scanned" = yes ] || cannot "binary files in git" "couldn't read the files in git to find them"
 }
 
 check_wrapper() {
@@ -463,8 +514,8 @@ prepare_work
 if [ -n "$APK" ]; then
     check_apk
 else
-    case $PARTS in *adrenotools*|*pyrowave*)
-        find_python || { note "Python 3 is needed to compare libraries; set PYTHON"; exit 2; } ;;
+    case $PARTS in *sums*|*adrenotools*|*pyrowave*)
+        find_python || { note "Python 3 is needed to find binary files and compare libraries; set PYTHON"; exit 2; } ;;
     esac
     for part in $PARTS; do
         case $part in
