@@ -60,6 +60,8 @@ public final class SwutCodec {
     public static final int REFUSE_NOT_PAIRED = 1;
     public static final int REFUSE_NO_VERSION = 2;
     public static final int REFUSE_MALFORMED = 3;
+    // The MAC checked out, but Allow USB isn't ticked for this phone in the helper's menu
+    public static final int REFUSE_NOT_ALLOWED = 4;
 
     public static final int SHARE_ATTACHING = 0;
     public static final int SHARE_BUSY = 1;

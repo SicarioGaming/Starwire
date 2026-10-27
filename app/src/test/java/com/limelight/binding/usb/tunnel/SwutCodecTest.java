@@ -573,6 +573,16 @@ public class SwutCodecTest {
         byte[] refuse = v("frame.refuse_not_paired");
         refuse[5] = 1;   // REFUSE has no detail
         assertEquals(-1, SwutCodec.code(refuse, SwutCodec.TYPE_REFUSE));
+        // REFUSE's reasons, as the doc's table numbers them
+        int[] reasons = {SwutCodec.REFUSE_NOT_PAIRED, SwutCodec.REFUSE_NO_VERSION, SwutCodec.REFUSE_MALFORMED,
+                SwutCodec.REFUSE_NOT_ALLOWED};
+        for (int i = 0; i < reasons.length; i++) {
+            assertEquals(i + 1, reasons[i]);
+            assertEquals(i + 1, SwutCodec.code(SwutCodec.refuse(reasons[i]), SwutCodec.TYPE_REFUSE));
+        }
+        assertTrue(RepoFiles.read("docs/dev/usb-protocol.md").contains(
+                "1 not paired (no pairing for this deviceId, or a MAC that doesn't check out), 2 no version in common, "
+                        + "3 a malformed BIND, 4 paired, but USB isn't allowed for this phone"));
 
         byte[] data = v("frame.data_import");
         assertEquals(SwutCodec.TYPE_DATA, SwutCodec.typeOf(data));

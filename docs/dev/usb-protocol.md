@@ -9,9 +9,12 @@ is the contract between the two sides: the app's tunnel
 (`windows/StarwireUsbHelper.cs`). Both are to be tested against the same vectors file, byte for
 byte.
 
-**Status.** Written before the code. Only the frames, keys and MACs exist so far
-(`SwutCodec.java`), checked by the app's JVM tests against the vectors. There's no tunnel, no
-helper and no device rules in code yet, and no device has gone through any of it.
+**Status.** Written before the code. It has had one security review (Rv-1, first round), whose
+findings are fixed here, but not its second round or the maintainer's sign-off, so it can still
+change. Only the frames, keys and MACs exist so far (`SwutCodec.java`), checked by the app's JVM
+tests against the vectors. The device rules' cases are written, but no code decides them yet.
+There's no tunnel, no helper, no relay and no device rules in code, no device has gone through
+any of it, and nothing here has been tried on Windows.
 
 ## In plain words
 
@@ -23,11 +26,12 @@ at a time.
 
 **No new pairing.** The tunnel uses the microphone's pairing ([mic-protocol.md](mic-protocol.md)).
 A phone paired with the PC's microphone receiver can share USB devices with that PC once USB is
-turned on in the helper's menu, which is off until you turn it on. Each time Starwire connects,
-the helper reads the receiver's pairings file again, works out a USB key from that device's
-pairing key, and wipes the pairing key from memory. It never writes the file. So the microphone's
-pairing now counts for more than before: a paired phone can also plug devices into the PC.
-Unpairing it in the receiver's menu takes both away.
+turned on in the helper's menu and **Allow USB** is ticked for that phone there. Both are off
+until you turn them on. Each time Starwire connects, the helper reads the receiver's pairings
+file again, works out a USB key from that device's pairing key, and wipes the pairing key from
+memory. It never writes the file. So the microphone's pairing counts for much more than before:
+with USB allowed, a paired phone can plug devices into the PC, and Windows runs their drivers in
+its kernel. Unpairing it in the receiver's menu takes both away.
 
 **Each connection** is TLS with a fresh key exchange (ECDHE), so recorded traffic stays secret
 even if a pairing key leaks later. That matters because a shared keyboard carries whatever you
@@ -52,12 +56,16 @@ drivers to those IDs, a few storage drivers among them.
 - A stolen phone that's still paired and unlocked can share what the rules allow, keyboards and
   mice included (it can say yes itself), until you unpair it in the receiver's menu. It could
   already stream and type on the PC through its pairing with the host, so unpair it there too.
+- Code that can read the phone's pairing key: root malware, or a custom Vulkan driver, which runs
+  inside Starwire with its keys. It doesn't need Starwire's checks or your yes, and anything the
+  helper lets through reaches drivers that run in Windows' kernel. The helper's own checks are
+  all that stands in its way (see "Code that holds the pairing").
 - A hostile USB device. The rules narrow what reaches Windows, but Windows still reads parts of a
   shared device the helper doesn't check (see "USB/IP inside the tunnel"), and the drivers that
   load read whatever it sends. And Windows picks some drivers by vendor and product ID, so a
   device that lies about its IDs can reach another device's driver, a storage one included (see
   "What the rules can't see").
-- Malware on the phone or the PC, which can reach USB devices directly.
+- Malware on the PC, which can reach USB devices directly.
 - Someone on the network can block, slow or flood the tunnel, and can see the sizes and timing of
   its packets, as with any encrypted connection. With a keyboard shared, the timing can hint at
   when keys were pressed.
@@ -115,12 +123,20 @@ PC:                                            helper -- relay (127.0.0.1) -- us
 - Each side sends exactly one certificate: X.509, self-signed, a P-256 key, signed with ECDSA and
   SHA-256, subject and issuer `CN=Starwire` and nothing that names the phone or the PC, and a
   random serial number. Starwire makes a new one for each connection. The helper makes one when it
-  starts. Neither is saved with the pairing.
+  starts. Neither is saved with the pairing. SslStream may only take a private key that's in a
+  saved Windows key container (a known limit of .NET on Windows, not checked here yet). If so,
+  the helper makes a new container for its own Windows account when it starts, and deletes it
+  when it exits and again at its next start, in case it crashed.
 - Neither side checks a chain, names or dates, so a wrong clock doesn't matter. Each checks that
   the other's certificate has a P-256 key. The TLS handshake proves the other side holds that
   key's private half, and BIND proves the certificate belongs to someone with the pairing.
 - No session resumption: Starwire makes a new TLS context for each connection, so it never offers
-  an earlier session. No renegotiation: Starwire never asks for it and refuses it.
+  an earlier session.
+- No renegotiation. Neither side asks for it. Starwire refuses it. The helper refuses it too if
+  SslStream lets it, which is to be checked when the helper is written. TLS 1.3 has none. In TLS
+  1.2 only the other end of the session can start one, and BIND has already proved that end holds
+  the pairing. If one happens anyway, both sides allow only the secure kind (RFC 5746), which ties
+  the new handshake to the first, so a third party can't use it to get in.
 - TLS with a pre-shared key would be simpler on paper, but .NET's SslStream, which the helper is to
   use, doesn't offer it. Certificates plus BIND work with the standard TLS on both sides.
 
@@ -208,30 +224,50 @@ version, so any Starwire can read why any helper refused it, "no version in comm
 | Bytes | Field |
 |---|---|
 | 0..4 | frame header, type 4, length 4 |
-| 4 | reason: 1 not paired (no pairing for this deviceId, or a MAC that doesn't check out), 2 no version in common, 3 a malformed BIND |
+| 4 | reason: 1 not paired (no pairing for this deviceId, or a MAC that doesn't check out), 2 no version in common, 3 a malformed BIND, 4 paired, but USB isn't allowed for this phone |
 | 5..8 | reserved, 0 |
 
 Rules for the helper:
 
-- At most 4 connections that haven't finished their BIND at once; another one is closed at once.
-  Each gets 10 s from the TCP connection to a valid BIND.
-- At every BIND it reads the pairings file again, never a copy from earlier, as the Windows
-  account the receiver runs under (the keys in it are encrypted for that account). It opens the
-  file read-only and lets the receiver go on saving it. Lines it can't read are skipped. It never
-  writes, moves or locks the file.
-- It answers the frame that comes where BIND should in this order, and the first that applies
-  wins:
+- **Waiting connections.** At most 4 connections that haven't finished their BIND, and at most 1
+  from each address: a new connection from an address that already has one takes its place. When
+  4 are waiting, a new connection pushes out the oldest if that one has waited at least 2 s, as
+  the microphone's receiver does with its pending sessions; otherwise the new one is closed at
+  once. So one host can't keep the real phone out by holding every place. Each connection gets
+  10 s from its TCP connection to a valid BIND.
+- **The answer to BIND.** It answers the frame that comes where BIND should in this order, and
+  the first that applies wins:
   1. A header that doesn't read (see "Frames"): it closes the connection.
   2. A BIND whose version, byte 4, isn't in the HELLO's range, whatever the rest of the frame
      looks like: REFUSE 2.
   3. Anything that isn't a well-formed BIND of that version, a frame of another type included:
      REFUSE 3.
   4. No pairing for the deviceId, or a MAC that doesn't check out: REFUSE 1.
-  5. Otherwise BIND_ACK.
-- It finds deviceId in constant time, works out K_usb, and wipes K_pair from memory at once. An
-  unknown deviceId and a wrong MAC get the same REFUSE 1 after the same work: with no pairing, it
-  checks the MAC against a random key.
-- After BIND_ACK it wipes K_usb too. From then on TLS protects the session.
+  5. A phone that isn't allowed USB ("Allow USB, per phone"): REFUSE 4. Only a phone that has just
+     proved it holds the pairing learns this.
+  6. Otherwise BIND_ACK.
+- **Reading the pairings file.** At every BIND it reads the pairings file again, never a copy from
+  earlier, as the Windows account the receiver runs under (the keys in it are encrypted for that
+  account). It opens the file for reading, shared for reading, writing and deleting
+  (`FileShare.ReadWrite | FileShare.Delete`), reads it whole and closes it at once. It never
+  writes, moves or locks the file, and lines it can't read are skipped. It doesn't use the
+  receiver's `MicPairingStore.Load`, or `File.ReadAllText` as that does: ReadAllText shares the
+  file for reading only, and while it's open the receiver's save (`File.Replace`, or `File.Copy`
+  on a volume that can't swap files) fails, so pairing and unpairing fail. The helper's tests
+  check that the receiver can still pair and unpair while the helper reads the file over and
+  over.
+- **At most 4 reads a second**, in all. A BIND that comes when they're used up waits its turn,
+  within its 10 s. So a host that sends BINDs back to back can't keep the file open, or make the
+  helper decrypt keys, as often as it likes.
+- **Only the one key.** It finds deviceId's line in constant time and decrypts only that line's
+  key (`MicPairingStore.Load` decrypts every line's). With no such line, it decrypts a dummy key
+  instead, one it encrypted itself at start, and checks the MAC against a random key, so an
+  unknown deviceId and a wrong MAC get the same REFUSE 1 after the same work. It works out K_usb
+  and wipes every key it decrypted, K_pair or the dummy, at once.
+- **What it keeps.** After BIND_ACK it wipes K_usb too, and from then on TLS protects the session.
+  To notice later that the pairing changed, it keeps that line's key field as the file has it: the
+  base64 text of the encrypted key, which the receiver's saves write back unchanged and which a
+  new pairing replaces. It never decrypts it again.
 
 Rules for Starwire:
 
@@ -242,7 +278,21 @@ Rules for Starwire:
   never writes the store. With no pairing, it says to pair the microphone with this PC first.
 - Only a BIND_ACK that checks out counts. A REFUSE, a wrong MAC or a closed connection means no
   device is shared and the exporter isn't started. Anyone in the middle can send a REFUSE, so its
-  reason is shown as a hint only.
+  reason is shown as a hint only. For REFUSE 4 the hint is to tick **Allow USB** for this phone
+  in the helper's menu on the PC.
+
+### Allow USB, per phone
+
+Turning USB on in the helper's menu isn't enough on its own. The menu also lists the paired
+phones, each with **Allow USB**, off until you tick it. Otherwise every phone ever paired with the
+microphone would get USB, a pairing made by someone who saw the pairing code included
+([SECURITY.md](../../SECURITY.md)).
+
+The helper keeps its own list, `usb-allowed.dat` in the same folder as the pairings file, and
+never writes the pairings file. Each line is a deviceId and the SHA-256 of that pairing's key
+field (the base64 text, as the pairings file has it). A phone that pairs again, or another device
+that pairs with its deviceId, has a new key field, so it needs Allow USB again. A line for a phone
+that was unpaired matches nothing, and the helper drops it the next time it saves its list.
 
 ### SHARE and SHARE_ACK
 
@@ -294,7 +344,7 @@ then offers to share it again.
 | Bytes | Field |
 |---|---|
 | 0..4 | frame header, type 9, length 4 |
-| 4 | reason: 1 stopped by you, on either side; 2 the device was unplugged from the phone; 3 the stream ended; 4 USB was turned off in the helper; 5 the pairing was removed or changed; 6 the device broke the rules; 7 Windows couldn't attach the device, or removed it; 8 the app or the helper is closing; 9 a protocol error |
+| 4 | reason: 1 stopped by you, on either side; 2 the device was unplugged from the phone; 3 the stream ended; 4 USB was turned off in the helper; 5 the pairing was removed or changed, or Allow USB was unticked for this phone; 6 the device broke the rules; 7 Windows couldn't attach the device, or removed it; 8 the app or the helper is closing; 9 a protocol error |
 | 5 | for reason 6, the rule; otherwise 0 |
 | 6..8 | reserved, 0 |
 
@@ -316,9 +366,11 @@ After sending END, a side closes TLS properly and then the connection.
 ### When the pairing is removed or changed
 
 - In the receiver's menu (**Unpair**): the next BIND from that phone gets REFUSE 1. While a device
-  is shared, the helper also checks the pairings file at least every 10 s and whenever it
-  changes. If that phone's pairing has gone, or has a different key because it paired again, it
-  sends END 5 and gives the device back.
+  is shared, the helper also reads the pairings file (as BIND does, within the same 4 reads a
+  second) and its own list at least every 10 s and whenever either changes. If that phone's line
+  has gone, its key field isn't the one the helper kept at BIND (it paired again), or Allow USB
+  was unticked for it, the helper sends END 5 and gives the device back. Comparing the key field
+  means it never has to decrypt the key again.
 - On the phone: without a pairing for this PC, Starwire doesn't connect at all. After pairing
   again, the old K_usb no longer works, so a session still running ends as above.
 
@@ -525,18 +577,35 @@ suites aren't enabled on either side, and TLS 1.3 has its own check against bein
 the MAC instead of forcing an older SWUT. Starwire never picks a version below its own lowest.
 
 **A hostile network.** Anyone can connect to the helper's port. Before a valid BIND they get a TLS
-handshake and at most a REFUSE: the helper keeps at most 4 such connections, for 10 s each, and
-does no work beyond TLS, a fresh read of the pairings file and one MAC. The frames' lengths are
-bounded, so memory stays bounded. They can't read or change the tunnel (TLS), can't pretend to be
-either side (that needs K_usb), and can't follow a phone around by its certificate, which is new
-each time and names nobody. The deviceId travels inside TLS, unlike the microphone's.
+handshake and at most a REFUSE: the helper keeps at most 4 such connections, 1 for each address,
+for 10 s each, and does no work beyond TLS, a fresh read of the pairings file (at most 4 a
+second), one key to decrypt and one MAC. One host can't hold every place, since a newer
+connection pushes out one that has waited 2 s. The frames' lengths are bounded, so memory stays
+bounded. They can't read or change the tunnel (TLS), can't pretend to be either side (that needs
+K_usb), and can't follow a phone around by its certificate, which is new each time and names no
+person, phone or PC. The deviceId travels inside TLS, unlike the microphone's. They can tell
+that a Starwire USB helper is listening, with USB on, since the HELLO's `SWUT` and the
+`CN=Starwire` certificate say so.
 
 **A stolen phone.** It holds the pairing key (encrypted with a key that stays in Android's
 Keystore), so while it's still paired, whoever can unlock it can do what you could: share devices
 the rules allow, and confirm keyboards and mice. It could already stream and type on the PC
-through its pairing with the host. Unpair it in the receiver's menu, which ends a running session
-within 10 s, and in the host. While a device is shared, the helper's menu shows the phone's name
-(from the pairing) and the device's name (from SHARE), with Stop.
+through its pairing with the host. Unpair it in the receiver's menu (or untick Allow USB for it),
+which ends a running session within 10 s, and in the host. While a device is shared, the helper's
+menu shows the phone's name (from the pairing) and the device's name (from SHARE), with Stop.
+
+**Code that holds the pairing.** Root malware on the phone, or a custom Vulkan driver, which runs
+inside Starwire with the keys for your paired PCs ([SECURITY.md](../../SECURITY.md), "The custom
+Vulkan driver option"), can read the pairing key whenever it likes. The Keystore key that
+protects it on the phone doesn't ask for an unlocked screen (`MicPairingStore.java`). With the
+pairing key it doesn't need Starwire at all: it can make its own BIND and SHARE, say yes for its
+own keyboard, and send any USB/IP it likes. Whatever gets past the helper's rules and the relay
+goes to usbip-win2's driver and Windows' USB and HID drivers, which run in the kernel. So the
+helper's checks are the only filter between such code and the PC's kernel, and the pairing now
+allows a kernel-level attach where before it could only send audio. That's why USB is off until
+you turn it on, needs Allow USB for each phone, and stops when a phone is unpaired. Making the
+Keystore key need an unlocked phone would narrow this, but that's a change to the microphone's
+pairing, so it isn't part of this contract.
 
 **A hostile PC**, or a helper someone replaced, can send any request to the shared device. That's
 why Starwire refuses devices with a firmware update interface. Everything else a device accepts,
@@ -565,13 +634,20 @@ product ID ("What the rules can't see"), and they don't cover every part of a de
 
 ## Checking the inner layer early
 
-Plain USB/IP, as usbipd-win shares a device from another Windows PC, is exactly what the tunnel
-carries. So sharing a cabled pad that way, straight to the PC's usbip-win2 driver, tests the
-driver, how Windows sees the device, and whether its audio and haptics survive Wi-Fi, before the
-tunnel exists. It doesn't test the tunnel, BIND, the device rules, the relay or the phone's
-exporter. And it isn't encrypted or authenticated: anyone on that network can watch it or connect
-to the shared device. Do it only on a network you trust, close the port afterwards, and on a PC
-where another program uses the same driver, detach only the port you attached.
+Plain USB/IP, as usbipd-win shares a device from another Windows PC such as a laptop, is exactly
+what the tunnel carries. So sharing a cabled pad that way, straight to the PC's usbip-win2
+driver, tests the driver, how Windows sees the device, and whether its audio and haptics survive
+Wi-Fi, before the tunnel exists. It doesn't test the tunnel, BIND, the device rules, the relay or
+the phone's exporter. And it isn't encrypted or authenticated:
+
+- Do it only on a network you trust. While the pad is shared, any host on that network can watch
+  its traffic, or attach it before the PC does.
+- usbipd-win's `usbipd bind --busid <id>` goes on sharing the device after a reboot. When you're
+  done, run `usbipd unbind --busid <id>` on the laptop. Closing the port isn't enough.
+- To attach, the PC needs usbip-win2's `usbip.exe`, from the release that matches its installed
+  driver. A PC that got the driver from Vibepollo may not have it.
+- On a PC where another program uses the same driver (Vibepollo's virtual pad does), detach only
+  the port you attached, never every port.
 
 ## Test vectors
 
