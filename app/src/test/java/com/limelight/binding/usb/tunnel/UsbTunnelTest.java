@@ -901,6 +901,37 @@ public class UsbTunnelTest {
         assertEquals(1, exporter.stops.get());
     }
 
+    // From SHARE_ACK 0 there's no answer left to wait for: a SHARE_ACK late in its 10 s and a slow
+    // connection to the exporter still share, and KEEPALIVE goes out meanwhile
+    @Test
+    public void aLateShareAckAndASlowExporterStillShare() throws Exception {
+        connect();
+        bound();
+        now.addAndGet(UsbTunnel.ANSWER_MS - 1);
+        CountDownLatch heard = new CountDownLatch(1);
+        exporter.beforeConnect = () -> {
+            now.addAndGet(2 * UsbTunnel.KEEPALIVE_MS);
+            try {
+                assertTrue(heard.await(FakeHelper.SAFETY_MS, TimeUnit.MILLISECONDS));
+            }
+            catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+        };
+        helper.send(SwutCodec.shareAck(SwutCodec.SHARE_ATTACHING, 0));
+        // A KEEPALIVE while the exporter connects, not END 9 for an answer that has come
+        assertArrayEquals(SwutCodec.keepalive(), helper.read());
+        heard.countDown();
+        Socket local = exporter.accept();
+        closeLater.add(local);
+        events.awaitSharing();
+        byte[] ping = hex("aa");
+        helper.send(SwutCodec.data(ping, 0, 1));
+        assertArrayEquals(ping, readN(local.getInputStream(), 1));
+        tunnel.close();
+        assertEquals(UsbTunnel.Ending.STOPPED, events.awaitEnded().kind);
+    }
+
     @Test
     public void aQuietSecondSendsAKeepalive() throws Exception {
         connect();

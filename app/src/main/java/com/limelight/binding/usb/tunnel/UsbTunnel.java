@@ -274,7 +274,7 @@ public final class UsbTunnel {
 
     private static final int CONNECTING = 0;
     private static final int BOUND = 1;     // BIND_ACK checked out
-    private static final int SHARING = 2;   // SHARE_ACK 0, the exporter connected
+    private static final int SHARING = 2;   // SHARE_ACK 0: KEEPALIVE and the 8 s of silence apply
     // Put in the send queue to have the sender close: the END it sends first, if any, is the session's
     private static final byte[] CLOSE = new byte[0];
 
@@ -650,6 +650,16 @@ public final class UsbTunnel {
             // The helper closes the session itself; Starwire closes TLS properly too, with no END
             throw new Ended(new Ending(Ending.NOT_SHARED, status, SwutCodec.detail(ack, SwutCodec.TYPE_SHARE_ACK)), null);
         }
+        // No answer is left to wait for, and from SHARE_ACK on KEEPALIVE and the 8 s of silence
+        // apply, while the exporter connects too
+        synchronized (lock) {
+            if (s.ending != null) {
+                throw new Ended(null, null);
+            }
+            s.phase = SHARING;
+            s.deadline = Long.MAX_VALUE;
+            lock.notifyAll();
+        }
 
         // The exporter makes its one connection itself, and takes no other: every app on the
         // phone can reach 127.0.0.1. This is how Moonlight V+'s USB backend does it
@@ -692,8 +702,6 @@ public final class UsbTunnel {
             if (s.ending != null) {
                 throw new Ended(null, null);
             }
-            s.phase = SHARING;
-            s.lastHeard = s.lastSent = clock.nowMs();
             s.pump = pump;
         }
         pump.start();
