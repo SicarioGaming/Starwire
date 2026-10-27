@@ -50,7 +50,8 @@ public class ScreenWidthTest {
     // The test PC never answers, so the game screen would close itself with "lost connection"
     // after three failed polls, or at once if the network dropped, part way through a test. On
     // fold-z-36 (2026-10-27) both happened: one test found its screen gone, and in the next the
-    // screen closed while the test drew on the main thread and Android called it not responding.
+    // screen closed with the test still running, its main thread didn't take the focus change for
+    // 5 s, and Android called it not responding.
     @Rule
     public final IgnorePcUpdates ignorePcUpdates = new IgnorePcUpdates();
 
@@ -239,8 +240,9 @@ public class ScreenWidthTest {
             throw new RuntimeException(e);
         }
         // This runs on the main thread, which takes nothing else meanwhile. On fold-z-36
-        // (2026-10-27) a game screen closed while the test was drawing and didn't take its focus
-        // change for 5 s. The log says how long a picture holds the main thread on each device.
+        // (2026-10-27) a game screen closed itself during this test and didn't take its focus
+        // change for 5 s, and the run kept no stack. The log says how long a picture holds the
+        // main thread on each device.
         android.util.Log.i("ScreenWidthTest", name + ": laid out, drawn and saved in "
                 + (SystemClock.uptimeMillis() - start) + " ms");
         return name;

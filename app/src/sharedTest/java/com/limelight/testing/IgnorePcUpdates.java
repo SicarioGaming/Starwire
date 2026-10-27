@@ -21,9 +21,10 @@ import java.lang.reflect.Field;
  * closes at once when the phone's network drops, which the emulators' network does now and then:
  * 5.8 s after launch on fold-z-36. A test that sleeps and draws full-size pictures for a few seconds
  * races that. AppViewTest failed 1 run in 3 that way (2026-10-23). On fold-z-36 (2026-10-27)
- * ScreenWidthTest found its screen gone, and the next screen closed while the test was drawing on
- * the main thread, missed the window's focus change for 5 s, and Android ended the run as not
- * responding.
+ * ScreenWidthTest found its screen gone, and the next screen closed with the test still running.
+ * Its main thread didn't take the window's focus change for 5 s, and Android ended the run as not
+ * responding. The run kept no stack, so what held the main thread isn't known: the test drawing
+ * a full-size picture is likely, but not shown.
  *
  * It lives in src/sharedTest so the JVM tests check it too (IgnorePcUpdatesTest).
  * AppViewTest#aLostPcClosesTheScreen closes a screen on purpose, so the closing is still tested.
