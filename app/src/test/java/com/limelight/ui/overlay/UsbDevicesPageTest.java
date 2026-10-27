@@ -65,6 +65,7 @@ public class UsbDevicesPageTest {
         @Override public void onToggleFullKeyboard() { }
         @Override public void onChangeBitrate() { }
         @Override public void onFixHostCursor() { }
+        @Override public void onShowBrightness() { }
         @Override public boolean isToggleOn(int toggle) { return false; }
 
         @Override
