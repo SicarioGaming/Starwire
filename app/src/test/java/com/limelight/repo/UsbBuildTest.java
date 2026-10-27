@@ -136,6 +136,34 @@ public class UsbBuildTest {
         assertTrue(text.contains("GNU LESSER GENERAL PUBLIC LICENSE"));
     }
 
+    // The build changes two of usbipdcpp's files, and each says so at its top, with who changed it
+    // and when, as the LGPL-3.0 asks (through GPL-3.0 section 5a)
+    @Test
+    public void theUsbipdcppFilesTheBuildChangesSaySo() throws Exception {
+        String patch = RepoFiles.read("usbip-backend/src/main/cpp/patch_usbipdcpp.cmake");
+        List<String> writes = new ArrayList<>();
+        Matcher m = Pattern.compile("file\\(WRITE \"([^\"]+)\" \"([^\"]+)\"\\)").matcher(patch);
+        while (m.find()) {
+            writes.add(m.group(1) + " " + m.group(2));
+        }
+        assertEquals(List.of(
+                "${patched_include}/Server.h ${notice_start}include/usbipdcpp/Server.h${notice_end}${patched_header}",
+                "${patched_root}/Server.cpp ${notice_start}src/Server.cpp${notice_end}${patched_source}"), writes);
+        String start = one(patch, "set\\(notice_start \"(.+)\"\\)", "the notice's start");
+        String end = one(patch, "set\\(notice_end \"(.+)\"\\)", "the notice's end");
+        assertEquals("// Changed from ", start);
+        for (String part : new String[] {"usbipdcpp (https://github.com/yunsmall/usbipdcpp)", "LGPL-3.0",
+                "Moonlight V+ (qiin2333)", "8 Sep 2026", "patch_usbipdcpp.cmake"}) {
+            assertTrue("the notice doesn't say " + part, end.contains(part));
+        }
+        // The start is a comment; each line after the first starts as one, and the last line ends
+        String[] lines = end.split("\\\\n", -1);
+        for (int i = 1; i < lines.length - 1; i++) {
+            assertTrue("a notice line that isn't a comment: " + lines[i], lines[i].startsWith("// "));
+        }
+        assertEquals("the notice doesn't end its last line", "", lines[lines.length - 1]);
+    }
+
     private static com.limelight.ui.OpenSourceNotices.Component notice(String name) {
         for (com.limelight.ui.OpenSourceNotices.Component c : com.limelight.ui.OpenSourceNotices.ALL) {
             if (c.name.equals(name)) {
