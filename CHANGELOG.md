@@ -196,6 +196,13 @@ steps and the checksums for each version.
   again, even when nothing had changed, and Android can answer that by measuring again. They now
   set it only when it changes. Whether that was the cause is only known after the next emulator
   run. Checked by JVM tests, not yet tried on a device.
+- On Android 5.0 and 5.1, the encrypted microphone's code threw an error on a forged or damaged
+  audio packet instead of refusing it. These versions get AES-GCM from Android's old copy of
+  BouncyCastle, which reports a bad packet in a different way. Starwire only sends audio, so
+  streams weren't affected, but the on-device test failed on Android 5.0. In that same run,
+  Android 5.0 matched every line of the shared test vectors. JVM tests now run the shared test
+  vectors through a stand-in for how Android 5.0 and 5.1 report a bad packet. The fix hasn't
+  been run on Android 5.0 yet, and no test has run on Android 5.1.
 
 ## [0.2.1] - 2026-10-23
 
