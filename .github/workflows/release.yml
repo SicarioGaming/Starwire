@@ -70,14 +70,13 @@ jobs:
           APK_SHA256=$(sha256sum "$APK" | cut -d' ' -f1)
           echo "apk=$APK" >> "$GITHUB_OUTPUT"
 
-          # The PC side of the microphone: setup script, the receiver's two source files, its icon and guide
-          ZIP_SHA256=""
-          if [ -d windows ]; then
-            ZIP=Starwire-Microphone-for-Windows.zip
-            (cd windows && zip -q "../$ZIP" setup-microphone.cmd setup-microphone.ps1 StarwireMicReceiver.cs SecureMic.cs starwire-mic.ico README.md)
-            ZIP_SHA256=$(sha256sum "$ZIP" | cut -d' ' -f1)
-            echo "extras=$ZIP" >> "$GITHUB_OUTPUT"
-          fi
+          # The PC side: the microphone receiver and the USB helper, each with its setup and guide.
+          # make-windows-zip.sh stops if a file the setups need is missing, and the Build workflow
+          # makes the same zip on every push.
+          ZIP=Starwire-Microphone-for-Windows.zip
+          bash .github/tools/make-windows-zip.sh .
+          ZIP_SHA256=$(sha256sum "$ZIP" | cut -d' ' -f1)
+          echo "extras=$ZIP" >> "$GITHUB_OUTPUT"
 
           NOTES=".github/release-notes/$GITHUB_REF_NAME-notes.md"
           [ -f "$NOTES" ] || { echo "::error::Write $NOTES first"; exit 1; }
@@ -88,7 +87,7 @@ jobs:
             {
               echo '### Check your download'
               echo '- APK SHA-256: `APK_SHA256`'
-              echo '- Windows microphone zip SHA-256: `ZIP_SHA256`'
+              echo '- Windows zip SHA-256: `ZIP_SHA256`'
               echo '- Signing certificate SHA-256: `CERT_SHA256` (the same certificate as every Starwire release)'
               echo
             } > check.md
@@ -98,9 +97,6 @@ jobs:
               { cat notes.in; echo; cat check.md; } > notes.tmp
             fi
             mv notes.tmp notes.in
-          fi
-          if [ -z "$ZIP_SHA256" ]; then
-            sed -i '/ZIP_SHA256/d' notes.in
           fi
           sed -e "s/APK_SHA256/$APK_SHA256/g" -e "s/CERT_SHA256/$CERT/g" -e "s/ZIP_SHA256/$ZIP_SHA256/g" notes.in > notes.md
           rm -f notes.in check.md

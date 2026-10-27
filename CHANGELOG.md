@@ -97,7 +97,7 @@ steps and the checksums for each version.
   x86_64 in debug builds), and its licences are in Settings > About > Open-source licences. The
   setting's credit line names Moonlight V+ and usbipdcpp, as Settings > About > Credits does.
 - **The PC's side of sharing a USB device from the phone.** Starwire's USB helper
-  for Windows (`windows/setup-usb.cmd`) can now take a device over the encrypted USB tunnel
+  for Windows (`setup-usb.cmd`, in the Windows zip) can now take a device over the encrypted USB tunnel
   ([usb-protocol.md](docs/dev/usb-protocol.md)): from a phone paired with the PC's microphone
   receiver, once USB sharing is on in its menu and Allow USB is ticked there for that phone. It
   checks the device against the device rules, attaches it with usbip-win2's driver through a
@@ -147,6 +147,9 @@ steps and the checksums for each version.
   we don't have a Pixel.
 - **The stats box has rounded corners.** From Moonlight X. Checked by a test, not yet seen in a
   stream.
+- **The Windows zip has the USB helper's files too,** next to the microphone's, which are the
+  same as 0.2.1's. One script makes the zip, for the release and on every push, and stops if a
+  file either setup needs is missing.
 
 ### Fixed
 

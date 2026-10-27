@@ -20,10 +20,13 @@ driver, the one Vibepollo's DualSense haptics use. How the phone and the helper 
 
 ## Set it up
 
-Double-click **setup-usb.cmd**. It builds the helper with the C# compiler that comes with
-Windows, installs it in `Program Files\Starwire USB`, lets it through Windows Firewall on TCP 6981
-(local-network and private VPN addresses, Private and Domain networks only, not Public), and
-starts it now and when you sign in. It never changes the microphone receiver or its setup.
+The helper's files are in **Starwire-Microphone-for-Windows.zip** on the
+[release page](https://github.com/SicarioGaming/Starwire/releases), from 0.3.0 on, next to the
+microphone's. Unzip it, then double-click **setup-usb.cmd** in that folder. It builds the helper
+with the C# compiler that comes with Windows, installs it in `Program Files\Starwire USB`, lets it
+through Windows Firewall on TCP 6981 (local-network and private VPN addresses, Private and Domain
+networks only, not Public), and starts it now and when you sign in. It never changes the
+microphone receiver or its setup.
 
 Then right-click the helper's icon by the clock:
 

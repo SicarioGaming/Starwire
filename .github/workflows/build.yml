@@ -1,9 +1,9 @@
 name: Build and test
 
 # Every push to a branch and every pull request: the JVM tests, lint, the native host tests, the
-# tool checks, and the debug and test APKs. The on-device tests on emulators are devices.yml's;
-# a manual run here can add its core tier (a small phone, a foldable, a tablet, a handheld and
-# Android 6). Actions are pinned to full commit hashes; the comment says which release each one is.
+# tool checks, the Windows zip, and the debug and test APKs. The on-device tests on emulators are
+# devices.yml's; a manual run here can add its core tier (a small phone, a foldable, a tablet, a
+# handheld and Android 6). Actions are pinned to full commit hashes; the comment says which release each one is.
 on:
   push:
     branches: ['**']
@@ -92,6 +92,12 @@ jobs:
       - name: Tool checks
         if: ${{ !cancelled() }}
         run: bash .github/tools/check-tools.sh
+
+      # The Windows zip the Release workflow publishes, made the same way, so a file the
+      # microphone's or the USB helper's setup needs fails here rather than at the tag
+      - name: Windows zip
+        if: ${{ !cancelled() }}
+        run: bash .github/tools/make-windows-zip.sh "$RUNNER_TEMP/windows-zip"
 
       - name: Build the debug APK and the test APK
         run: ./gradlew --no-daemon assembleNonRootDebug assembleNonRootDebugAndroidTest

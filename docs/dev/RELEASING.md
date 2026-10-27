@@ -243,14 +243,16 @@ dates are in UTC.
    git push public vX.Y.Z
    ```
 
-   The tag push to the public repo runs the **Release** workflow, which builds and signs the APK and
-   publishes the release with the notes and checksums. (If Actions are on in the private repo, the
+   The tag push to the public repo runs the **Release** workflow, which builds and signs the APK,
+   makes the Windows zip with `.github/tools/make-windows-zip.sh` (the Build workflow makes it on
+   every push too, so a missing file shows up there first), and publishes the release with the
+   notes and checksums. (If Actions are on in the private repo, the
    tag push there runs it too and stops at once, because the signing secrets are only on the public
    repo. That's expected.) The tag push to the public repo also runs the **Devices** workflow's
    release tier, all 17 emulator legs; it doesn't hold the release back, so check its summary
    afterwards. On the private repo it only runs by hand (Actions > Devices > Run workflow).
-7. `gh release view vX.Y.Z --repo SicarioGaming/Starwire` lists the APK (and the microphone zip)
-   with checksums.
+7. `gh release view vX.Y.Z --repo SicarioGaming/Starwire` lists the APK and the Windows zip
+   (the microphone's and the USB helper's files) with checksums.
 
 Never toward the public repo: `--force`, `--tags`, `--all` or `--mirror`, moving a tag that's
 already out, or rewriting a commit that's already out. Wording fixes are new commits.

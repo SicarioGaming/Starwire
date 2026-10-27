@@ -862,6 +862,94 @@ publish_with 2 "no patterns file" "$work/no-such-patterns.txt"
 rm -rf "$work"
 ok "check-publish.sh stops with an error, never \"clean\", when a step fails or the patterns file is missing"
 
+# 19. make-windows-zip.sh makes the Windows zip, for the Release workflow and, on every push, the
+# Build workflow. The release once zipped a fixed list of the microphone's files, which left out
+# the USB helper's, although its setup says to run it from the unzipped folder. The list has
+# both; a missing file, or a file a setup script takes from its folder that isn't on the list,
+# stops it; and the Release workflow makes its zip only this way.
+begin
+mic="setup-microphone.cmd setup-microphone.ps1 StarwireMicReceiver.cs SecureMic.cs starwire-mic.ico README.md"
+usb="setup-usb.cmd setup-usb.ps1 StarwireUsbHelper.cs UsbTunnel.cs UsbRelay.cs UsbTunnelCodec.cs UsbDeviceRules.cs USB-HELPER.md"
+want=$(printf '%s\n' $mic $usb | LC_ALL=C sort)
+set +e
+listed=$(bash "$HERE/make-windows-zip.sh" --list 2>&1)
+status=$?
+set -e
+if [ $status -ne 0 ] || [ "$(printf '%s\n' "$listed" | LC_ALL=C sort)" != "$want" ]; then
+    printf '%s\n' "$listed" >&2
+    fail "make-windows-zip.sh --list (exit $status) isn't the microphone's files and the USB helper's"
+fi
+set +e
+out=$(bash "$HERE/make-windows-zip.sh" --check 2>&1)
+status=$?
+set -e
+if [ $status -ne 0 ]; then
+    printf '%s\n' "$out" >&2
+    fail "make-windows-zip.sh --check fails on windows/ (exit $status)"
+fi
+work="$(mktemp -d)"
+copy_windows() {  # folder: the zip's files, copied from windows/
+    local f
+    mkdir -p "$1"
+    for f in $want; do cp "windows/$f" "$1/"; done
+}
+zip_fails() {  # what's wrong, a file the error must name, the folder to take the files from
+    local status out
+    set +e
+    out=$(WINDOWS_DIR=$3 bash "$HERE/make-windows-zip.sh" --check 2>&1)
+    status=$?
+    set -e
+    if [ $status -ne 1 ] || ! grep -qF -- "$2" <<< "$out"; then
+        printf '%s\n' "$out" >&2
+        fail "make-windows-zip.sh --check with $1: exit $status (expected 1, naming $2)"
+    fi
+}
+copy_windows "$work/missing"
+rm "$work/missing/UsbRelay.cs"
+zip_fails "UsbRelay.cs missing" UsbRelay.cs "$work/missing"
+copy_windows "$work/new-source"
+sed -i "s/'UsbDeviceRules.cs')/'UsbDeviceRules.cs', 'UsbExtra.cs')/" "$work/new-source/setup-usb.ps1"
+echo "// made up for the test" > "$work/new-source/UsbExtra.cs"
+zip_fails "a source setup-usb.ps1 builds from that isn't on the list" UsbExtra.cs "$work/new-source"
+copy_windows "$work/new-icon"
+sed -i "s/Join-Path \$here 'starwire-mic.ico'/Join-Path \$here 'starwire-mic-2.ico'/" "$work/new-icon/setup-microphone.ps1"
+cp windows/starwire-mic.ico "$work/new-icon/starwire-mic-2.ico"
+zip_fails "a file setup-microphone.ps1 takes that isn't on the list" starwire-mic-2.ico "$work/new-icon"
+copy_windows "$work/no-sources"
+sed -i 's/^\$sourceNames = /$helperSources = /' "$work/no-sources/setup-usb.ps1"
+zip_fails "no list of sources it can find in setup-usb.ps1" setup-usb.ps1 "$work/no-sources"
+if command -v zip >/dev/null 2>&1 && command -v unzip >/dev/null 2>&1; then
+    # Over an old file of the same name, which zip would otherwise add to
+    mkdir "$work/out"
+    echo "an old zip" > "$work/out/Starwire-Microphone-for-Windows.zip"
+    if bash "$HERE/make-windows-zip.sh" "$work/out" > /dev/null; then
+        got=$(unzip -Z1 "$work/out/Starwire-Microphone-for-Windows.zip" | LC_ALL=C sort)
+        [ "$got" = "$want" ] || fail "the Windows zip holds $(echo $got), not the list"
+    else
+        fail "make-windows-zip.sh couldn't make the zip from windows/"
+    fi
+    set +e
+    WINDOWS_DIR=$work/missing bash "$HERE/make-windows-zip.sh" "$work/out-missing" > /dev/null 2>&1
+    status=$?
+    set -e
+    if [ $status -eq 0 ] || [ -e "$work/out-missing/Starwire-Microphone-for-Windows.zip" ]; then
+        fail "make-windows-zip.sh made a zip without UsbRelay.cs (exit $status)"
+    fi
+else
+    echo "skipped: making the Windows zip (needs zip and unzip)"
+fi
+for workflow in release build; do
+    grep -q 'bash .github/tools/make-windows-zip.sh ' ".github/workflows/$workflow.yml" ||
+        fail "$workflow.yml doesn't make the Windows zip with make-windows-zip.sh"
+done
+if grep -nE '(^|[^A-Za-z0-9_.-])zip +-' .github/workflows/release.yml; then
+    fail "release.yml runs zip itself; its Windows zip comes from make-windows-zip.sh"
+fi
+grep -q 'ZIP=Starwire-Microphone-for-Windows.zip' .github/workflows/release.yml ||
+    fail "release.yml doesn't publish Starwire-Microphone-for-Windows.zip"
+rm -rf "$work"
+ok "make-windows-zip.sh ships the microphone's and the USB helper's files, and the workflows make the zip with it"
+
 if [ $failures -ne 0 ]; then
     echo "$failures problem(s)" >&2
     exit 1
