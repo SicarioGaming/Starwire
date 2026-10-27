@@ -1096,6 +1096,29 @@ static class Requests
         return true;
     }
 
+    // Where the driver finds the tunnel's relay: this PC, by IPv4
+    public const string RelayHost = "127.0.0.1";
+
+    // A bus ID the phone's exporter gave in SHARE (usbipdcpp's, like 1-1.2 or 1-3:1): digits,
+    // letters and . _ : - only, as the tunnel's contract allows
+    public static bool CheckTunnelBusId(string busId, out string problem)
+    {
+        if (!Swut.BusIdOk(busId) || busId.Length >= UsbipAbi.BusIdSize) {
+            problem = "\"" + busId + "\" isn't a bus ID the tunnel allows.";
+            return false;
+        }
+        problem = null;
+        return true;
+    }
+
+    // A bus ID on the list of attached devices: usbipd's for an attach from another PC, the
+    // tunnel's for one through the relay
+    public static bool CheckListedBusId(string host, string busId)
+    {
+        string problem;
+        return CheckBusId(busId, out problem) || (host == RelayHost && CheckTunnelBusId(busId, out problem));
+    }
+
     public static bool CheckTcpPort(int port, out string problem)
     {
         if (port < 1 || port > 65535) {
@@ -1247,7 +1270,7 @@ sealed class OwnedDevices
                 || !Requests.ParseHost(f[1], out host, out problem) || host != f[1]
                 || !int.TryParse(f[2], NumberStyles.None, CultureInfo.InvariantCulture, out service)
                 || service.ToString(CultureInfo.InvariantCulture) != f[2] || !Requests.CheckTcpPort(service, out problem)
-                || !Requests.CheckBusId(f[3], out problem)
+                || !Requests.CheckListedBusId(host, f[3])
                 || !Requests.IsSerial(f[4])) {
             return null;
         }
@@ -1353,14 +1376,19 @@ sealed class UsbHelper
         this.say = say;
     }
 
+    // The last thing it said, for the tunnel, which gives the reason when something fails
+    public string LastSaid;
+
     void Step(string text)
     {
         step++;
+        LastSaid = text;
         say(step + ". " + text);
     }
 
     void Note(string text)
     {
+        LastSaid = text;
         say("   " + text);
     }
 
@@ -1597,6 +1625,163 @@ sealed class UsbHelper
         else if (stopped < 0) {
             Note("Couldn't stop the driver's attempts to reconnect it: " + problem);
         }
+    }
+
+    // ---------------------------------------------------------------- for the USB tunnel
+    // The tunnel (UsbTunnel.cs) attaches through its relay on 127.0.0.1, on a port that's new for
+    // each attach, with the bus ID the phone's exporter gave in SHARE. It uses the same list of
+    // what the helper attached, the same lock and the same own-port detach as the debug commands.
+
+    // Whether the driver is there and a version the helper knows, using only its read-only command
+    public bool TunnelReady(out string problem)
+    {
+        IVhciDriver driver = Open();
+        if (driver == null) {
+            problem = LastSaid;
+            return false;
+        }
+        using (IVhciDriver readOnly = new ReadOnlyVhci(driver)) {
+            if (CheckDriver(readOnly) == null) {
+                problem = LastSaid;
+                return false;
+            }
+        }
+        problem = null;
+        return true;
+    }
+
+    // Attaches the device the relay at 127.0.0.1:relayPort serves under this bus ID. True when the
+    // driver attached it. mine, when not null, is on the helper's list and must be detached later,
+    // even when this failed.
+    public bool TunnelAttach(int relayPort, string busId, out OwnedDevice mine, out string problem)
+    {
+        mine = null;
+        if (!Requests.CheckTcpPort(relayPort, out problem) || !Requests.CheckTunnelBusId(busId, out problem)) {
+            return false;
+        }
+        IVhciDriver driver = Open();
+        if (driver == null) {
+            problem = LastSaid;
+            return false;
+        }
+        using (driver) {
+            if (CheckDriver(driver) == null) {
+                problem = LastSaid;
+                return false;
+            }
+            OwnedDevice[] made = new OwnedDevice[1];
+            string service = relayPort.ToString(CultureInfo.InvariantCulture);
+            int code = WithDriverLock(() => TunnelAttachLocked(driver, Requests.RelayHost, service, busId, made));
+            mine = made[0];
+            problem = code == StarwireUsbHelper.ExitOk ? null : LastSaid;
+            return code == StarwireUsbHelper.ExitOk;
+        }
+    }
+
+    int TunnelAttachLocked(IVhciDriver driver, string host, string service, string busId, OwnedDevice[] made)
+    {
+        LoadOwned();
+        string problem;
+        List<ImportedDevice> devices = UsbipCommands.List(driver, out problem);
+        if (devices == null) {
+            Step("The driver's list of devices failed: " + problem);
+            return StarwireUsbHelper.ExitDriver;
+        }
+        foreach (ImportedDevice d in devices) {
+            if (d.SameLocation(host, service, busId)) {
+                Step("Port " + d.Port + " already holds a device from the relay's address, so the helper won't attach another there.");
+                return StarwireUsbHelper.ExitAttach;
+            }
+        }
+        // On the list before the driver sees it: if this stops halfway, a detach still finds it
+        OwnedDevice mine = new OwnedDevice(0, host, service, busId, Requests.NewSerial(random));
+        owned.Devices.Add(mine);
+        if (!owned.Save(out problem)) {
+            owned.Devices.Remove(mine);
+            Step("Couldn't write the list of attached devices (" + problem + "), so the helper won't attach "
+                + "something it couldn't find again to detach.");
+            return StarwireUsbHelper.ExitAttach;
+        }
+        made[0] = mine;
+        Step("Asking the driver to attach bus ID " + busId + " through the relay at " + Requests.Endpoint(host, service)
+            + ", with serial " + mine.Serial + ".");
+        int error;
+        int port = UsbipCommands.Attach(driver, host, service, busId, mine.Serial, false, out error);
+        if (port <= 0 && error == 0) {
+            Note("The driver didn't say which port it used, so it may have attached it. The helper detaches it.");
+            return StarwireUsbHelper.ExitAttach;
+        }
+        if (port <= 0) {
+            owned.Devices.Remove(mine);
+            owned.Save(out problem);
+            made[0] = null;
+            Note("The driver couldn't attach it: " + UsbipErrors.Explain(error, null));
+            return StarwireUsbHelper.ExitAttach;
+        }
+        mine.Port = port;
+        if (!owned.Save(out problem)) {
+            Note("Couldn't note the port in the list of attached devices (" + problem + "). A detach still finds it by its serial.");
+        }
+        Step("Attached on port " + port + ".");
+        devices = UsbipCommands.List(driver, out problem);
+        if (devices == null) {
+            Note("Couldn't read the driver's list to check what it attached (" + problem + "), so the helper detaches it.");
+            return StarwireUsbHelper.ExitAttach;
+        }
+        foreach (ImportedDevice d in devices) {
+            if (mine.Matches(d)) {
+                return StarwireUsbHelper.ExitOk;
+            }
+        }
+        Step("The driver's list doesn't show it any more, so its connection may have dropped already.");
+        return StarwireUsbHelper.ExitAttach;
+    }
+
+    // Detaches exactly what TunnelAttach attached, if the driver still holds it (the relay's address
+    // and port, the bus ID and the serial all match), and takes it off the list once it's gone
+    public bool TunnelDetach(OwnedDevice mine, out string problem)
+    {
+        if (mine == null) {
+            problem = null;
+            return true;
+        }
+        IVhciDriver driver = Open();
+        if (driver == null) {
+            problem = LastSaid;
+            return false;
+        }
+        using (driver) {
+            if (CheckDriver(driver) == null) {
+                problem = LastSaid;
+                return false;
+            }
+            int code = WithDriverLock(() => TunnelDetachLocked(driver, mine));
+            problem = code == StarwireUsbHelper.ExitOk ? null : LastSaid;
+            return code == StarwireUsbHelper.ExitOk;
+        }
+    }
+
+    int TunnelDetachLocked(IVhciDriver driver, OwnedDevice mine)
+    {
+        LoadOwned();
+        string problem;
+        List<ImportedDevice> devices = UsbipCommands.List(driver, out problem);
+        if (devices == null) {
+            Step("The driver's list of devices failed: " + problem);
+            return StarwireUsbHelper.ExitDriver;
+        }
+        // The list was read again, so its entry is another object with the same fields
+        OwnedDevice listed = owned.Devices.Find(o => o.Serial == mine.Serial && o.Host == mine.Host
+            && o.Service == mine.Service && o.BusId == mine.BusId) ?? mine;
+        DetachOne(driver, listed, devices);
+        List<OwnedDevice> these = new List<OwnedDevice>();
+        these.Add(listed);
+        int left = ForgetGone(driver, these);
+        if (left != 0) {
+            Step(left < 0 ? "Couldn't check that it's gone." : "It's still attached.");
+            return StarwireUsbHelper.ExitDetach;
+        }
+        return StarwireUsbHelper.ExitOk;
     }
 
     // Only what's really gone leaves the list: takes off it those of these devices the driver no

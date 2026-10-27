@@ -8,8 +8,10 @@ twice: as a 64-bit and as a 32-bit program.
 
 - StarwireUsbHelperTests: the driver side (StarwireUsbHelper.cs), against a fake driver.
 - StarwireUsbTunnelTests: the tunnel, against the shared vectors and device rules' cases in
-  vectors\. So far: the frames and keys, the device
-  rules and the relay's USB/IP checks.
+  vectors\. Also the pairings file's reads (with the
+  microphone receiver's own MicPairingStore, SecureMic.cs), Allow USB, the waiting room, and
+  the whole path on 127.0.0.1 with a fake driver. It makes TLS keys for this Windows account
+  while it runs, and deletes them at the end.
 
 Neither opens the real USB/IP driver or uses the network beyond 127.0.0.1. Then it builds the
 helper itself, StarwireUsbHelper.exe, into the same folder, for the laptop test
@@ -40,8 +42,8 @@ if (-not (Test-Path $csc)) {
 }
 
 # What each program is built from
-$helper = @('StarwireUsbHelper.cs') | ForEach-Object { Join-Path $windows $_ }
-$tunnel = @('UsbTunnelCodec.cs', 'UsbDeviceRules.cs', 'UsbRelay.cs', 'SecureMic.cs') | ForEach-Object { Join-Path $windows $_ }
+$helper = @('StarwireUsbHelper.cs', 'UsbTunnelCodec.cs') | ForEach-Object { Join-Path $windows $_ }
+$tunnel = @('StarwireUsbHelper.cs', 'UsbTunnel.cs', 'UsbTunnelCodec.cs', 'UsbDeviceRules.cs', 'UsbRelay.cs', 'SecureMic.cs') | ForEach-Object { Join-Path $windows $_ }
 $refs = @('/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Security.dll', '/r:System.Core.dll')
 
 $failed = @()
