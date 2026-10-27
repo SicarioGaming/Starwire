@@ -357,7 +357,7 @@ Java_com_limelight_usbip_NativeUsbIp_reportDescriptor(JNIEnv* env, jclass, jint 
         int got = -1;
         const int claimed = libusb_claim_interface(probe.handle, interfaceNumber);
         if (claimed == 0) {
-            got = libusb_control_transfer(probe.handle, LIBUSB_ENDPOINT_IN | LIBUSB_RECIPIENT_INTERFACE,
+            got = libusb_control_transfer(probe.handle, 0x81,   // IN, standard, to the interface
                                           LIBUSB_REQUEST_GET_DESCRIPTOR, 0x22 << 8,
                                           static_cast<uint16_t>(interfaceNumber),
                                           reinterpret_cast<unsigned char*>(report.data()),
