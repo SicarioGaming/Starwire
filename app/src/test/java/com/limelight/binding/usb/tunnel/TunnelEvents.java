@@ -1,7 +1,5 @@
 package com.limelight.binding.usb.tunnel;
 
-import static org.junit.Assert.assertNotNull;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -31,12 +29,25 @@ final class TunnelEvents implements UsbTunnel.Listener {
     }
 
     void awaitSharing() throws InterruptedException {
-        assertNotNull("the tunnel never said it was sharing", sharing.poll(FakeHelper.SAFETY_MS, TimeUnit.MILLISECONDS));
+        awaitSharing(FakeHelper.SAFETY_MS);
     }
 
     UsbTunnel.Ending awaitEnded() throws InterruptedException {
-        UsbTunnel.Ending e = endings.poll(FakeHelper.SAFETY_MS, TimeUnit.MILLISECONDS);
-        assertNotNull("the tunnel never said it had ended", e);
+        return awaitEnded(FakeHelper.SAFETY_MS);
+    }
+
+    // A wait other than SAFETY_MS is only for the test of what a wait that runs out says
+    void awaitSharing(long ms) throws InterruptedException {
+        if (sharing.poll(ms, TimeUnit.MILLISECONDS) == null) {
+            throw new AssertionError(StuckThreads.report("the tunnel never said it was sharing in " + ms + " ms"));
+        }
+    }
+
+    UsbTunnel.Ending awaitEnded(long ms) throws InterruptedException {
+        UsbTunnel.Ending e = endings.poll(ms, TimeUnit.MILLISECONDS);
+        if (e == null) {
+            throw new AssertionError(StuckThreads.report("the tunnel never said it had ended in " + ms + " ms"));
+        }
         return e;
     }
 

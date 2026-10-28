@@ -33,7 +33,9 @@ import javax.net.ssl.X509TrustManager;
  * helper's side of the protocol through, one frame at a time.
  */
 final class FakeHelper implements Closeable {
-    // Only so a broken test fails instead of hanging; no test waits for it to pass
+    // Only so a broken test fails instead of hanging; no test waits for it to pass. A wait here,
+    // in FakeExporter or in TunnelEvents that runs out says what the tunnel's threads were doing
+    // (StuckThreads)
     static final int SAFETY_MS = 10_000;
 
     final SSLServerSocket server;
@@ -72,9 +74,19 @@ final class FakeHelper implements Closeable {
 
     /** Takes the phone's connection and finishes TLS with it. */
     FakeHelper accept() throws IOException {
-        socket = (SSLSocket) server.accept();
+        try {
+            socket = (SSLSocket) server.accept();
+        }
+        catch (SocketTimeoutException e) {
+            throw StuckThreads.timedOut("the phone never connected in " + server.getSoTimeout() + " ms", e);
+        }
         socket.setSoTimeout(SAFETY_MS);
-        socket.startHandshake();
+        try {
+            socket.startHandshake();
+        }
+        catch (SocketTimeoutException e) {
+            throw StuckThreads.timedOut("the phone never finished TLS in " + socket.getSoTimeout() + " ms", e);
+        }
         phoneCertificate = (X509Certificate) socket.getSession().getPeerCertificates()[0];
         in = socket.getInputStream();
         out = socket.getOutputStream();
@@ -95,7 +107,12 @@ final class FakeHelper implements Closeable {
     }
 
     byte[] read() throws IOException {
-        return UsbTunnel.readFrame(in);
+        try {
+            return UsbTunnel.readFrame(in);
+        }
+        catch (SocketTimeoutException e) {
+            throw StuckThreads.timedOut("nothing from the phone in " + socket.getSoTimeout() + " ms", e);
+        }
     }
 
     /** Every frame until the phone closes the connection, however it closes it. */
@@ -107,7 +124,7 @@ final class FakeHelper implements Closeable {
             }
         }
         catch (SocketTimeoutException e) {
-            throw new AssertionError("the phone never closed the connection");
+            throw new AssertionError("the phone never closed the connection: " + e.getMessage(), e);
         }
         catch (IOException e) {
             return frames;
