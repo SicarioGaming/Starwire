@@ -33,7 +33,10 @@ final class FakeExporter implements UsbTunnel.Exporter, Closeable {
     // itself when the device is unplugged (UsbExporter.release).
     volatile Socket given;
     // If set, the tunnel's reads from its end wait for this first, as if they hadn't yet seen
-    // the connection close. Only the end of the session lets them go, by interrupting them.
+    // the connection close. Only the end of the session lets them go, by interrupting them. A
+    // read still held after FakeHelper.SAFETY_MS throws an AssertionError, not an IOException:
+    // the tunnel would take an IOException for the connection closing, which is what a test
+    // that holds the reads is checking for, so it could pass without the tunnel doing anything.
     volatile CountDownLatch readsWaitFor;
     // start() says it's begun, then waits for this, if set
     volatile CountDownLatch startBegun;
@@ -128,7 +131,7 @@ final class FakeExporter implements UsbTunnel.Exporter, Closeable {
         private void hold() throws IOException {
             try {
                 if (!until.await(FakeHelper.SAFETY_MS, TimeUnit.MILLISECONDS)) {
-                    throw new IOException("the test never let the read go");
+                    throw new AssertionError("the session never ended, so the read was never let go");
                 }
             }
             catch (InterruptedException e) {
