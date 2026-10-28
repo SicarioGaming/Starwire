@@ -30,11 +30,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
@@ -1468,5 +1470,69 @@ public class UsbTunnelTest {
                 // Closed either way
             }
         }
+    }
+
+    // ---------------------------------------------------------------- when a safety wait runs out
+    // Each of the fakes' waits says what every UsbTunnel thread was doing when it ran out, in the
+    // failure and in the test's output, so a rare stall on CI shows where it's stuck. Here the
+    // phone waits for a HELLO that never comes, so nothing the test waits for can happen, however
+    // short the wait: no second connection, no connection to the exporter, no sharing, no end and
+    // no frame
+    @Test
+    public void aWaitThatRunsOutSaysWhatTheTunnelsThreadsWereDoing() throws Exception {
+        Set<Thread> sessions = threadsNamed("UsbTunnel");
+        Set<Thread> watchdogs = threadsNamed("UsbTunnelWatch");
+        connect();
+        Thread session = newThreadNamed("UsbTunnel", sessions);
+        Thread watchdog = newThreadNamed("UsbTunnelWatch", watchdogs);
+        helper.accept();
+        helper.server.setSoTimeout(1);
+        helper.socket.setSoTimeout(1);
+        exporter.server.setSoTimeout(1);
+
+        ByteArrayOutputStream printed = new ByteArrayOutputStream();
+        PrintStream err = System.err;
+        List<String> reports = new ArrayList<>();
+        String neverClosed;
+        System.setErr(new PrintStream(printed, true, "UTF-8"));
+        try {
+            reports.add(assertThrows(SocketTimeoutException.class, helper::accept).getMessage());
+            reports.add(assertThrows(SocketTimeoutException.class, exporter::accept).getMessage());
+            reports.add(assertThrows(AssertionError.class, () -> events.awaitSharing(1)).getMessage());
+            reports.add(assertThrows(AssertionError.class, () -> events.awaitEnded(1)).getMessage());
+            reports.add(assertThrows(SocketTimeoutException.class, helper::read).getMessage());
+            neverClosed = assertThrows(AssertionError.class, helper::readUntilClosed).getMessage();
+        }
+        finally {
+            System.setErr(err);
+        }
+
+        String[] what = {
+                "the phone never connected in 1 ms",
+                "the tunnel never connected to the exporter in 1 ms",
+                "the tunnel never said it was sharing in 1 ms",
+                "the tunnel never said it had ended in 1 ms",
+                "nothing from the phone in 1 ms",
+        };
+        String output = printed.toString("UTF-8");
+        for (int i = 0; i < what.length; i++) {
+            String report = reports.get(i);
+            assertTrue(report, report.startsWith(what[i] + ". What the UsbTunnel threads were doing:\n"));
+            // The session's thread with its stack, which is in UsbTunnel's code whatever it's doing
+            assertTrue(report, threadIn(report, session).contains("com.limelight.binding.usb.tunnel.UsbTunnel."));
+            threadIn(report, watchdog);
+            assertTrue("not in the test's output: " + report, output.contains(report));
+        }
+        assertTrue(neverClosed, neverClosed.startsWith("the phone never closed the connection: nothing from the phone in 1 ms. "
+                + "What the UsbTunnel threads were doing:\n"));
+        threadIn(neverClosed, session);
+    }
+
+    // The report's lines for this thread: its name, id and state, then its stack
+    private static String threadIn(String report, Thread t) {
+        int at = report.indexOf("\n\"" + t.getName() + "\" id=" + t.threadId() + " ");
+        assertTrue(t.getName() + " (id " + t.threadId() + ") isn't in: " + report, at >= 0);
+        int next = report.indexOf("\n\"", at + 1);
+        return report.substring(at + 1, next < 0 ? report.length() : next + 1);
     }
 }

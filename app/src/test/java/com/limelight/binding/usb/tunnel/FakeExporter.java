@@ -6,6 +6,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -97,7 +98,13 @@ final class FakeExporter implements UsbTunnel.Exporter, Closeable {
 
     /** The tunnel's connection, which must come from the port it authorised. */
     Socket accept() throws IOException {
-        Socket s = server.accept();
+        Socket s;
+        try {
+            s = server.accept();
+        }
+        catch (SocketTimeoutException e) {
+            throw StuckThreads.timedOut("the tunnel never connected to the exporter in " + server.getSoTimeout() + " ms", e);
+        }
         s.setSoTimeout(FakeHelper.SAFETY_MS);
         if (s.getPort() != authorized) {
             s.close();
@@ -112,7 +119,7 @@ final class FakeExporter implements UsbTunnel.Exporter, Closeable {
         try (Socket s = server.accept()) {
             return s != null;
         }
-        catch (java.net.SocketTimeoutException e) {
+        catch (SocketTimeoutException e) {
             return false;
         }
         finally {
