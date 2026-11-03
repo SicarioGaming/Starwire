@@ -1,11 +1,9 @@
 package com.limelight;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.content.pm.ActivityInfo;
-import android.view.MotionEvent;
 
 import com.limelight.preferences.PreferenceConfiguration;
 
@@ -13,17 +11,12 @@ import org.junit.Test;
 
 /**
  * The stream screen's decisions that don't need a device: which orientation it asks for, and
- * when a three-finger touch opens the overlay menu before the normal touch handling.
+ * what a completed multi-finger tap does.
  */
 public class GameRulesTest {
     private static final int LANDSCAPE = ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE;
     private static final int PORTRAIT = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT;
     private static final int ANY = ActivityInfo.SCREEN_ORIENTATION_FULL_USER;
-
-    private static final int[] ALL_MOUSE_MODES = {
-            Game.MOUSE_MODE_MULTI_TOUCH, Game.MOUSE_MODE_DIRECT_TOUCH, Game.MOUSE_MODE_TRACKPAD_NATURAL,
-            Game.MOUSE_MODE_TRACKPAD_GAMING, Game.MOUSE_MODE_DISABLED, Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED
-    };
 
     // 1080p, one of the resolution options, so not "native"
     private static final int W = 1920;
@@ -74,38 +67,30 @@ public class GameRulesTest {
     }
 
     @Test
-    public void threeFingersOpenTheMenuInPanZoomAndTouchDisabledModes() {
-        // d0beca57: these modes skip the normal three-finger handling, which left no way back to
-        // the menu with the floating button hidden and no controller
-        for (int mode : ALL_MOUSE_MODES) {
-            assertTrue("pan/zoom, mode " + mode, Game.opensMenuBeforeTouchHandling(
-                    true, mode, MotionEvent.ACTION_POINTER_DOWN, 3));
-        }
-        assertTrue("touch disabled", Game.opensMenuBeforeTouchHandling(
-                false, Game.MOUSE_MODE_DISABLED, MotionEvent.ACTION_POINTER_DOWN, 3));
+    public void threeFingersToggleTheKeyboardAndFourOpenTheMenu() {
+        // Issue #6: the upstream Moonlight mapping — a three-finger tap brings up the
+        // soft keyboard, four or more open the overlay menu (the floating button and
+        // holding Select on a controller reach it too)
+        assertEquals(Game.TAP_KEYBOARD, Game.multiFingerTapAction(3, 100));
+        assertEquals(Game.TAP_MENU, Game.multiFingerTapAction(4, 100));
+        assertEquals("more fingers still mean the menu", Game.TAP_MENU,
+                Game.multiFingerTapAction(5, 100));
     }
 
     @Test
-    public void otherModesLeaveThreeFingersToTheNormalHandling() {
-        for (int mode : ALL_MOUSE_MODES) {
-            if (mode == Game.MOUSE_MODE_DISABLED) {
-                continue;
-            }
-            assertFalse("mode " + mode, Game.opensMenuBeforeTouchHandling(
-                    false, mode, MotionEvent.ACTION_POINTER_DOWN, 3));
-        }
+    public void slowGesturesAreNotTaps() {
+        // Held past the threshold a gesture is just a touch, whatever the finger count
+        assertEquals(Game.TAP_NONE,
+                Game.multiFingerTapAction(3, Game.MULTI_FINGER_TAP_THRESHOLD));
+        assertEquals(Game.TAP_NONE,
+                Game.multiFingerTapAction(4, Game.MULTI_FINGER_TAP_THRESHOLD + 500));
     }
 
     @Test
-    public void onlyTheThirdFingerGoingDownCounts() {
-        for (int pointers : new int[] {1, 2, 4, 5}) {
-            assertFalse(pointers + " fingers", Game.opensMenuBeforeTouchHandling(
-                    true, Game.MOUSE_MODE_DISABLED, MotionEvent.ACTION_POINTER_DOWN, pointers));
-        }
-        for (int action : new int[] {MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE,
-                MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL}) {
-            assertFalse("action " + action, Game.opensMenuBeforeTouchHandling(
-                    true, Game.MOUSE_MODE_DISABLED, action, 3));
-        }
+    public void oneAndTwoFingerTouchesAreNotTaps() {
+        // Single and paired fingers keep their normal touch meaning
+        assertEquals(Game.TAP_NONE, Game.multiFingerTapAction(1, 50));
+        assertEquals(Game.TAP_NONE, Game.multiFingerTapAction(2, 50));
     }
+
 }

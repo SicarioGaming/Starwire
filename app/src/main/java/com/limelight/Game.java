@@ -133,7 +133,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     // Only 2 touches are supported
     private final TouchContext[] touchContextMap = new TouchContext[2];
-    private long threeFingerDownTime = 0;
+    private long tapDownTime = 0;
+    private int tapFingerCount = 0;
 
     private static final int REFERENCE_HORIZ_RES = 1280;
     private static final int REFERENCE_VERT_RES = 720;
@@ -144,7 +145,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private static final int STYLUS_UP_DEAD_ZONE_DELAY = 150;
     private static final int STYLUS_UP_DEAD_ZONE_RADIUS = 50;
 
-    private static final int THREE_FINGER_TAP_THRESHOLD = 300;
+    static final int MULTI_FINGER_TAP_THRESHOLD = 300;
+
+    // What a completed multi-finger tap does (checked by GameRulesTest)
+    static final int TAP_NONE = 0;
+    static final int TAP_KEYBOARD = 1;
+    static final int TAP_MENU = 2;
 
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
@@ -847,14 +853,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
     }
 
-    // Starwire: pan/zoom and the touch-disabled mode skip the normal touch handling, so they
-    // open the overlay menu on a three-finger touch before it; otherwise there could be no way
-    // back to the menu when the floating button is hidden and no controller is connected.
-    // (The other modes open it from their own three-finger tap.) Checked by GameRulesTest.
-    static boolean opensMenuBeforeTouchHandling(boolean panZoomMode, int mouseMode, int actionMasked,
-                                                int pointerCount) {
-        return (panZoomMode || mouseMode == MOUSE_MODE_DISABLED) &&
-                actionMasked == MotionEvent.ACTION_POINTER_DOWN && pointerCount == 3;
+    // Starwire: what a completed multi-finger tap does. Three fingers toggle the soft
+    // keyboard like upstream Moonlight, four or more open the overlay menu, and a
+    // gesture held past the threshold is not a tap at all. Checked by GameRulesTest.
+    static int multiFingerTapAction(int maxFingerCount, long elapsedMillis) {
+        if (maxFingerCount < 3 || elapsedMillis >= MULTI_FINGER_TAP_THRESHOLD) {
+            return TAP_NONE;
+        }
+        return maxFingerCount == 3 ? TAP_KEYBOARD : TAP_MENU;
     }
 
 
@@ -1889,6 +1895,56 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
     }
 
+    // Starwire: multi-finger taps run ahead of every mouse/touch mode so pan/zoom and
+    // touch-disabled get the same gestures as the rest; they consume the touches so no
+    // part of a tap ever reaches the host.
+    private boolean handleMultiFingerTap(MotionEvent event) {
+        int actionMasked = event.getActionMasked();
+        if (actionMasked == MotionEvent.ACTION_DOWN || actionMasked == MotionEvent.ACTION_CANCEL) {
+            tapDownTime = 0;
+            tapFingerCount = 0;
+            if (actionMasked == MotionEvent.ACTION_DOWN) {
+                panZoomHandler.rememberGestureStart();
+            }
+            return false;
+        }
+        if (actionMasked == MotionEvent.ACTION_POINTER_DOWN && event.getPointerCount() >= 3) {
+            if (tapDownTime == 0) {
+                tapDownTime = event.getEventTime();
+            }
+            tapFingerCount = Math.max(tapFingerCount, event.getPointerCount());
+            // Extra fingers mean this was never a pinch: put the view back the way the
+            // gesture found it and drop the pinch state
+            panZoomHandler.revertToGestureStart();
+            pinchActive = false;
+            pinchStartSpan = 0;
+            // Cancel the touches already down so they don't fire as clicks
+            for (TouchContext touchContext : touchContextMap) {
+                touchContext.cancelTouch();
+            }
+            return true;
+        }
+        if (tapDownTime != 0 && event.getPointerCount() == 1 &&
+                (actionMasked == MotionEvent.ACTION_UP || actionMasked == MotionEvent.ACTION_POINTER_UP)) {
+            int tapAction = TAP_NONE;
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                    (event.getFlags() & MotionEvent.FLAG_CANCELED) == 0) {
+                tapAction = multiFingerTapAction(tapFingerCount, event.getEventTime() - tapDownTime);
+            }
+            tapDownTime = 0;
+            tapFingerCount = 0;
+            if (tapAction == TAP_KEYBOARD) {
+                runOnUiThread(this::toggleKeyboard);
+                return true;
+            }
+            else if (tapAction == TAP_MENU) {
+                runOnUiThread(() -> overlayMenuView.show());
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public void toggleKeyboard() {
         LimeLog.info("Toggling keyboard overlay");
@@ -2424,9 +2480,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 // First, so it sees every finger down and up, whatever handles the touch below
                 updateHostCursorForTouch(event);
 
-                if (opensMenuBeforeTouchHandling(isPanZoomMode, mouseMode,
-                        event.getActionMasked(), event.getPointerCount())) {
-                    overlayMenuView.show();
+                if (handleMultiFingerTap(event)) {
                     return true;
                 }
 
@@ -2469,21 +2523,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 int eventX = (int)(event.getX(actionIndex) + xOffset);
                 int eventY = (int)(event.getY(actionIndex) + yOffset);
 
-                // Special handling for 3 finger gesture
-                if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN &&
-                        event.getPointerCount() == 3) {
-                    // Three fingers down
-                    threeFingerDownTime = event.getEventTime();
-
-                    // Cancel the first and second touches to avoid
-                    // erroneous events
-                    for (TouchContext aTouchContext : touchContextMap) {
-                        aTouchContext.cancelTouch();
-                    }
-
-                    return true;
-                }
-
                 // TODO: Re-enable native touch when have a better solution for handling
                 // cancelled touches from Android gestures and 3 finger taps to activate
                 // the overlay menu.
@@ -2509,16 +2548,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     break;
                 case MotionEvent.ACTION_POINTER_UP:
                 case MotionEvent.ACTION_UP:
-                    if (event.getPointerCount() == 1 &&
-                            (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || (event.getFlags() & MotionEvent.FLAG_CANCELED) == 0)) {
-                        // All fingers up
-                        if (event.getEventTime() - threeFingerDownTime < THREE_FINGER_TAP_THRESHOLD) {
-                            // This is a 3 finger tap to bring up the overlay menu
-                            runOnUiThread(() -> overlayMenuView.show());
-                            return true;
-                        }
-                    }
-
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && (event.getFlags() & MotionEvent.FLAG_CANCELED) != 0) {
                         context.cancelTouch();
                     }
