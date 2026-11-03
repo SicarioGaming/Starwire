@@ -102,6 +102,7 @@ public class ImportedShortcutsMenuTest {
         @Override public void onShowKeyboard() {}
         @Override public void onSendGuideButton() {}
         @Override public void onCustomCommand(CustomCommand command) {}
+        @Override public void onMenuOpened() {}
         @Override public void onMenuClosed() {}
         @Override public void onRotateScreen() {}
         @Override public void onToggleOnscreenController() {}

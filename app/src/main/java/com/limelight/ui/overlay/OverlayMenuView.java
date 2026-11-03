@@ -58,6 +58,7 @@ public class OverlayMenuView extends LinearLayout {
         void onShowKeyboard();
         void onSendGuideButton();
         void onCustomCommand(CustomCommand command);
+        void onMenuOpened();
         void onMenuClosed();
 
         // Actions ported from Artemide's in-stream menu
@@ -230,7 +231,9 @@ public class OverlayMenuView extends LinearLayout {
     private void init(Context context) {
         setOrientation(LinearLayout.VERTICAL);
         setFocusable(true);
-        setFocusableInTouchMode(true);
+        // Touches must not move focus onto the sheet: the stream view keeps it, which
+        // keeps captured-pointer input flowing while the menu is up
+        setFocusableInTouchMode(false);
         // Taps on the sheet itself shouldn't reach the game behind it
         setClickable(true);
         int padding = dp(20);
@@ -993,11 +996,13 @@ public class OverlayMenuView extends LinearLayout {
     }
 
     public void closeMenu() {
-        hide(() -> {
-            if (actionListener != null) {
-                actionListener.onMenuClosed();
-            }
-        });
+        hide(this::notifyMenuClosed);
+    }
+
+    private void notifyMenuClosed() {
+        if (actionListener != null) {
+            actionListener.onMenuClosed();
+        }
     }
 
     private void activateMouseEmulation() {
@@ -1012,7 +1017,7 @@ public class OverlayMenuView extends LinearLayout {
         // to process the visibility change and return focus to the game view before the
         // IME is requested. Without this, newer Android silently drops showSoftInput()
         // because the overlay view still holds focus at the moment of the call.
-        setVisibility(GONE);
+        hide(this::notifyMenuClosed);
         post(() -> {
             if (actionListener != null) {
                 actionListener.onShowKeyboard();
@@ -1063,14 +1068,16 @@ public class OverlayMenuView extends LinearLayout {
         gridScroll.scrollTo(0, 0);
         setVisibility(VISIBLE);
 
+        if (actionListener != null) {
+            actionListener.onMenuOpened();
+        }
+
         // Slides in from the right edge (system animation settings still apply)
         animate().cancel();
         setAlpha(0f);
         setTranslationX(dp(SHEET_WIDTH_DP) * 0.4f);
         animate().alpha(1f).translationX(0)
             .setDuration(320).setInterpolator(new DecelerateInterpolator(2f)).start();
-
-        requestFocus();
 
         // Close (back to the game) is selected first, so A just resumes
         post(() -> {

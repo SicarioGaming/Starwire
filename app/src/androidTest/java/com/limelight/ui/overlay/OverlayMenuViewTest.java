@@ -50,6 +50,7 @@ public class OverlayMenuViewTest {
         @Override public void onShowKeyboard() { events.add("keyboard"); }
         @Override public void onSendGuideButton() { events.add("guide"); }
         @Override public void onCustomCommand(CustomCommand command) { events.add("custom"); }
+        @Override public void onMenuOpened() { events.add("opened"); }
         @Override public void onMenuClosed() { events.add("closed"); }
         @Override public void onSendKeys(short[] keys) { events.add("keys"); lastKeys = keys; }
         @Override public void onRotateScreen() { events.add("rotate"); }
