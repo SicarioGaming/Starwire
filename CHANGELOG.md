@@ -13,6 +13,17 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Changed
+
+- **Multi-finger tap gestures match upstream Moonlight:** a three-finger tap toggles the
+  on-screen keyboard, and four or more fingers open the stream menu (the floating button and
+  holding Select on a controller work as before).
+
+### Fixed
+
+- **A multi-finger tap no longer pinch-zooms or pans the stream** as its first fingers land;
+  the view goes back the way the gesture found it.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

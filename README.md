@@ -238,8 +238,9 @@ last game is ready to go with one tap, with its stream settings right under its 
 button sits beside Resume while it runs.
 
 ### 🎮 Everything during a stream, one tap away
-Open the menu with the floating button, a three-finger tap or by holding Select on a
-controller. Keyboard, full on-screen keyboard, mouse modes, zoom, key shortcuts, monitor
+Open the menu with the floating button, a four-finger tap or by holding Select on a
+controller. A three-finger tap toggles the on-screen keyboard, like upstream Moonlight.
+Keyboard, full on-screen keyboard, mouse modes, zoom, key shortcuts, monitor
 switching, bitrate, clipboard: it's all in one grid, and works with a controller too. Anything
 that turns on and off has a small switch, so you can see what's on at a glance.
 

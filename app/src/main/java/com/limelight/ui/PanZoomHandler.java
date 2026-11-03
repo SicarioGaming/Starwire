@@ -22,6 +22,12 @@ public class PanZoomHandler {
     private float parentWidth, parentHeight;
     private float childWidth, childHeight;
 
+    // The view as the current touch gesture found it, so a gesture that turns out not
+    // to be a pinch can put it back
+    private float gestureScale = 1.0f;
+    private float gestureX, gestureY;
+    private boolean gestureStateSaved;
+
     public PanZoomHandler(Context context, View streamView) {
         this.streamView = streamView;
         scaleGestureDetector = new ScaleGestureDetector(context, new ScaleListener());
@@ -39,6 +45,32 @@ public class PanZoomHandler {
 
     public boolean isZoomed() {
         return scaleFactor > 1.0f;
+    }
+
+    /**
+     * Called when a new touch gesture starts, before its fingers can pinch or pan.
+     */
+    public void rememberGestureStart() {
+        gestureScale = scaleFactor;
+        gestureX = streamView.getX();
+        gestureY = streamView.getY();
+        gestureStateSaved = true;
+    }
+
+    /**
+     * Undoes whatever the current gesture did to the view: extra fingers arriving
+     * mean it was never meant to be a pinch. A zoom from an earlier gesture stays.
+     */
+    public void revertToGestureStart() {
+        if (!gestureStateSaved) {
+            return;
+        }
+        scaleFactor = gestureScale;
+        streamView.setScaleX(scaleFactor);
+        streamView.setScaleY(scaleFactor);
+        streamView.setX(gestureX);
+        streamView.setY(gestureY);
+        gestureStateSaved = false;
     }
 
     public void reset() {
