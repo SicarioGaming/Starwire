@@ -10,6 +10,7 @@ import android.view.MotionEvent;
 import android.view.View;
 
 
+
 // We extend AndroidPointerIconCaptureProvider because we want to also get the
 // pointer icon hiding behavior over our stream view just in case pointer capture
 // is unavailable on this system (ex: DeX, ChromeOS)
@@ -102,11 +103,22 @@ public class AndroidNativePointerCaptureProvider extends AndroidPointerIconCaptu
         h.postDelayed(new Runnable() {
             @Override
             public void run() {
-                if (hasCaptureCompatibleInputDevice()) {
+                // The cursor may have been freed while this was queued (the overlay menu,
+                // or the show-cursor shortcut); a stale request must not grab it back.
+                if (isCapturing && !isCursorVisible && hasCaptureCompatibleInputDevice()) {
                     targetView.requestPointerCapture();
                 }
             }
         }, 500);
+    }
+
+    // A captured mouse shows up with SOURCE_MOUSE_RELATIVE's device bits on top of a
+    // class byte; AOSP pairs them with SOURCE_CLASS_POINTER while Samsung's stack pairs
+    // them with SOURCE_CLASS_TRACKBALL (0x20004). Match the device bits either way.
+    // Checked by AndroidNativePointerCaptureProviderTest.
+    static boolean isRelativeMouseSource(int eventSource) {
+        return (eventSource & ~InputDevice.SOURCE_CLASS_MASK) ==
+                (InputDevice.SOURCE_MOUSE_RELATIVE & ~InputDevice.SOURCE_CLASS_MASK);
     }
 
     @Override
@@ -115,13 +127,13 @@ public class AndroidNativePointerCaptureProvider extends AndroidPointerIconCaptu
         // SOURCE_TOUCHPAD will have relative axes populated iff our view has pointer capture.
         // See https://developer.android.com/reference/android/view/View#requestPointerCapture()
         int eventSource = event.getSource();
-        return (eventSource == InputDevice.SOURCE_MOUSE_RELATIVE && event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE) ||
+        return (isRelativeMouseSource(eventSource) && event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE) ||
                 (eventSource == InputDevice.SOURCE_TOUCHPAD && targetView.hasPointerCapture());
     }
 
     @Override
     public float getRelativeAxisX(MotionEvent event) {
-        int axis = (event.getSource() == InputDevice.SOURCE_MOUSE_RELATIVE) ?
+        int axis = isRelativeMouseSource(event.getSource()) ?
                 MotionEvent.AXIS_X : MotionEvent.AXIS_RELATIVE_X;
         float x = event.getAxisValue(axis);
         for (int i = 0; i < event.getHistorySize(); i++) {
@@ -132,7 +144,7 @@ public class AndroidNativePointerCaptureProvider extends AndroidPointerIconCaptu
 
     @Override
     public float getRelativeAxisY(MotionEvent event) {
-        int axis = (event.getSource() == InputDevice.SOURCE_MOUSE_RELATIVE) ?
+        int axis = isRelativeMouseSource(event.getSource()) ?
                 MotionEvent.AXIS_Y : MotionEvent.AXIS_RELATIVE_Y;
         float y = event.getAxisValue(axis);
         for (int i = 0; i < event.getHistorySize(); i++) {
@@ -143,8 +155,9 @@ public class AndroidNativePointerCaptureProvider extends AndroidPointerIconCaptu
 
     @Override
     public void onInputDeviceAdded(int deviceId) {
-        // Check if we've added a capture-compatible device
-        if (!targetView.hasPointerCapture() && hasCaptureCompatibleInputDevice()) {
+        // Check if we've added a capture-compatible device. It isn't captured if the cursor
+        // was freed on purpose, like while the overlay menu is up or the cursor was shown.
+        if (!targetView.hasPointerCapture() && !isCursorVisible && hasCaptureCompatibleInputDevice()) {
             targetView.requestPointerCapture();
         }
     }

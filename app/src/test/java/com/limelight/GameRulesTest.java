@@ -97,6 +97,19 @@ public class GameRulesTest {
     }
 
     @Test
+    public void theMenuDrawsItsOwnCursorOnlyWhileCaptureIsHeld() {
+        // The overlay menu drives a software cursor from the captured deltas rather than
+        // releasing pointer capture: re-acquiring it afterwards loses the mouse's motion
+        // events on Samsung's Android 10 input stack. The system cursor serves the menu
+        // whenever nothing is captured.
+        assertTrue(Game.menuShouldUseSoftwareCursor(true, false, true));
+        assertFalse("ungrabbed input", Game.menuShouldUseSoftwareCursor(false, false, true));
+        assertFalse("cursor already free", Game.menuShouldUseSoftwareCursor(true, true, true));
+        assertFalse("no capture held", Game.menuShouldUseSoftwareCursor(true, false, false));
+        assertFalse("ungrabbed and free", Game.menuShouldUseSoftwareCursor(false, true, false));
+    }
+
+    @Test
     public void onlyTheThirdFingerGoingDownCounts() {
         for (int pointers : new int[] {1, 2, 4, 5}) {
             assertFalse(pointers + " fingers", Game.opensMenuBeforeTouchHandling(
