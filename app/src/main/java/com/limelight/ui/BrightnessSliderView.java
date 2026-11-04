@@ -3,6 +3,10 @@ package com.limelight.ui;
 import android.app.Activity;
 import android.content.SharedPreferences;
 import android.os.Handler;
+import android.os.SystemClock;
+import android.view.InputDevice;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.SeekBar;
@@ -14,8 +18,11 @@ public class BrightnessSliderView {
     private static final String PREFS_NAME = "GameSettings";
     private static final String BRIGHTNESS_KEY = "streamBrightness";
     private static final int AUTO_HIDE_DELAY_MS = 2000;
-    private static final int SHOW_DELAY_MS = 3000;
     private static final float TOUCH_ZONE_WIDTH_DP = 80;
+    // Brightness steps for each d-pad press or stick repeat, in percent (touch moves by 1%)
+    private static final int CONTROLLER_STEP = 5;
+    private static final float STICK_THRESHOLD = 0.5f;
+    private static final long STICK_REPEAT_MS = 150;
 
     private final Activity activity;
     private final View brightnessSliderContainer;
@@ -26,6 +33,14 @@ public class BrightnessSliderView {
     private final SharedPreferences prefs;
     private final float touchZoneWidth;
     private boolean initialized = false;
+    // Up for a gamepad or remote (showForController())
+    private boolean controllerMode = false;
+    private Runnable onControllerClosed;
+    // The key that closed it, whose release is taken too
+    private int closingKeyCode = KeyEvent.KEYCODE_UNKNOWN;
+    private long lastStickStepMs = 0;
+    // The brightness was changed since the slider was shown, which starts its hide timer
+    private boolean adjusted = false;
 
     public BrightnessSliderView(Activity activity) {
         this.activity = activity;
@@ -70,20 +85,7 @@ public class BrightnessSliderView {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (fromUser) {
-                    WindowManager.LayoutParams params = activity.getWindow().getAttributes();
-
-                    if (progress == 0) {
-                        // Auto mode: use system brightness
-                        params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
-                        prefs.edit().putFloat(BRIGHTNESS_KEY, -1.0f).apply();
-                    } else {
-                        // Manual brightness (1-100 maps to 0.01-1.0)
-                        float brightness = progress / 100.0f;
-                        params.screenBrightness = brightness;
-                        prefs.edit().putFloat(BRIGHTNESS_KEY, brightness).apply();
-                    }
-
-                    activity.getWindow().setAttributes(params);
+                    applyBrightness(progress);
                 }
 
                 // Update brightness text and position (for both user and programmatic changes)
@@ -103,10 +105,150 @@ public class BrightnessSliderView {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                // Hide the slider after delay
-                handler.postDelayed(hideRunnable, AUTO_HIDE_DELAY_MS);
+                if (adjusted) {
+                    scheduleHide(AUTO_HIDE_DELAY_MS);
+                }
             }
         });
+
+        // With the slider focused for a controller, its keys and stick come here rather than
+        // going to the stream
+        brightnessSlider.setOnKeyListener((v, keyCode, event) -> handleKeyEvent(event));
+        brightnessSlider.setOnGenericMotionListener((v, event) -> handleMotionEvent(event));
+    }
+
+    private void applyBrightness(int progress) {
+        adjusted = true;
+        WindowManager.LayoutParams params = activity.getWindow().getAttributes();
+
+        if (progress == 0) {
+            // Auto mode: use system brightness
+            params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+            prefs.edit().putFloat(BRIGHTNESS_KEY, -1.0f).apply();
+        } else {
+            // Manual brightness (1-100 maps to 0.01-1.0)
+            float brightness = progress / 100.0f;
+            params.screenBrightness = brightness;
+            prefs.edit().putFloat(BRIGHTNESS_KEY, brightness).apply();
+        }
+
+        activity.getWindow().setAttributes(params);
+    }
+
+    // Hides the slider delayMs from now, in place of any hide already pending
+    private void scheduleHide(long delayMs) {
+        handler.removeCallbacks(hideRunnable);
+        handler.postDelayed(hideRunnable, delayMs);
+    }
+
+    // Moves the brightness to the next multiple of CONTROLLER_STEP up or down, between Auto (0)
+    // and 100%, so a level set by touch (1% steps) snaps onto the controller's steps. Once it
+    // has been changed, pushing past either end still keeps the slider up.
+    private void stepBrightness(int direction) {
+        int current = brightnessSlider.getProgress();
+        int snapped = direction > 0 ? (current / CONTROLLER_STEP + 1) * CONTROLLER_STEP
+                                    : ((current + CONTROLLER_STEP - 1) / CONTROLLER_STEP - 1) * CONTROLLER_STEP;
+        int progress = Math.max(0, Math.min(100, snapped));
+        if (progress != brightnessSlider.getProgress()) {
+            brightnessSlider.setProgress(progress);
+            applyBrightness(progress);
+        }
+        if (adjusted) {
+            scheduleHide(AUTO_HIDE_DELAY_MS);
+        }
+    }
+
+    /**
+     * Shows the slider for a gamepad or remote: up and down change the brightness, and A, B or
+     * back close it. Otherwise it closes itself once changed, as when shown for touch.
+     *
+     * @param onClosed run once it's closed, to give focus back to the stream
+     */
+    public void showForController(Runnable onClosed) {
+        controllerMode = true;
+        onControllerClosed = onClosed;
+        show();
+    }
+
+    /** Whether the slider is up, for touch or a controller */
+    public boolean isShowing() {
+        return brightnessSliderContainer.getVisibility() != View.GONE;
+    }
+
+    /** Whether the slider is up for a controller (showForController()) */
+    public boolean isControllerMode() {
+        return controllerMode;
+    }
+
+    private void focusForController() {
+        if (controllerMode) {
+            brightnessSlider.setFocusableInTouchMode(true);
+            brightnessSlider.requestFocus();
+        }
+    }
+
+    private void closeForController() {
+        hide();
+    }
+
+    /**
+     * Key events while the slider is up for a controller. Takes every one, so none reach the
+     * stream; the release of the key that closed it is taken too.
+     */
+    public boolean handleKeyEvent(KeyEvent event) {
+        if (!controllerMode) {
+            if (event.getAction() == KeyEvent.ACTION_UP && event.getKeyCode() == closingKeyCode) {
+                closingKeyCode = KeyEvent.KEYCODE_UNKNOWN;
+                return true;
+            }
+            return false;
+        }
+
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            switch (event.getKeyCode()) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    stepBrightness(1);
+                    break;
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    stepBrightness(-1);
+                    break;
+                case KeyEvent.KEYCODE_BUTTON_A:
+                case KeyEvent.KEYCODE_BUTTON_B:
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_BACK:
+                    if (event.getRepeatCount() == 0) {
+                        closingKeyCode = event.getKeyCode();
+                        closeForController();
+                    }
+                    break;
+            }
+        }
+        return true;
+    }
+
+    /** Stick and d-pad hat motion while the slider is up for a controller */
+    public boolean handleMotionEvent(MotionEvent event) {
+        if (!controllerMode) {
+            return false;
+        }
+        if ((event.getSource() & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) {
+            float y = event.getAxisValue(MotionEvent.AXIS_Y);
+            float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
+            float combinedY = Math.abs(y) > Math.abs(hatY) ? y : hatY;
+
+            // Held, it repeats at STICK_REPEAT_MS; let go, the next push steps at once
+            long now = SystemClock.uptimeMillis();
+            if (Math.abs(combinedY) < STICK_THRESHOLD) {
+                lastStickStepMs = 0;
+            }
+            else if (lastStickStepMs == 0 || now - lastStickStepMs >= STICK_REPEAT_MS) {
+                // Stick and hat up are negative
+                stepBrightness(combinedY < 0 ? 1 : -1);
+                lastStickStepMs = now;
+            }
+        }
+        return true;
     }
 
     private void updateBrightnessTextPosition(int progress) {
@@ -149,6 +291,7 @@ public class BrightnessSliderView {
      */
     public void show() {
         if (brightnessSliderContainer.getVisibility() != View.VISIBLE) {
+            adjusted = false;
             // Set SeekBar width to match container height (only need to do this once)
             if (!initialized) {
                 // Get the saved brightness value before adjusting width
@@ -179,6 +322,7 @@ public class BrightnessSliderView {
                             // Now make it visible with correct values
                             brightnessSliderContainer.setVisibility(View.VISIBLE);
                             brightnessValueText.setVisibility(View.VISIBLE);
+                            focusForController();
                         }
                     }
                 });
@@ -189,22 +333,40 @@ public class BrightnessSliderView {
 
                 // Update text position if already initialized
                 updateBrightnessTextPosition(brightnessSlider.getProgress());
+                focusForController();
             }
         }
+        else {
+            focusForController();
+        }
 
-        // Cancel any pending hide operations
+        // Stays up until the brightness is changed, then hides AUTO_HIDE_DELAY_MS after the last
+        // change; a touch on the stream (or for a controller, A, B or back) closes it sooner
         handler.removeCallbacks(hideRunnable);
-
-        // Schedule auto-hide
-        handler.postDelayed(hideRunnable, SHOW_DELAY_MS);
+        if (adjusted) {
+            scheduleHide(AUTO_HIDE_DELAY_MS);
+        }
     }
 
     /**
      * Hide the brightness slider
      */
     public void hide() {
+        handler.removeCallbacks(hideRunnable);
         brightnessSliderContainer.setVisibility(View.GONE);
         brightnessValueText.setVisibility(View.GONE);
+
+        if (controllerMode) {
+            controllerMode = false;
+            lastStickStepMs = 0;
+            brightnessSlider.clearFocus();
+            brightnessSlider.setFocusableInTouchMode(false);
+            Runnable onClosed = onControllerClosed;
+            onControllerClosed = null;
+            if (onClosed != null) {
+                onClosed.run();
+            }
+        }
     }
 
     /**

@@ -430,6 +430,8 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | On-screen controller toggle | Ported from Artemis (Yukino Song), via Artemide |
 | Monitor switcher (Monitor 1–6, using the host's Ctrl+Alt+Shift+F1… shortcuts) | Idea from Moonlit Artemis (Mohammad Forhad / 4had45) |
 | Change bitrate mid-stream **(Vibepollo)** | Idea from Moonlight V+ (qiin2333) |
+| Brightness tile, which opens the slider for a gamepad or remote and isn't offered on Android TV | From Moonlight X (MoreOrLessSoftware) |
+| Left edge swipe action setting (overlay menu, brightness or off; brightness by default), and the slider hiding a couple of seconds after it was last changed | From Moonlight X (MoreOrLessSoftware) |
 
 </details>
 

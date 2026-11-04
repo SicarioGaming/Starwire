@@ -134,6 +134,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     // Only 2 touches are supported
     private final TouchContext[] touchContextMap = new TouchContext[2];
     private long threeFingerDownTime = 0;
+    // A single finger that went down at the left edge, which does the left edge swipe action if
+    // it swipes in far and fast enough
+    private boolean edgeSwipeTracking = false;
+    private float edgeSwipeStartX, edgeSwipeStartY;
+    private long edgeSwipeStartTime;
 
     private static final int REFERENCE_HORIZ_RES = 1280;
     private static final int REFERENCE_VERT_RES = 720;
@@ -145,6 +150,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private static final int STYLUS_UP_DEAD_ZONE_RADIUS = 50;
 
     private static final int THREE_FINGER_TAP_THRESHOLD = 300;
+    // How far in from the left edge the swipe goes, and how long it has to get there
+    private static final float EDGE_SWIPE_DISTANCE_DP = 60;
+    private static final int EDGE_SWIPE_TIME_LIMIT = 500;
 
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
@@ -443,6 +451,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // Initialize overlay menu view (setup will be done after controllerHandler is initialized)
         overlayMenuView = findViewById(R.id.overlayMenuView);
         overlayMenuView.setFlipFaceButtons(prefConfig.flipFaceButtons);
+        overlayMenuView.setShowBrightness(!isAndroidTV);
 
         floatingMenuButton = findViewById(R.id.floatingMenuButton);
         // Kept within the window, as the drag always was
@@ -1703,6 +1712,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return overlayMenuView.dispatchKeyEvent(event);
         }
 
+        // Likewise the brightness slider shown from it
+        if (brightnessSliderView != null && brightnessSliderView.isControllerMode()) {
+            return brightnessSliderView.handleKeyEvent(event);
+        }
+
         // Handle a synthetic back button event that some Android OS versions
         // create as a result of a right-click. This event WILL repeat if
         // the right mouse button is held down, so we ignore those.
@@ -1803,6 +1817,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // If overlay menu is visible, route all key events to it
         if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
             return overlayMenuView.dispatchKeyEvent(event);
+        }
+
+        // Likewise the brightness slider shown from it, and the release of the key that closed it
+        if (brightnessSliderView != null && brightnessSliderView.handleKeyEvent(event)) {
+            return true;
         }
 
         // Handle a synthetic back button event that some Android OS versions
@@ -2469,6 +2488,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 int eventX = (int)(event.getX(actionIndex) + xOffset);
                 int eventY = (int)(event.getY(actionIndex) + yOffset);
 
+                if (!prefConfig.leftEdgeSwipeAction.equals("off") && trackEdgeSwipe(event)) {
+                    return true;
+                }
+
                 // Special handling for 3 finger gesture
                 if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN &&
                         event.getPointerCount() == 3) {
@@ -2590,6 +2613,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
             return overlayMenuView.onGenericMotionEvent(event);
         }
+        if (brightnessSliderView != null && brightnessSliderView.isControllerMode()) {
+            return brightnessSliderView.handleMotionEvent(event);
+        }
 
         if (isImeVisible && isAndroidTV) {
             return super.onGenericMotionEvent(event);
@@ -2668,14 +2694,67 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // NB: This is still needed even when we call the newer requestUnbufferedDispatch()!
             view.requestUnbufferedDispatch(event);
 
-            // Check if touch is on the left edge to show brightness slider
-            if (brightnessSliderView.isTouchInActivationZone(event.getX())) {
-                brightnessSliderView.show();
-                return true; // Consume the touch event to prevent game input
+            // A touch on the stream closes the brightness slider, which otherwise stays up until
+            // it's been changed
+            if (brightnessSliderView.isShowing()) {
+                brightnessSliderView.hide();
+                return true;
             }
         }
 
         return handleMotionEvent(view, event);
+    }
+
+    // Whether the swipe has travelled far enough in from the edge: past the distance, and more
+    // sideways than up or down, so a vertical scroll along the edge doesn't trigger it
+    static boolean edgeSwipeComplete(float startX, float startY, float x, float y, float density) {
+        float in = x - startX;
+        float vertical = Math.abs(y - startY);
+        return in >= EDGE_SWIPE_DISTANCE_DP * density && vertical < in;
+    }
+
+    // Follows a single finger from the left edge of the screen, and does the left edge swipe
+    // action once it has swiped in far enough in time. Returns true when it did, having cancelled
+    // the touches the gesture made, which then ignore the rest of it.
+    private boolean trackEdgeSwipe(MotionEvent event) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                // On the screen's coordinates: the touch can land on the stream or around it
+                edgeSwipeTracking = brightnessSliderView.isTouchInActivationZone(event.getRawX());
+                edgeSwipeStartX = event.getRawX();
+                edgeSwipeStartY = event.getRawY();
+                edgeSwipeStartTime = event.getEventTime();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (!edgeSwipeTracking) {
+                    break;
+                }
+                if (event.getEventTime() - edgeSwipeStartTime > EDGE_SWIPE_TIME_LIMIT) {
+                    edgeSwipeTracking = false;
+                    break;
+                }
+                if (edgeSwipeComplete(edgeSwipeStartX, edgeSwipeStartY,
+                        event.getRawX(), event.getRawY(),
+                        getResources().getDisplayMetrics().density)) {
+                    edgeSwipeTracking = false;
+                    for (TouchContext aTouchContext : touchContextMap) {
+                        aTouchContext.cancelTouch();
+                    }
+                    if (prefConfig.leftEdgeSwipeAction.equals("overlay_menu")) {
+                        overlayMenuView.show();
+                    }
+                    else {
+                        brightnessSliderView.show();
+                    }
+                    return true;
+                }
+                break;
+            default:
+                // A second finger, or the finger lifted, before it swiped far enough
+                edgeSwipeTracking = false;
+                break;
+        }
+        return false;
     }
 
     @Override
@@ -3483,6 +3562,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             public void onSendGuideButton() {
                 // Send Guide button press to the host
                 sendGuideButton();
+            }
+
+            @Override
+            public void onShowBrightness() {
+                brightnessSliderView.showForController(() -> streamView.requestFocus());
             }
 
             @Override

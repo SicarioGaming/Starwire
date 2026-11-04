@@ -13,6 +13,20 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **A Brightness tile in the stream menu,** from Moonlight X. It opens the slider for a gamepad
+  or remote, and it isn't offered on Android TV, where the app can't set the screen's brightness.
+- **A "Left edge swipe action" setting,** also from Moonlight X: a swipe in from the left edge
+  opens the overlay menu or the brightness slider, or does nothing (brightness by default).
+
+### Changed
+
+- **The left edge asks for a swipe, not a tap.** A swipe in from the edge does the action above;
+  a tap on the edge no longer takes touches away from the game.
+- **The brightness slider hides a couple of seconds after it was last changed,** however it was
+  opened; a touch on the stream closes it sooner.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

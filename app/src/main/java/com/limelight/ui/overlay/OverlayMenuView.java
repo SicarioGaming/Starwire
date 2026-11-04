@@ -57,6 +57,7 @@ public class OverlayMenuView extends LinearLayout {
         void onToggleMouseEmulation();
         void onShowKeyboard();
         void onSendGuideButton();
+        void onShowBrightness();
         void onCustomCommand(CustomCommand command);
         void onMenuClosed();
 
@@ -200,6 +201,7 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_MONITORS = 20;
     private static final int ACTION_BITRATE = 21;
     private static final int ACTION_FIX_HOST_CURSOR = 22;
+    private static final int ACTION_BRIGHTNESS = 23;
     private static final int ACTION_IMPORTED_BASE = 400;
     private static final int ACTION_MONITOR_BASE = 300;
     private static final int ACTION_CUSTOM_BASE = 100;
@@ -207,6 +209,8 @@ public class OverlayMenuView extends LinearLayout {
 
     private long lastAnalogNavTime = 0;
     private boolean flipFaceButtons = false;
+    // Not on TVs, whose screen brightness the app can't change
+    private boolean showBrightness = true;
 
     public OverlayMenuView(Context context) {
         super(context);
@@ -407,6 +411,10 @@ public class OverlayMenuView extends LinearLayout {
                 getContext().getString(R.string.overlay_menu_monitors), ACTION_MONITORS);
             addTile(R.drawable.ic_overlay_lightning,
                 getContext().getString(R.string.overlay_menu_bitrate), ACTION_BITRATE);
+            if (showBrightness) {
+                addTile(R.drawable.ic_overlay_settings_brightness,
+                    getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS);
+            }
             addTile(R.drawable.ic_overlay_mouse,
                 getContext().getString(R.string.overlay_menu_mouse_mode), ACTION_MOUSE_MODE);
             if (fixHostCursorShown) {
@@ -583,6 +591,10 @@ public class OverlayMenuView extends LinearLayout {
 
     public void setFlipFaceButtons(boolean flip) {
         this.flipFaceButtons = flip;
+    }
+
+    public void setShowBrightness(boolean show) {
+        this.showBrightness = show;
     }
 
     @Override
@@ -895,6 +907,11 @@ public class OverlayMenuView extends LinearLayout {
             } else if (action == ACTION_SEND_GUIDE) {
                 actionListener.onSendGuideButton();
                 shouldCloseMenu = true;
+            } else if (action == ACTION_BRIGHTNESS) {
+                // Closed first, so the slider gets the controller and remote input
+                closeMenu();
+                actionListener.onShowBrightness();
+                return;
             } else if (action == ACTION_CLOSE) {
                 closeMenu();
                 return;

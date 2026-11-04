@@ -277,7 +277,7 @@ public final class CoverGlowSettings {
         CREDITS.put("checkbox_prevent_packet_loss", "From Artemis by Yukino Song, via Artemide");
         CREDITS.put("seekbar_touch_sensitivity", "From Artemis by Yukino Song and Axixi2233");
         for (String key : new String[] {"overlay_custom_commands", "overlay_trigger_button", "overlay_hold_duration",
-                "video_format", "video_renderer", "pyrowave_late_frames"}) {
+                "left_edge_swipe_action", "video_format", "video_renderer", "pyrowave_late_frames"}) {
             CREDITS.put(key, moonlightX);
         }
         // The settings are Moonlight's own; entering any value is from Moonlight X
