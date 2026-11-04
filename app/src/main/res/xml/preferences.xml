@@ -175,6 +175,11 @@
             android:text="@string/suffix_seekbar_deadzone"
             android:title="@string/title_seekbar_deadzone"/>
         <CheckBoxPreference
+            android:key="checkbox_back_as_guide"
+            android:title="@string/title_back_as_guide"
+            android:summary="@string/summary_back_as_guide"
+            android:defaultValue="false" />
+        <CheckBoxPreference
             android:key="checkbox_multi_controller"
             android:title="@string/title_checkbox_multi_controller"
             android:summary="@string/summary_checkbox_multi_controller"

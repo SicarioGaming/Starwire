@@ -260,6 +260,7 @@ public final class CoverGlowSettings {
         String moonlightX = "From Moonlight X by MoreOrLessSoftware";
         String turnip = "From Moonlight X Turnip by NoCrypt";
         String keyboard = "Full keyboard from Axixi2233 and Artemis by Yukino Song";
+        CREDITS.put("checkbox_back_as_guide", "Idea from Artemis by Yukino Song; handheld input handling is new in Starwire");
         for (String key : new String[] {"checkbox_sync_lfr", "checkbox_async_decode", "checkbox_async_lfr"}) {
             CREDITS.put(key, artemide);
         }

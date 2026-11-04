@@ -271,4 +271,6 @@
     <string name="title_seekbar_vibrate_fallback_strength">Ajustar la intensidad del ruido emulado</string>
     <string name="summary_seekbar_vibrate_fallback_strength">Amplifica o reduce la intensidad de la vibración de tu dispositivo</string>
     <string name="suffix_seekbar_vibrate_fallback_strength">%</string>
+    <string name="title_back_as_guide">Botón Atrás como Guía</string>
+    <string name="summary_back_as_guide">Envía el botón Guía de Xbox (PS/Home) al pulsar el botón físico Atrás durante la transmisión. Usa el botón flotante para abrir el menú de transmisión.</string>
 </resources>
