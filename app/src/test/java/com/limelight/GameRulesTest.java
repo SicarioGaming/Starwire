@@ -108,4 +108,29 @@ public class GameRulesTest {
                     true, Game.MOUSE_MODE_DISABLED, action, 3));
         }
     }
+
+    @Test
+    public void edgeSwipeCompletesOnceFarEnoughIn() {
+        // density 1: the finger has to get 60dp in from where it went down
+        assertFalse(Game.edgeSwipeComplete(10, 500, 10 + 59, 500, 1));
+        assertTrue(Game.edgeSwipeComplete(10, 500, 10 + 60, 500, 1));
+        assertTrue(Game.edgeSwipeComplete(10, 500, 10 + 120, 500, 1));
+        // The same distances on a denser screen ask for more pixels
+        assertFalse(Game.edgeSwipeComplete(10, 500, 10 + 60, 500, 2));
+        assertTrue(Game.edgeSwipeComplete(10, 500, 10 + 120, 500, 2));
+    }
+
+    @Test
+    public void edgeSwipeIsSidewaysNotUpOrDown() {
+        // A tap stays where it started, and a vertical scroll along the edge stays vertical:
+        // neither may open the slider or the menu
+        assertFalse(Game.edgeSwipeComplete(10, 500, 10, 500, 1));
+        assertFalse(Game.edgeSwipeComplete(10, 500, 10 + 30, 500 + 40, 1));
+        assertFalse(Game.edgeSwipeComplete(10, 500, 10 + 100, 500 + 120, 1));
+        // A diagonal swipe still counts while it goes further in than up
+        assertTrue(Game.edgeSwipeComplete(10, 500, 10 + 80, 500 + 79, 1));
+        assertFalse(Game.edgeSwipeComplete(10, 500, 10 + 80, 500 + 80, 1));
+        // Swiping out towards the edge never counts
+        assertFalse(Game.edgeSwipeComplete(100, 500, 30, 500, 1));
+    }
 }

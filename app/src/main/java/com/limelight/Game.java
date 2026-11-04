@@ -2705,6 +2705,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         return handleMotionEvent(view, event);
     }
 
+    // Whether the swipe has travelled far enough in from the edge: past the distance, and more
+    // sideways than up or down, so a vertical scroll along the edge doesn't trigger it
+    static boolean edgeSwipeComplete(float startX, float startY, float x, float y, float density) {
+        float in = x - startX;
+        float vertical = Math.abs(y - startY);
+        return in >= EDGE_SWIPE_DISTANCE_DP * density && vertical < in;
+    }
+
     // Follows a single finger from the left edge of the screen, and does the left edge swipe
     // action once it has swiped in far enough in time. Returns true when it did, having cancelled
     // the touches the gesture made, which then ignore the rest of it.
@@ -2725,9 +2733,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     edgeSwipeTracking = false;
                     break;
                 }
-                float in = event.getRawX() - edgeSwipeStartX;
-                float vertical = Math.abs(event.getRawY() - edgeSwipeStartY);
-                if (in >= EDGE_SWIPE_DISTANCE_DP * getResources().getDisplayMetrics().density && vertical < in) {
+                if (edgeSwipeComplete(edgeSwipeStartX, edgeSwipeStartY,
+                        event.getRawX(), event.getRawY(),
+                        getResources().getDisplayMetrics().density)) {
                     edgeSwipeTracking = false;
                     for (TouchContext aTouchContext : touchContextMap) {
                         aTouchContext.cancelTouch();
