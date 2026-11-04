@@ -841,4 +841,6 @@
     <string name="credit_apollo_sunshine">The hosts Vibepollo is built on</string>
     <string name="credit_claude_code">Writing the Starwire code, ports, redesign and tests</string>
     <string name="credit_rea">Reverse-engineering and analysis</string>
+    <string name="title_back_as_guide">Back button as Guide</string>
+    <string name="summary_back_as_guide">Send the Xbox Guide (PS/Home) button when physical Back is pressed during streaming. Use the floating button to open the stream menu.</string>
 </resources>

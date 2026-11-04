@@ -13,6 +13,10 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- Optional physical Back to Xbox Guide mapping during streaming, including handheld navigation buttons and Spanish settings text. Use the floating button to open the stream menu when enabled.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

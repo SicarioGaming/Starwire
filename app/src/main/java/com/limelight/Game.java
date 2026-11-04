@@ -10,6 +10,7 @@ import com.limelight.binding.audio.securemic.MicPairing;
 import com.limelight.binding.audio.securemic.MicPairingStore;
 import com.limelight.binding.audio.securemic.SecureVbanSender;
 import com.limelight.binding.audio.AudioHaptics;
+import com.limelight.binding.input.BackAsGuide;
 import com.limelight.binding.input.ControllerHandler;
 import com.limelight.binding.input.KeyboardTranslator;
 import com.limelight.binding.input.capture.InputCaptureManager;
@@ -1725,7 +1726,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         boolean handled = false;
 
-        if (ControllerHandler.isGameControllerDevice(event.getDevice())) {
+        if (BackAsGuide.matches(prefConfig.backAsGuide, event)
+                || ControllerHandler.isGameControllerDevice(event.getDevice())) {
             // Always try the controller handler first, unless it's an alphanumeric keyboard device.
             // Otherwise, controller handler will eat keyboard d-pad events.
             handled = controllerHandler.handleButtonDown(event);
@@ -1825,7 +1827,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
 
         boolean handled = false;
-        if (ControllerHandler.isGameControllerDevice(event.getDevice())) {
+        if (BackAsGuide.matches(prefConfig.backAsGuide, event)
+                || ControllerHandler.isGameControllerDevice(event.getDevice())) {
             // Always try the controller handler first, unless it's an alphanumeric keyboard device.
             // Otherwise, controller handler will eat keyboard d-pad events.
             handled = controllerHandler.handleButtonUp(event);

@@ -1444,6 +1444,12 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     // Return a valid keycode, -2 to consume, or -1 to not consume the event
     // Device MAY BE NULL
     private int handleRemapping(InputDeviceContext context, KeyEvent event) {
+        // Return before legacy Back-as-Start and Mode-as-Select device workarounds.
+        // Both press and release then use the existing Guide button handling.
+        if (BackAsGuide.matches(prefConfig.backAsGuide, event)) {
+            return KeyEvent.KEYCODE_BUTTON_MODE;
+        }
+
         // If we know this gamepad has a share button and receive an unmapped
         // KEY_RECORD event, report that as a share button press.
         if (context.hasShare) {
