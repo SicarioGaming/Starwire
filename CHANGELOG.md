@@ -13,6 +13,15 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **Show stream cursor:** a new input setting draws a cursor over the video that
+  follows the mouse and never hides on its own. It appears while the pointer is
+  captured with the system cursor hidden, hands off to the system cursor when
+  that is freed, and to the menu cursor while the in-stream menu is up. Useful
+  on hosts whose cursor is not visible in the stream, such as headless capture
+  targets.
+
 ### Fixed
 
 - **The mouse works in the in-stream menu:** the overlay menu now shows its own cursor

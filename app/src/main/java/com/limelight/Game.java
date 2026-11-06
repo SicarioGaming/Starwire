@@ -201,6 +201,19 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private int menuCursorButtonState;
     private ImageView menuCursorView;
 
+    // Both drawn cursors share ic_menu_cursor, an up-pointing arrow whose tip
+    // sits at about (0.23, 0.11) of the sprite's bounds
+    private static final float CURSOR_TIP_X = 0.23f;
+    private static final float CURSOR_TIP_Y = 0.11f;
+
+    // The stream cursor is a drawn sprite over the video that follows the pointer,
+    // for hosts whose cursor isn't visible in the stream (headless captures).
+    // It only exists while the pointer is captured and the system cursor hidden.
+    private boolean clientCursorOn;
+    private float clientCursorX;
+    private float clientCursorY;
+    private ImageView clientCursorView;
+
     // Floating menu button (from Artemide): tap opens the overlay menu, drag moves it, and
     // FloatingButton remembers where it was dragged
     private ImageButton floatingMenuButton;
@@ -889,6 +902,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         return grabbedInput && !cursorVisible && pointerCaptureHeld;
     }
 
+    // The stream cursor is a drawn sprite shown only while the pointer is captured
+    // with the system cursor hidden; the menu's own cursor takes over while the
+    // sheet is up. Checked by GameRulesTest.
+    static boolean clientCursorShouldShow(boolean settingEnabled, boolean grabbedInput,
+            boolean cursorVisible, boolean pointerCaptureHeld, boolean menuCursorActive) {
+        return settingEnabled && grabbedInput && !cursorVisible && pointerCaptureHeld && !menuCursorActive;
+    }
+
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
@@ -1550,6 +1571,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         setMetaKeyCaptureState(grab);
 
         grabbedInput = grab;
+        refreshClientCursor();
     }
 
     private final Runnable toggleGrab = new Runnable() {
@@ -1629,6 +1651,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         } else {
                             inputCaptureProvider.hideCursor();
                         }
+                        refreshClientCursor();
                         break;
 
                     default:
@@ -2274,6 +2297,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return true;
         }
 
+        // Pointer capture engages asynchronously after the grab, so the drawn
+        // cursor's visibility is re-evaluated on every motion event
+        refreshClientCursor();
+
         int eventSource = event.getSource();
         int deviceSources = event.getDevice() != null ? event.getDevice().getSources() : 0;
         if ((eventSource & InputDevice.SOURCE_CLASS_JOYSTICK) != 0) {
@@ -2337,6 +2364,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     short deltaY = (short)inputCaptureProvider.getRelativeAxisY(event);
 
                     if (deltaX != 0 || deltaY != 0) {
+                        advanceClientCursor(deltaX, deltaY);
                         if (prefConfig.absoluteMouseMode) {
                             // NB: view may be null, but we can unconditionally use streamView because we don't need to adjust
                             // relative axis deltas for the position of the streamView within the parent's coordinate system.
@@ -2367,6 +2395,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                             // Touchpads must be smaller than (65535, 65535)
                             if (xMax <= Short.MAX_VALUE && yMax <= Short.MAX_VALUE) {
+                                placeClientCursor(event.getX(), event.getY(), xMax, yMax);
                                 conn.sendMousePosition((short)event.getX(), (short)event.getY(),
                                                        (short)xMax, (short)yMax);
                             }
@@ -2714,6 +2743,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         eventX = Math.min(Math.max(eventX, 0), streamView.getWidth());
         eventY = Math.min(Math.max(eventY, 0), streamView.getHeight());
 
+        placeClientCursor(eventX, eventY, streamView.getWidth(), streamView.getHeight());
         conn.sendMousePosition((short)eventX, (short)eventY, (short)streamView.getWidth(), (short)streamView.getHeight());
     }
 
@@ -3364,6 +3394,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public void mouseMove(int deltaX, int deltaY) {
+        advanceClientCursor(deltaX, deltaY);
         conn.sendMouseMove((short) deltaX, (short) deltaY);
     }
 
@@ -4234,6 +4265,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
         menuCursorButtonState = 0;
         menuSoftwareCursor = true;
+        refreshClientCursor();
         if (!streamView.hasFocus()) {
             streamView.requestFocus();
         }
@@ -4255,6 +4287,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         if (menuSoftwareCursor) {
             menuSoftwareCursor = false;
             menuCursorView.setVisibility(View.GONE);
+            refreshClientCursor();
         }
     }
 
@@ -4317,9 +4350,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         View container = (View) menuCursorView.getParent();
         menuCursorX = Math.max(0, Math.min(menuCursorX, container.getWidth()));
         menuCursorY = Math.max(0, Math.min(menuCursorY, container.getHeight()));
-        // The triangle sprite points right, so its tip sits near the right edge
-        menuCursorView.setTranslationX(menuCursorX - menuCursorView.getWidth() * 0.78f);
-        menuCursorView.setTranslationY(menuCursorY - menuCursorView.getHeight() * 0.38f);
+        menuCursorView.setTranslationX(menuCursorX - menuCursorView.getWidth() * CURSOR_TIP_X);
+        menuCursorView.setTranslationY(menuCursorY - menuCursorView.getHeight() * CURSOR_TIP_Y);
     }
 
     private void dispatchMenuTouch(int action) {
@@ -4329,6 +4361,79 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         touch.setSource(InputDevice.SOURCE_TOUCHSCREEN);
         container.dispatchTouchEvent(touch);
         touch.recycle();
+    }
+
+    // Shows or hides the drawn stream cursor to match the current input state.
+    // Called whenever capture, cursor freedom, the menu cursor, or the stream
+    // itself changes; position updates no-op while it is hidden.
+    private void refreshClientCursor() {
+        clientCursorOn = clientCursorShouldShow(prefConfig.showClientCursor, grabbedInput, cursorVisible,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && streamView != null && streamView.hasPointerCapture(),
+                menuSoftwareCursor);
+        if (!clientCursorOn) {
+            if (clientCursorView != null) {
+                clientCursorView.setVisibility(View.GONE);
+            }
+            return;
+        }
+        if (clientCursorView == null) {
+            FrameLayout container = (FrameLayout) streamView.getParent();
+            clientCursorView = new ImageView(this);
+            clientCursorView.setImageResource(R.drawable.ic_menu_cursor);
+            clientCursorView.setVisibility(View.GONE);
+            int cursorSize = (int) (24 * getResources().getDisplayMetrics().density);
+            container.addView(clientCursorView, new FrameLayout.LayoutParams(cursorSize, cursorSize));
+            // Seed once at the centre, matching where the native virtual cursor
+            // starts; later shows keep the last position so it stays with the host cursor
+            clientCursorView.post(() -> {
+                View parent = (View) clientCursorView.getParent();
+                clientCursorX = parent.getWidth() / 2f;
+                clientCursorY = parent.getHeight() / 2f;
+                clampAndMoveClientCursor();
+                if (clientCursorOn) {
+                    clientCursorView.setVisibility(View.VISIBLE);
+                }
+            });
+        }
+        else {
+            clientCursorView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    // The captured mouse's deltas move the drawn cursor, in container pixels.
+    private void advanceClientCursor(float deltaX, float deltaY) {
+        if (!clientCursorOn || clientCursorView == null) {
+            return;
+        }
+        clientCursorX += deltaX;
+        clientCursorY += deltaY;
+        clampAndMoveClientCursor();
+    }
+
+    // Absolute-position devices report in their own coordinate plane; scale it
+    // onto the container the same way the host scales it onto the stream.
+    private void placeClientCursor(float x, float y, float referenceWidth, float referenceHeight) {
+        if (!clientCursorOn || clientCursorView == null || referenceWidth <= 0 || referenceHeight <= 0) {
+            return;
+        }
+        View container = (View) clientCursorView.getParent();
+        if (container == null) {
+            return;
+        }
+        clientCursorX = x / referenceWidth * container.getWidth();
+        clientCursorY = y / referenceHeight * container.getHeight();
+        clampAndMoveClientCursor();
+    }
+
+    private void clampAndMoveClientCursor() {
+        View container = (View) clientCursorView.getParent();
+        if (container == null) {
+            return;
+        }
+        clientCursorX = Math.max(0, Math.min(clientCursorX, container.getWidth()));
+        clientCursorY = Math.max(0, Math.min(clientCursorY, container.getHeight()));
+        clientCursorView.setTranslationX(clientCursorX - clientCursorView.getWidth() * CURSOR_TIP_X);
+        clientCursorView.setTranslationY(clientCursorY - clientCursorView.getHeight() * CURSOR_TIP_Y);
     }
 
     private void setFloatingButtonShown(boolean shown) {
