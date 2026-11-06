@@ -13,6 +13,26 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **Show stream cursor:** a new input setting draws a cursor over the video that
+  follows the mouse and never hides on its own. It appears while the pointer is
+  captured with the system cursor hidden, hands off to the system cursor when
+  that is freed, and to the menu cursor while the in-stream menu is up. Useful
+  on hosts whose cursor is not visible in the stream, such as headless capture
+  targets.
+
+### Fixed
+
+- **The mouse works in the in-stream menu:** the overlay menu now shows its own cursor
+  driven by the captured mouse instead of releasing pointer capture, so a Bluetooth or
+  USB mouse can point at and click the menu's tiles. Releasing and re-acquiring capture
+  left some devices (Samsung's Android 10 stack in particular) with no mouse motion at
+  all. Samsung's captured-motion source (a trackball-classed variant of
+  `SOURCE_MOUSE_RELATIVE`) is recognised too, and the stream view keeps view focus while
+  captured so the menu's selection highlight can't cut off its events. A mouse
+  connecting while the cursor was freed deliberately no longer steals capture back.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.

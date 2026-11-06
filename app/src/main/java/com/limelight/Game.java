@@ -108,6 +108,7 @@ import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -191,6 +192,27 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private TextView performanceOverlayView;
     private BrightnessSliderView brightnessSliderView;
     private OverlayMenuView overlayMenuView;
+    // While the overlay menu is up under pointer capture, a drawn cursor tracks the
+    // captured mouse's deltas and its button presses become touches on the sheet
+    private boolean menuSoftwareCursor;
+    private boolean menuCursorPressOutside;
+    private float menuCursorX;
+    private float menuCursorY;
+    private int menuCursorButtonState;
+    private ImageView menuCursorView;
+
+    // Both drawn cursors share ic_menu_cursor, an up-pointing arrow whose tip
+    // sits at about (0.23, 0.11) of the sprite's bounds
+    private static final float CURSOR_TIP_X = 0.23f;
+    private static final float CURSOR_TIP_Y = 0.11f;
+
+    // The stream cursor is a drawn sprite over the video that follows the pointer,
+    // for hosts whose cursor isn't visible in the stream (headless captures).
+    // It only exists while the pointer is captured and the system cursor hidden.
+    private boolean clientCursorOn;
+    private float clientCursorX;
+    private float clientCursorY;
+    private ImageView clientCursorView;
 
     // Floating menu button (from Artemide): tap opens the overlay menu, drag moves it, and
     // FloatingButton remembers where it was dragged
@@ -457,6 +479,17 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 @Override
                 public boolean onCapturedPointer(View view, MotionEvent motionEvent) {
                     return handleMotionEvent(view, motionEvent);
+                }
+            });
+
+            // Samsung's stack only feeds captured-pointer events to the view holding both
+            // capture and focus; anything else taking focus stops the events entirely. The
+            // menu's selection moves focus for its highlight, so put it back on the stream
+            // view whenever it strays while the menu is up (or is lost completely).
+            streamView.getViewTreeObserver().addOnGlobalFocusChangeListener((oldFocus, newFocus) -> {
+                if (streamView.hasPointerCapture() && newFocus != streamView &&
+                        (menuSoftwareCursor || newFocus == null)) {
+                    streamView.post(streamView::requestFocus);
                 }
             });
         }
@@ -855,6 +888,26 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                                                 int pointerCount) {
         return (panZoomMode || mouseMode == MOUSE_MODE_DISABLED) &&
                 actionMasked == MotionEvent.ACTION_POINTER_DOWN && pointerCount == 3;
+    }
+
+    // While the overlay menu is up and the pointer is captured, the menu drives a software
+    // cursor from the captured deltas instead of releasing capture: on Samsung's Android 10
+    // input stack, asking for capture back after a release leaves the window registered as
+    // the capture owner but no motion events ever reach it again.
+    // The system cursor serves the menu when nothing is captured: input ungrabbed, the
+    // cursor freed with Ctrl+Alt+Shift+C, or no compatible mouse to capture.
+    // Checked by GameRulesTest.
+    static boolean menuShouldUseSoftwareCursor(boolean grabbedInput, boolean cursorVisible,
+                                             boolean pointerCaptureHeld) {
+        return grabbedInput && !cursorVisible && pointerCaptureHeld;
+    }
+
+    // The stream cursor is a drawn sprite shown only while the pointer is captured
+    // with the system cursor hidden; the menu's own cursor takes over while the
+    // sheet is up. Checked by GameRulesTest.
+    static boolean clientCursorShouldShow(boolean settingEnabled, boolean grabbedInput,
+            boolean cursorVisible, boolean pointerCaptureHeld, boolean menuCursorActive) {
+        return settingEnabled && grabbedInput && !cursorVisible && pointerCaptureHeld && !menuCursorActive;
     }
 
 
@@ -1518,6 +1571,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         setMetaKeyCaptureState(grab);
 
         grabbedInput = grab;
+        refreshClientCursor();
     }
 
     private final Runnable toggleGrab = new Runnable() {
@@ -1597,6 +1651,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         } else {
                             inputCaptureProvider.hideCursor();
                         }
+                        refreshClientCursor();
                         break;
 
                     default:
@@ -2209,6 +2264,43 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return false;
         }
 
+        // While the overlay menu is up it gets the pointer and the touch, not the game.
+        // A touch off the sheet closes it, like a dialog's outside area.
+        if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
+            int action = event.getActionMasked();
+            if (menuSoftwareCursor) {
+                if (inputCaptureProvider.eventHasRelativeMouseAxes(event)) {
+                    return handleMenuCursorEvent(event);
+                }
+                if (!inputCaptureProvider.isCapturingActive() &&
+                        event.getSource() != InputDevice.SOURCE_TOUCHSCREEN) {
+                    // Capture was released underneath us (the cursor freed, or the mouse
+                    // removed), so the real pointer serves the menu from here on
+                    exitMenuCursor();
+                }
+            }
+            if (action == MotionEvent.ACTION_DOWN) {
+                // The gesture's other events were consumed here, so the touch contexts never
+                // saw its down; cancel them before they report a click that never happened
+                for (TouchContext aTouchContext : touchContextMap) {
+                    aTouchContext.cancelTouch();
+                }
+                overlayMenuView.closeMenu();
+            }
+            else if (action == MotionEvent.ACTION_HOVER_ENTER ||
+                    action == MotionEvent.ACTION_HOVER_MOVE ||
+                    action == MotionEvent.ACTION_HOVER_EXIT) {
+                // Hover carries no input for the host; let it reach the view's default
+                // handling so the system can keep tracking the pointer.
+                return false;
+            }
+            return true;
+        }
+
+        // Pointer capture engages asynchronously after the grab, so the drawn
+        // cursor's visibility is re-evaluated on every motion event
+        refreshClientCursor();
+
         int eventSource = event.getSource();
         int deviceSources = event.getDevice() != null ? event.getDevice().getSources() : 0;
         if ((eventSource & InputDevice.SOURCE_CLASS_JOYSTICK) != 0) {
@@ -2221,7 +2313,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
         else if ((eventSource & InputDevice.SOURCE_CLASS_POINTER) != 0 ||
                  (eventSource & InputDevice.SOURCE_CLASS_POSITION) != 0 ||
-                 eventSource == InputDevice.SOURCE_MOUSE_RELATIVE)
+                 eventSource == InputDevice.SOURCE_MOUSE_RELATIVE ||
+                 inputCaptureProvider.eventHasRelativeMouseAxes(event))
         {
             // This case is for mice and non-finger touch devices
             if (eventSource == InputDevice.SOURCE_MOUSE ||
@@ -2271,6 +2364,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     short deltaY = (short)inputCaptureProvider.getRelativeAxisY(event);
 
                     if (deltaX != 0 || deltaY != 0) {
+                        advanceClientCursor(deltaX, deltaY);
                         if (prefConfig.absoluteMouseMode) {
                             // NB: view may be null, but we can unconditionally use streamView because we don't need to adjust
                             // relative axis deltas for the position of the streamView within the parent's coordinate system.
@@ -2301,6 +2395,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                             // Touchpads must be smaller than (65535, 65535)
                             if (xMax <= Short.MAX_VALUE && yMax <= Short.MAX_VALUE) {
+                                placeClientCursor(event.getX(), event.getY(), xMax, yMax);
                                 conn.sendMousePosition((short)event.getX(), (short)event.getY(),
                                                        (short)xMax, (short)yMax);
                             }
@@ -2648,6 +2743,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         eventX = Math.min(Math.max(eventX, 0), streamView.getWidth());
         eventY = Math.min(Math.max(eventY, 0), streamView.getHeight());
 
+        placeClientCursor(eventX, eventY, streamView.getWidth(), streamView.getHeight());
         conn.sendMousePosition((short)eventX, (short)eventY, (short)streamView.getWidth(), (short)streamView.getHeight());
     }
 
@@ -3298,6 +3394,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public void mouseMove(int deltaX, int deltaY) {
+        advanceClientCursor(deltaX, deltaY);
         conn.sendMouseMove((short) deltaX, (short) deltaY);
     }
 
@@ -3496,8 +3593,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
 
             @Override
+            public void onMenuOpened() {
+                enterMenuCursor();
+            }
+
+            @Override
             public void onMenuClosed() {
-                // Menu closed, no additional action needed
+                exitMenuCursor();
             }
 
             @Override
@@ -4138,6 +4240,200 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         else {
             overlayMenuView.show();
         }
+    }
+
+    // The mouse keeps its pointer capture while the overlay menu is up: releasing it and
+    // asking for it back breaks the input pipeline on Samsung's Android 10 stack. Instead
+    // the menu shows a software cursor that the captured deltas move, and turns button
+    // presses into touches where it points.
+    private void enterMenuCursor() {
+        boolean takeOver = menuShouldUseSoftwareCursor(grabbedInput, cursorVisible,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && streamView.hasPointerCapture());
+        if (!takeOver) {
+            return;
+        }
+        if (menuCursorView == null) {
+            FrameLayout container = (FrameLayout) streamView.getParent();
+            menuCursorView = new ImageView(this);
+            menuCursorView.setImageResource(R.drawable.ic_menu_cursor);
+            // The sheet draws at 12dp elevation; without its own elevation the cursor
+            // renders underneath it
+            menuCursorView.setElevation(10000 * getResources().getDisplayMetrics().density);
+            menuCursorView.setVisibility(View.GONE);
+            int cursorSize = (int) (24 * getResources().getDisplayMetrics().density);
+            container.addView(menuCursorView, new FrameLayout.LayoutParams(cursorSize, cursorSize));
+        }
+        menuCursorButtonState = 0;
+        menuSoftwareCursor = true;
+        refreshClientCursor();
+        if (!streamView.hasFocus()) {
+            streamView.requestFocus();
+        }
+        // The sheet may not have been laid out yet, so place the cursor at its centre
+        // once positions are known rather than guessing
+        menuCursorView.post(() -> {
+            int[] sheetPos = new int[2];
+            int[] containerPos = new int[2];
+            overlayMenuView.getLocationOnScreen(sheetPos);
+            ((View) menuCursorView.getParent()).getLocationOnScreen(containerPos);
+            menuCursorX = sheetPos[0] - containerPos[0] + overlayMenuView.getWidth() / 2f;
+            menuCursorY = sheetPos[1] - containerPos[1] + overlayMenuView.getHeight() / 2f;
+            moveMenuCursorView();
+            menuCursorView.setVisibility(View.VISIBLE);
+        });
+    }
+
+    private void exitMenuCursor() {
+        if (menuSoftwareCursor) {
+            menuSoftwareCursor = false;
+            menuCursorView.setVisibility(View.GONE);
+            refreshClientCursor();
+        }
+    }
+
+    // The captured mouse's deltas move the software cursor; its button presses become
+    // touches where the cursor points, so the sheet clicks like under a real pointer.
+    private boolean handleMenuCursorEvent(MotionEvent event) {
+        menuCursorX += inputCaptureProvider.getRelativeAxisX(event);
+        menuCursorY += inputCaptureProvider.getRelativeAxisY(event);
+        moveMenuCursorView();
+
+        if (event.getActionMasked() == MotionEvent.ACTION_SCROLL) {
+            // Point the wheel event at the cursor so the sheet's scroll views take it
+            MotionEvent scroll = MotionEvent.obtain(event);
+            scroll.offsetLocation(menuCursorX - event.getX(), menuCursorY - event.getY());
+            scroll.setSource(InputDevice.SOURCE_MOUSE);
+            ((View) menuCursorView.getParent()).dispatchGenericMotionEvent(scroll);
+            scroll.recycle();
+            return true;
+        }
+
+        int buttons = event.getButtonState();
+        int changed = buttons ^ menuCursorButtonState;
+        menuCursorButtonState = buttons;
+        lastButtonState = buttons;
+        if ((changed & MotionEvent.BUTTON_PRIMARY) != 0) {
+            boolean pressed = (buttons & MotionEvent.BUTTON_PRIMARY) != 0;
+            if (pressed) {
+                menuCursorPressOutside = !isMenuCursorOverSheet();
+                if (menuCursorPressOutside) {
+                    // Like a dialog, a press off the sheet dismisses it
+                    overlayMenuView.closeMenu();
+                    return true;
+                }
+            }
+            else if (menuCursorPressOutside) {
+                menuCursorPressOutside = false;
+                return true;
+            }
+            dispatchMenuTouch(pressed ? MotionEvent.ACTION_DOWN : MotionEvent.ACTION_UP);
+        }
+        else if ((buttons & MotionEvent.BUTTON_PRIMARY) != 0) {
+            // The button is held, so the sheet's scroll area follows the drag
+            dispatchMenuTouch(MotionEvent.ACTION_MOVE);
+        }
+        return true;
+    }
+
+    private boolean isMenuCursorOverSheet() {
+        int[] sheetPos = new int[2];
+        int[] containerPos = new int[2];
+        overlayMenuView.getLocationOnScreen(sheetPos);
+        ((View) menuCursorView.getParent()).getLocationOnScreen(containerPos);
+        float sheetX = sheetPos[0] - containerPos[0];
+        float sheetY = sheetPos[1] - containerPos[1];
+        return menuCursorX >= sheetX && menuCursorX <= sheetX + overlayMenuView.getWidth() &&
+                menuCursorY >= sheetY && menuCursorY <= sheetY + overlayMenuView.getHeight();
+    }
+
+    private void moveMenuCursorView() {
+        View container = (View) menuCursorView.getParent();
+        menuCursorX = Math.max(0, Math.min(menuCursorX, container.getWidth()));
+        menuCursorY = Math.max(0, Math.min(menuCursorY, container.getHeight()));
+        menuCursorView.setTranslationX(menuCursorX - menuCursorView.getWidth() * CURSOR_TIP_X);
+        menuCursorView.setTranslationY(menuCursorY - menuCursorView.getHeight() * CURSOR_TIP_Y);
+    }
+
+    private void dispatchMenuTouch(int action) {
+        FrameLayout container = (FrameLayout) menuCursorView.getParent();
+        long now = SystemClock.uptimeMillis();
+        MotionEvent touch = MotionEvent.obtain(now, now, action, menuCursorX, menuCursorY, 0);
+        touch.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        container.dispatchTouchEvent(touch);
+        touch.recycle();
+    }
+
+    // Shows or hides the drawn stream cursor to match the current input state.
+    // Called whenever capture, cursor freedom, the menu cursor, or the stream
+    // itself changes; position updates no-op while it is hidden.
+    private void refreshClientCursor() {
+        clientCursorOn = clientCursorShouldShow(prefConfig.showClientCursor, grabbedInput, cursorVisible,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && streamView != null && streamView.hasPointerCapture(),
+                menuSoftwareCursor);
+        if (!clientCursorOn) {
+            if (clientCursorView != null) {
+                clientCursorView.setVisibility(View.GONE);
+            }
+            return;
+        }
+        if (clientCursorView == null) {
+            FrameLayout container = (FrameLayout) streamView.getParent();
+            clientCursorView = new ImageView(this);
+            clientCursorView.setImageResource(R.drawable.ic_menu_cursor);
+            clientCursorView.setVisibility(View.GONE);
+            int cursorSize = (int) (24 * getResources().getDisplayMetrics().density);
+            container.addView(clientCursorView, new FrameLayout.LayoutParams(cursorSize, cursorSize));
+            // Seed once at the centre, matching where the native virtual cursor
+            // starts; later shows keep the last position so it stays with the host cursor
+            clientCursorView.post(() -> {
+                View parent = (View) clientCursorView.getParent();
+                clientCursorX = parent.getWidth() / 2f;
+                clientCursorY = parent.getHeight() / 2f;
+                clampAndMoveClientCursor();
+                if (clientCursorOn) {
+                    clientCursorView.setVisibility(View.VISIBLE);
+                }
+            });
+        }
+        else {
+            clientCursorView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    // The captured mouse's deltas move the drawn cursor, in container pixels.
+    private void advanceClientCursor(float deltaX, float deltaY) {
+        if (!clientCursorOn || clientCursorView == null) {
+            return;
+        }
+        clientCursorX += deltaX;
+        clientCursorY += deltaY;
+        clampAndMoveClientCursor();
+    }
+
+    // Absolute-position devices report in their own coordinate plane; scale it
+    // onto the container the same way the host scales it onto the stream.
+    private void placeClientCursor(float x, float y, float referenceWidth, float referenceHeight) {
+        if (!clientCursorOn || clientCursorView == null || referenceWidth <= 0 || referenceHeight <= 0) {
+            return;
+        }
+        View container = (View) clientCursorView.getParent();
+        if (container == null) {
+            return;
+        }
+        clientCursorX = x / referenceWidth * container.getWidth();
+        clientCursorY = y / referenceHeight * container.getHeight();
+        clampAndMoveClientCursor();
+    }
+
+    private void clampAndMoveClientCursor() {
+        View container = (View) clientCursorView.getParent();
+        if (container == null) {
+            return;
+        }
+        clientCursorX = Math.max(0, Math.min(clientCursorX, container.getWidth()));
+        clientCursorY = Math.max(0, Math.min(clientCursorY, container.getHeight()));
+        clientCursorView.setTranslationX(clientCursorX - clientCursorView.getWidth() * CURSOR_TIP_X);
+        clientCursorView.setTranslationY(clientCursorY - clientCursorView.getHeight() * CURSOR_TIP_Y);
     }
 
     private void setFloatingButtonShown(boolean shown) {

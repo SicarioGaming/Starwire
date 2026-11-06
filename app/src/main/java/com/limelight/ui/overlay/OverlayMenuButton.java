@@ -94,6 +94,9 @@ public class OverlayMenuButton extends LinearLayout {
         setMinimumHeight(iconSize + 2 * padding);
         setClickable(true);
         setFocusable(true);
+        // Keys still focus tiles for gamepad nav, but a touch may not grab focus or
+        // the captured pointer stream stops reaching the stream view
+        setFocusableInTouchMode(false);
 
         // Create background drawable
         background = new GradientDrawable();

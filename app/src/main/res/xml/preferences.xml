@@ -327,6 +327,11 @@
             android:title="@string/title_checkbox_absolute_mouse_mode"
             android:summary="@string/summary_checkbox_absolute_mouse_mode"
             android:defaultValue="false" />
+        <CheckBoxPreference
+            android:key="checkbox_show_client_cursor"
+            android:title="@string/title_show_client_cursor"
+            android:summary="@string/summary_show_client_cursor"
+            android:defaultValue="false" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_on_screen_controls_settings"
         android:key="category_onscreen_controls">
