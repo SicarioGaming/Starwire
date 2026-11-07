@@ -41,7 +41,12 @@ What it doesn't protect against:
   show it while your screen is shared. If the receiver's window says **Paired with** a device
   before you've typed the code, or one that isn't yours, choose **Unpair it** there.
 - A lost or stolen device that's still paired can send audio until you unpair it: right-click the
-  receiver's icon by the clock, then **Paired devices**, the device and **Unpair**.
+  receiver's icon by the clock, then **Paired devices**, the device and **Unpair**. On Linux:
+  `starwire-mic unpair <id or name>`.
+- The paired devices' keys are kept on the PC. On Windows, DPAPI encrypts them for your Windows
+  account. Linux has nothing like DPAPI, so there they're kept in a file only your user can read
+  (`~/.local/share/Starwire/mic-pairings.dat`, mode `0600`), not encrypted: anyone who can read
+  your files, root included, can read the keys and pretend to be your device.
 - Nothing can stop someone on the network from flooding it or jamming the Wi-Fi. The receiver only
   keeps that cheap.
 - Malware on the Android device or the PC can reach the microphone directly.

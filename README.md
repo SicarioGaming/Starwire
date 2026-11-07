@@ -196,8 +196,9 @@ seconds).
   (about 7 ms less with a steady clock). I haven't measured the Android side yet.
 - Echo cancelling is whatever the device provides, and some Android devices only apply it to
   calls; headphones get around that.
-- The setup and receiver are Windows only for now. On Linux, PipeWire's VBAN receive module should
-  take the "Not encrypted" option's stream (Stream1, UDP 6980), but I haven't tried it.
+- The Linux receiver ([`linux/`](linux/README.md)) is new. It's been tried on one CachyOS PC with
+  KDE Plasma and a Samsung Galaxy Z Fold7, not yet on other distributions, and its delay hasn't
+  been measured.
 - The receiver starts when you sign in, not as a service, so it doesn't run on a PC sitting at the
   sign-in screen.
 
@@ -331,6 +332,7 @@ Turnip driver option with a real Turnip driver, and hosts other than Vibepollo.
 | --- | --- |
 | [`app/`](app) | The Starwire Android app, with its tests in `app/src/test` and `app/src/androidTest` |
 | [`windows/`](windows) | The microphone receiver and its setup for the Windows PC |
+| [`linux/`](linux) | The microphone receiver and its setup for a Linux PC with PipeWire, sharing the Windows receiver's encryption code |
 | [`docs/`](docs) | Screenshots, the [roadmap](docs/ROADMAP.md), [where the prebuilt libraries come from](docs/PROVENANCE.md), the mic measurements and maintainer notes |
 | [`.github/`](.github) | The workflows that build, test and release Starwire, the issue forms, the release notes and the maintainer's scripts |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each version |
@@ -532,8 +534,9 @@ your settings kept, as long as they come from these releases. Tools such as
 [Obtainium](https://github.com/ImranR98/Obtainium) can keep it updated straight from the
 Releases page.
 
-The microphone's PC side (the receiver and its setup) needs Windows 10 or 11. Sending over the
-stream instead needs logabell's Apollo build on the PC.
+The microphone's PC side (the receiver and its setup) needs Windows 10 or 11, or a Linux PC with
+PipeWire and the .NET SDK ([`linux/`](linux/README.md), new). Sending over the stream instead
+needs logabell's Apollo build on the PC.
 
 </details>
 
@@ -624,7 +627,9 @@ binary with its source, licence and SHA-256, and `.github/tools/prebuilts/verify
 them and compares the bytes.
 
 The microphone receiver for Windows and its setup script are in [`windows/`](windows). There's
-nothing to build there by hand: the setup compiles the receiver on the PC.
+nothing to build there by hand: the setup compiles the receiver on the PC. The Linux receiver is in
+[`linux/`](linux): `linux/setup-microphone.sh` builds and installs it, and
+`linux/tests/run-tests.sh` runs its tests.
 
 </details>
 

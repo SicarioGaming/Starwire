@@ -13,6 +13,18 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+### Added
+
+- **The microphone receiver for Linux,** in `linux/`: the same encrypted format and pairing as the
+  Windows receiver, from the same code. It runs as a systemd user service and makes a microphone
+  called "Starwire microphone" through PipeWire, so there's no driver to install. Pairing and the
+  rest are commands (`starwire-mic pair`). Tried on CachyOS with KDE Plasma 6.8 and PipeWire
+  1.6.10, with a Samsung Galaxy Z Fold7; not yet on other distributions.
+- **The Starwire microphone app for Linux,** in `linux/app/`: a window and a tray icon for the
+  receiver, to pair a device, unpair one, check the microphone, play a test tone and read the log.
+  The setup puts it in the app menu and starts its tray icon at sign-in. Made with Avalonia
+  11.3.22, which the setup downloads from NuGet, pinned by a lock file.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.
