@@ -1,0 +1,11 @@
+<!-- The test phone for run-tests.sh: pairs with a receiver on this PC and streams a tone to it -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>FakePhone</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="FakePhone.cs" />
+    <Compile Include="../../windows/SecureMic.cs" />
+    <Compile Include="../Platform.cs" />
+  </ItemGroup>
+</Project>

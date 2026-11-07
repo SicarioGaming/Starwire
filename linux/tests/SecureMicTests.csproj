@@ -1,0 +1,12 @@
+<!-- The Windows receiver's tests of SecureMic.cs (windows/tests/SecureMicTests.cs), built for Linux:
+     the same checks and vectors, run against linux/Platform.cs. run-tests.sh builds and runs it. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>SecureMicTests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../windows/tests/SecureMicTests.cs" />
+    <Compile Include="../../windows/SecureMic.cs" />
+    <Compile Include="../Platform.cs" />
+  </ItemGroup>
+</Project>
