@@ -10,6 +10,11 @@
 //                                                and says in how many 100 ms stretches it heard
 //                                                the tone louder than level (0 to 1)
 
+#if STARWIRE_LINUX
+using EcdhKey = System.Security.Cryptography.ECDiffieHellman;
+#else
+using EcdhKey = System.Security.Cryptography.ECDiffieHellmanCng;
+#endif
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -253,8 +258,8 @@ static class SecureMicTests
             Swmc.Hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"), new byte[0], 42))
             == "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d201395faa4b61a96c8");
         byte[] zi, zr;
-        using (ECDiffieHellmanCng phone = Swmc.FixedKey(EcdhI, EcdhGix, EcdhGiy))
-        using (ECDiffieHellmanCng receiver = Swmc.FixedKey(EcdhR, EcdhGrx, EcdhGry)) {
+        using (EcdhKey phone = Swmc.FixedKey(EcdhI, EcdhGix, EcdhGiy))
+        using (EcdhKey receiver = Swmc.FixedKey(EcdhR, EcdhGrx, EcdhGry)) {
             zi = Swmc.EcdhHash(phone, ReceiverPoint(), 0);
             zr = Swmc.EcdhHash(receiver, PhonePoint(), 0);
             Check("CNG gives back the public point it was given", Same(Swmc.OwnPoint(receiver), ReceiverPoint()));
@@ -293,7 +298,7 @@ static class SecureMicTests
         v["kat.hkdf_rfc5869_1"] = Swmc.Hex(Swmc.Hkdf(Swmc.Hex("000102030405060708090a0b0c"),
             Swmc.Hex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"), Swmc.Hex("f0f1f2f3f4f5f6f7f8f9"), 42));
         byte[] z;
-        using (ECDiffieHellmanCng receiver = Swmc.FixedKey(EcdhR, EcdhGrx, EcdhGry)) {
+        using (EcdhKey receiver = Swmc.FixedKey(EcdhR, EcdhGrx, EcdhGry)) {
             z = Swmc.EcdhHash(receiver, PhonePoint(), 0);
         }
         v["kat.ecdh_rfc5903_sha256"] = Swmc.Hex(z);
@@ -1072,12 +1077,12 @@ static class SecureMicTests
     static void PairingFlow()
     {
         Rig rig = new Rig(null);
-        rig.Endpoint.NewPairingKey = () => new ECDiffieHellmanCng(256);
+        rig.Endpoint.NewPairingKey = () => Swmc.NewKey();
         string shown = rig.Endpoint.BeginPairing();
         byte[] code = Swmc.DecodeCode(shown.ToLowerInvariant().Replace("-", " "));
         byte[] codeKey = Swmc.CodeKey(code);
         byte[] id = Swmc.Hex("c1c2c3c4c5c6c7c8"), nonce = Bytes(8, 0x41);
-        using (ECDiffieHellmanCng mine = new ECDiffieHellmanCng(256)) {
+        using (EcdhKey mine = Swmc.NewKey()) {
             byte[] myPoint = Swmc.OwnPoint(mine);
             rig.Feed(Swmc.PairRequest(codeKey, id, nonce, myPoint, "Pixel"));
             byte[] accept = rig.Last;
@@ -1099,7 +1104,7 @@ static class SecureMicTests
             // Pairing again (same device id, new key) replaces the old key
             rig.Endpoint.BeginPairing();
             byte[] code2 = Swmc.DecodeCode(rig.Endpoint.Pairing.Code);
-            using (ECDiffieHellmanCng again = new ECDiffieHellmanCng(256)) {
+            using (EcdhKey again = Swmc.NewKey()) {
                 byte[] point2 = Swmc.OwnPoint(again);
                 byte[] codeKey2 = Swmc.CodeKey(code2);
                 rig.Feed(Swmc.PairRequest(codeKey2, id, nonce, point2, "Pixel"));
@@ -1155,8 +1160,8 @@ static class SecureMicTests
         Check("is kept", third.Devices.Count == 1 && third.Find(idB) != null);
 
         // Damaged lines are left out and reported; the rest still loads
-        string otherEntropy = Convert.ToBase64String(ProtectedData.Protect(keyA, Swmc.Ascii("other"), DataProtectionScope.CurrentUser));
-        string shortKey = Convert.ToBase64String(ProtectedData.Protect(new byte[5], Swmc.Ascii("Starwire microphone pairing v1"), DataProtectionScope.CurrentUser));
+        string otherEntropy = Convert.ToBase64String(KeyProtection.Protect(keyA, Swmc.Ascii("other")));
+        string shortKey = Convert.ToBase64String(KeyProtection.Protect(new byte[5], Swmc.Ascii("Starwire microphone pairing v1")));
         File.AppendAllText(path, "device\tzz\tAAAA\t2026-10-23T05:00:00Z\t-\tBad id\n"
             + "device\ta0a1a2a3a4a5a6a7\tnot base64!\t2026-10-23T05:00:00Z\t-\tBad key\n"
             + "device\ta0a1a2a3a4a5a6a7\t" + otherEntropy + "\t2026-10-23T05:00:00Z\t-\tOther entropy\n"
@@ -1404,7 +1409,9 @@ static class SecureMicTests
         Check("fuzz: 300 damaged paired devices files load without throwing", ok);
     }
 
+#if !STARWIRE_LINUX
     // ---------------------------------------------------------------- for e2e-loopback.ps1
+    // (Windows only: it records through waveIn. The Linux tests record with pw-record.)
     [StructLayout(LayoutKind.Sequential)]
     struct WaveFormat { public short Tag, Channels; public int Rate, BytesPerSecond; public short BlockAlign, Bits, Size; }
     [StructLayout(LayoutKind.Sequential)]
@@ -1492,12 +1499,15 @@ static class SecureMicTests
         Console.WriteLine("TONE heard=" + heard + " windows=" + windows + " strongest=" + strongest.ToString("0.00000", System.Globalization.CultureInfo.InvariantCulture));
         return 0;
     }
+#endif
 
     static int Main(string[] args)
     {
+#if !STARWIRE_LINUX
         if (args.Length == 5 && args[0] == "tone") {
             return Tone(args);
         }
+#endif
         if (args.Length != 1) {
             Console.WriteLine("SecureMicTests.exe <swmc-v1-vectors.txt>");
             return 2;
