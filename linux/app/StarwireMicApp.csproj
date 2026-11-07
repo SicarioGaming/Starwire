@@ -1,0 +1,37 @@
+<!-- The Starwire microphone app: a window and a tray icon for the receiver (../StarwireMic.csproj),
+     which it talks to over the receiver's socket. setup-microphone.sh builds it on the user's PC.
+
+     Avalonia comes from NuGet. Its version is pinned here, and packages.lock.json holds the SHA-512 of
+     every package it pulls in, so a restore with locked mode (as the setup does) fails rather than use
+     anything else. To update: change the version, run `dotnet restore -force-evaluate`, check what
+     changed in packages.lock.json, and commit both. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>starwire-mic-app</AssemblyName>
+    <Version>0.2.1</Version>
+    <OutputType>WinExe</OutputType>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <AvaloniaVersion>11.3.22</AvaloniaVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <!-- Avalonia.BuildServices reports anonymous build telemetry to Avalonia. Its build step is left
+         out here (the package still comes with Avalonia but never runs), and setup-microphone.sh
+         also sets AVALONIA_TELEMETRY_OPTOUT. -->
+    <PackageReference Include="Avalonia.BuildServices" Version="11.3.2" ExcludeAssets="all" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../ControlClient.cs" />
+    <Compile Include="../PairingModel.cs" />
+    <Compile Include="TrayModel.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="App.cs" />
+    <Compile Include="Ui.cs" />
+    <Compile Include="MainWindow.cs" />
+    <Compile Include="PairingWindow.cs" />
+    <Compile Include="LogWindow.cs" />
+    <EmbeddedResource Include="../../windows/starwire-mic.ico" LogicalName="starwire-mic.ico" />
+  </ItemGroup>
+</Project>
