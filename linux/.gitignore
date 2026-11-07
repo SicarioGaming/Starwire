@@ -1,0 +1,3 @@
+# What dotnet builds: the receiver, its tests and the test phone
+bin/
+obj/
