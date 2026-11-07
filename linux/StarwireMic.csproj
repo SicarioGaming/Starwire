@@ -1,0 +1,22 @@
+<!-- Starwire's microphone receiver for Linux. setup-microphone.sh builds it on the user's PC with
+     dotnet publish; windows/SecureMic.cs is shared with the Windows receiver. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>starwire-mic</AssemblyName>
+    <Version>0.2.1</Version>
+    <!-- Less to pause PipeWire's data thread, which calls into the receiver every quantum -->
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../windows/SecureMic.cs" />
+    <Compile Include="Platform.cs" />
+    <Compile Include="JitterRing.cs" />
+    <Compile Include="PipeWire.cs" />
+    <Compile Include="ControlClient.cs" />
+    <Compile Include="PairingModel.cs" />
+    <Compile Include="Control.cs" />
+    <Compile Include="StarwireMicReceiver.cs" />
+  </ItemGroup>
+</Project>

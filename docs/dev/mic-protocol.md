@@ -1,6 +1,7 @@
 # The encrypted microphone: SWMC version 1
 
-Starwire sends your microphone to a small receiver on the PC (`windows/`). Up to 0.2.0 that was
+Starwire sends your microphone to a small receiver on the PC (`windows/`, or `linux/`, which
+builds the same `windows/SecureMic.cs`). Up to 0.2.0 that was
 plain VBAN over UDP: anyone on the same network could listen to it, or send their own sound into
 the PC's microphone. From 0.2.1 each VBAN packet travels inside an envelope called SWMC ("Starwire
 microphone"), version 1. This file is the contract between the two sides: the app
@@ -275,5 +276,6 @@ The `kat.` lines are known answers from the standards (GCM test case 16, HKDF RF
 `pair.key` is K_pair from the RFC 5903 keys.
 
 Both test suites check every line: `SwmcCodecTest` in the app (`./gradlew testNonRootDebugUnitTest`,
-and on a device `SecureMicDeviceTest`), and `windows/tests/run-tests.ps1` for the receiver. A change
+and on a device `SecureMicDeviceTest`), and `windows/tests/run-tests.ps1` for the receiver.
+`linux/tests/run-tests.sh` runs the receiver's same tests on Linux. A change
 that makes either side disagree with the file is a change to the protocol.

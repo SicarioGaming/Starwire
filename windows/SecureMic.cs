@@ -20,7 +20,17 @@
 //
 // No Windows Forms in this file: tests/SecureMicTests.cs builds it on its own. Written for C# 5,
 // like the receiver.
+//
+// The Linux receiver (linux/) builds this same file with STARWIRE_LINUX defined. That leaves out
+// the three parts that only Windows has (CNG's AES-GCM, CNG's ECDH and DPAPI), and
+// linux/Platform.cs gives the same classes and methods on .NET's own cryptography instead.
+// Everything else, the format, the pairing and the endpoint's rules, is shared.
 
+#if STARWIRE_LINUX
+using EcdhKey = System.Security.Cryptography.ECDiffieHellman;
+#else
+using EcdhKey = System.Security.Cryptography.ECDiffieHellmanCng;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -31,6 +41,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
+#if !STARWIRE_LINUX
 // AES-256-GCM through Windows' CNG. One instance per key, used by one thread at a time. The
 // buffers CNG reads and writes are unmanaged memory allocated once, so nothing is pinned or
 // allocated per packet.
@@ -177,11 +188,38 @@ sealed class CngAesGcm : IDisposable
     }
 }
 
+// The pairing keys as the pairings file keeps them: encrypted with DPAPI for this Windows account,
+// so the file is no use on another account or PC
+static class KeyProtection
+{
+    public static byte[] Protect(byte[] key, byte[] entropy)
+    {
+        return ProtectedData.Protect(key, entropy, DataProtectionScope.CurrentUser);
+    }
+
+    // Throws CryptographicException for a key this account can't decrypt
+    public static byte[] Unprotect(byte[] stored, byte[] entropy)
+    {
+        return ProtectedData.Unprotect(stored, entropy, DataProtectionScope.CurrentUser);
+    }
+
+    public static void CreateFolder(string path)
+    {
+        Directory.CreateDirectory(path);
+    }
+
+    public static void WriteFile(string path, string text)
+    {
+        File.WriteAllText(path, text, new UTF8Encoding(false));
+    }
+}
+#endif
+
 // The SWMC v1 packets. Every field is little-endian like VBAN's, and every byte the sender writes
 // is authenticated. The 24-byte header, in the clear: "SWMC", version 1, the type, 2 reserved
 // zero bytes, the device's 8-byte id, and 8 bytes of context (the device's random number, the
 // session id or the pairing nonce, depending on the type).
-static class Swmc
+static partial class Swmc
 {
     public static readonly byte[] Magic = { (byte) 'S', (byte) 'W', (byte) 'M', (byte) 'C' };
     public const int Version = 1;
@@ -559,8 +597,11 @@ static class Swmc
         return result;
     }
 
+#if !STARWIRE_LINUX
     // ---------------------------------------------------------------- ECDH P-256 through CNG
     // Points travel as 0x04, X, Y; CNG's key blobs are a magic number, 32, X, Y (and d).
+    public static EcdhKey NewKey() { return new ECDiffieHellmanCng(256); }
+
     public static byte[] PublicBlob(byte[] point, int at)
     {
         if (point[at] != 4) {
@@ -574,7 +615,7 @@ static class Swmc
     }
 
     // A key from fixed numbers, for the known-answer tests
-    public static ECDiffieHellmanCng FixedKey(byte[] d, byte[] x, byte[] y)
+    public static EcdhKey FixedKey(byte[] d, byte[] x, byte[] y)
     {
         byte[] blob = new byte[8 + 96];
         BitConverter.GetBytes(0x324B4345).CopyTo(blob, 0);   // BCRYPT_ECDH_PRIVATE_P256_MAGIC, "ECK2"
@@ -585,7 +626,7 @@ static class Swmc
         return new ECDiffieHellmanCng(CngKey.Import(blob, CngKeyBlobFormat.EccPrivateBlob));
     }
 
-    public static byte[] OwnPoint(ECDiffieHellmanCng mine)
+    public static byte[] OwnPoint(EcdhKey mine)
     {
         byte[] blob = mine.PublicKey.ToByteArray();   // ECK1, 32, X, Y
         byte[] point = new byte[PointLength];
@@ -596,7 +637,7 @@ static class Swmc
 
     // SHA-256 of the shared X coordinate: CNG's "Hash" key derivation with nothing added. Throws
     // CryptographicException for a point that isn't on P-256 (CNG checks).
-    public static byte[] EcdhHash(ECDiffieHellmanCng mine, byte[] peerPoint, int at)
+    public static byte[] EcdhHash(EcdhKey mine, byte[] peerPoint, int at)
     {
         mine.KeyDerivationFunction = ECDiffieHellmanKeyDerivationFunction.Hash;
         mine.HashAlgorithm = CngAlgorithm.Sha256;
@@ -606,6 +647,7 @@ static class Swmc
             return mine.DeriveKeyMaterial(peer);
         }
     }
+#endif
 }
 
 // The receiver's replay rule: each counter once, and only going up. A packet that arrives late is
@@ -834,7 +876,7 @@ sealed class MicPairingStore
             return null;
         }
         try {
-            d.Key = ProtectedData.Unprotect(Convert.FromBase64String(f[2]), Entropy, DataProtectionScope.CurrentUser);
+            d.Key = KeyProtection.Unprotect(Convert.FromBase64String(f[2]), Entropy);
         }
         catch (FormatException) {
             why = "damaged key";
@@ -907,9 +949,9 @@ sealed class MicPairingStore
             sb.Append("device\t").Append(d.Id).Append('\t').Append(d.Protected).Append('\t').Append(Date(d.PairedAt))
                 .Append('\t').Append(d.LastSeen == DateTime.MinValue ? "-" : Date(d.LastSeen)).Append('\t').Append(d.Name).Append('\n');
         }
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(FilePath)));
+        KeyProtection.CreateFolder(Path.GetDirectoryName(Path.GetFullPath(FilePath)));
         string temp = FilePath + ".new";
-        File.WriteAllText(temp, sb.ToString(), new UTF8Encoding(false));
+        KeyProtection.WriteFile(temp, sb.ToString());
         if (File.Exists(FilePath)) {
             try {
                 File.Replace(temp, FilePath, null);
@@ -933,7 +975,7 @@ sealed class MicPairingStore
     public void Put(MicPairing pairing)
     {
         if (pairing.Protected == null) {
-            pairing.Protected = Convert.ToBase64String(ProtectedData.Protect(pairing.Key, Entropy, DataProtectionScope.CurrentUser));
+            pairing.Protected = Convert.ToBase64String(KeyProtection.Protect(pairing.Key, Entropy));
         }
         List<MicPairing> before = new List<MicPairing>(Devices);
         Devices.RemoveAll(d => Swmc.ConstantTimeEquals(d.DeviceId, 0, pairing.DeviceId, 0, 8));
@@ -1024,7 +1066,7 @@ sealed class PairingSession
     readonly long started;
     readonly byte[] receiverId;
     readonly string pcName;
-    readonly Func<ECDiffieHellmanCng> newKey;
+    readonly Func<EcdhKey> newKey;
     readonly Func<DateTime> utcNow;
     // Keeps a new pairing; returns why it couldn't, or null
     readonly Func<MicPairing, string> keep;
@@ -1036,7 +1078,7 @@ sealed class PairingSession
     MicPairing made;
     string madeFrom;
 
-    public PairingSession(byte[] code, long now, byte[] receiverId, string pcName, Func<ECDiffieHellmanCng> newKey,
+    public PairingSession(byte[] code, long now, byte[] receiverId, string pcName, Func<EcdhKey> newKey,
         Func<DateTime> utcNow, Func<MicPairing, string> keep)
     {
         this.code = (byte[]) code.Clone();
@@ -1127,7 +1169,7 @@ sealed class PairingSession
         byte[] phonePoint = Swmc.Slice(p, Swmc.Header, Swmc.PointLength);
         byte[] receiverPoint, z;
         try {
-            using (ECDiffieHellmanCng mine = newKey()) {
+            using (EcdhKey mine = newKey()) {
                 receiverPoint = Swmc.OwnPoint(mine);
                 z = Swmc.EcdhHash(mine, phonePoint, 0);
             }
@@ -1392,9 +1434,14 @@ sealed class SecureMicEndpoint
     public byte[] StreamName = Vban.StreamNameBytes("Stream1");
     // Whether the output is there, for HELLO_ACK's status; asked at most every 2 seconds
     public Func<bool> OutputReady;
-    public Func<ECDiffieHellmanCng> NewPairingKey = () => new ECDiffieHellmanCng(256);
+    public Func<EcdhKey> NewPairingKey = () => Swmc.NewKey();
     public Func<DateTime> UtcNow = () => DateTime.UtcNow;
     public string PcName = Environment.MachineName;
+    // How the user pairs a device, pairs again and unpairs one, as the receiver's warnings say it.
+    // The defaults are the Windows icon's; the Linux receiver has commands instead.
+    public string HowToPair = "right-click this icon > Pair a device";
+    public string HowToPairAgain = "Choose Pair a device again";
+    public string HowToUnpair = "from this icon's Paired devices";
 
     // What happened to the packets, for --console and the tests
     public int Played, ReplayedOrLate, Forged, Unencrypted, Unpaired, UnknownSession, Busy, NotHome, Malformed, Errors;
@@ -1498,7 +1545,7 @@ sealed class SecureMicEndpoint
         if (!AllowUnencrypted) {
             Unencrypted++;
             Warn("plain", source, now, "Ignored unencrypted microphone audio from ",
-                ". If that's Starwire, update it and pair it: right-click this icon > Pair a device.");
+                ". If that's Starwire, update it and pair it: " + HowToPair + ".");
             return false;
         }
         if (length <= Vban.HeaderSize || length > vbanOut.Length || !Vban.NameMatches(p, StreamName)) {
@@ -1520,7 +1567,7 @@ sealed class SecureMicEndpoint
         }
         Unpaired++;
         Warn("unpaired", source, now, "A device this PC hasn't paired tried to send its microphone (from ",
-            "). To allow it, right-click this icon > Pair a device.");
+            "). To allow it, " + HowToPair + ".");
         return null;
     }
 
@@ -1748,10 +1795,10 @@ sealed class SecureMicEndpoint
         }
         pairingReported = state;
         if (state == PairingState.TooManyTries) {
-            report("Pairing stopped after too many wrong codes. Choose Pair a device again for a new code.", true);
+            report("Pairing stopped after too many wrong codes. " + HowToPairAgain + " for a new code.", true);
         }
         else if (state == PairingState.Expired) {
-            report("The pairing code expired. Choose Pair a device again for a new one.", false);
+            report("The pairing code expired. " + HowToPairAgain + " for a new one.", false);
         }
     }
 
@@ -1793,9 +1840,9 @@ sealed class SecureMicEndpoint
         }
         Forget(made.DeviceId);
         report("The pairing code was used twice, so someone else may have seen it. To be safe, " + made.Name
-            + " isn't paired any more. Choose Pair a device again for a new code."
+            + " isn't paired any more. " + HowToPairAgain + " for a new code."
             + (trouble == null ? "" : " (Couldn't update the paired devices file: " + trouble + ". Unpair " + made.Name
-                + " from this icon's Paired devices.)"), true);
+                + " " + HowToUnpair + ".)"), true);
     }
 
     // Ends a device's sessions and refuses its audio from now on

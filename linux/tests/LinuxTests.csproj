@@ -1,0 +1,16 @@
+<!-- The Linux receiver's own tests (tests/LinuxTests.cs); run-tests.sh builds and runs it -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>LinuxTests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="LinuxTests.cs" />
+    <Compile Include="../../windows/SecureMic.cs" />
+    <Compile Include="../Platform.cs" />
+    <Compile Include="../JitterRing.cs" />
+    <Compile Include="../PipeWire.cs" />
+    <Compile Include="../ControlClient.cs" />
+    <Compile Include="../PairingModel.cs" />
+    <Compile Include="../app/TrayModel.cs" />
+  </ItemGroup>
+</Project>
