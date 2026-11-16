@@ -236,9 +236,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     static final int MOUSE_MODE_DIRECT_TOUCH_SWAPPED = 5;
     private int mouseMode;
 
-    // Whether the trackpad modes use the custom sensitivity from settings
-    private boolean touchSensitivityEnabled;
-
     // On-screen full keyboard (from Artemide) and the modifiers held down on it
     private KeyBoardLayoutController fullKeyboard;
     private int fullKeyboardModifiers;
@@ -756,7 +753,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         // Initialize touch contexts from the touchscreen trackpad setting; the overlay menu's
         // Touch Mode picker can switch to Artemide's other modes during the stream
-        touchSensitivityEnabled = prefConfig.touchSensitivity != 100;
         applyMouseMode(prefConfig.touchscreenTrackpad ? MOUSE_MODE_TRACKPAD_GAMING : MOUSE_MODE_DIRECT_TOUCH);
 
         if (prefConfig.onscreenController) {
@@ -3720,11 +3716,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
 
             @Override
-            public void onToggleTouchSensitivity() {
-                toggleTouchSensitivity();
-            }
-
-            @Override
             public void onUploadClipboard() {
                 uploadClipboard();
             }
@@ -3777,8 +3768,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         return fullKeyboard != null && fullKeyboard.isKeyboardVisible();
                     case OverlayMenuView.TOGGLE_PAN_ZOOM:
                         return isPanZoomMode;
-                    case OverlayMenuView.TOGGLE_TOUCH_SENSITIVITY:
-                        return touchSensitivityEnabled;
                     case OverlayMenuView.TOGGLE_ONSCREEN_CONTROLLER:
                         return onscreenControllerShown;
                     case OverlayMenuView.TOGGLE_FLOATING_BUTTON:
@@ -4017,7 +4006,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         // The trackpad modes move the cursor relative to the finger; the others place it under it
         prefConfig.touchscreenTrackpad = mode == MOUSE_MODE_TRACKPAD_NATURAL || mode == MOUSE_MODE_TRACKPAD_GAMING;
-        int sensitivity = touchSensitivityEnabled ? prefConfig.touchSensitivity : 100;
+        // Trackpad sensitivity, from Settings
+        int sensitivity = prefConfig.touchSensitivity;
 
         for (int i = 0; i < touchContextMap.length; i++) {
             if (touchContextMap[i] != null) {
@@ -4065,15 +4055,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     dialog.dismiss();
                 })
                 .show();
-    }
-
-    private void toggleTouchSensitivity() {
-        touchSensitivityEnabled = !touchSensitivityEnabled;
-        applyMouseMode(mouseMode);
-
-        Toast.makeText(this, touchSensitivityEnabled ?
-                getString(R.string.touch_sensitivity_on, prefConfig.touchSensitivity) :
-                getString(R.string.touch_sensitivity_off), Toast.LENGTH_SHORT).show();
     }
 
     /**

@@ -524,7 +524,6 @@
     <!-- Starwire: pan/zoom, mouse modes, touch sensitivity, clipboard and server commands (from Artemide) -->
     <string name="overlay_menu_pan_zoom">Pan/Zoom</string>
     <string name="overlay_menu_mouse_mode">Touch Mode</string>
-    <string name="overlay_menu_touch_sensitivity">Sensitivity</string>
     <string name="overlay_menu_upload_clipboard">Send Clipboard</string>
     <string name="overlay_menu_fetch_clipboard">Get Clipboard</string>
     <string name="overlay_menu_server_commands">PC Commands</string>
@@ -537,10 +536,8 @@
     <string name="mouse_mode_track_pad_gaming">Trackpad, gaming (long-press to drag)</string>
     <string name="mouse_mode_disabled">Touch disabled</string>
     <string name="mouse_mode_absolute_touch_swapped">Direct touch, left/right click swapped</string>
-    <string name="touch_sensitivity_on">Touch sensitivity: %1$d%%</string>
-    <string name="touch_sensitivity_off">Touch sensitivity: default (100%)</string>
     <string name="title_seekbar_touch_sensitivity">Trackpad sensitivity</string>
-    <string name="summary_seekbar_touch_sensitivity">Pointer speed in the trackpad touch modes. Toggle it during a stream with Sensitivity in the overlay menu.</string>
+    <string name="summary_seekbar_touch_sensitivity">Pointer speed in the trackpad touch modes.</string>
     <string name="clipboard_sent">Clipboard sent to PC</string>
     <string name="clipboard_received">Clipboard copied from PC</string>
     <string name="clipboard_empty">Nothing on this device\'s clipboard to send</string>

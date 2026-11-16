@@ -68,7 +68,6 @@ public class OverlayMenuView extends LinearLayout {
         void onToggleFloatingButton();
         void onTogglePanZoom();
         void onSelectMouseMode();
-        void onToggleTouchSensitivity();
         void onUploadClipboard();
         void onFetchClipboard();
         void onShowServerCommands();
@@ -109,7 +108,6 @@ public class OverlayMenuView extends LinearLayout {
     public static final int TOGGLE_MOUSE_EMULATION = 2;
     public static final int TOGGLE_FULL_KEYBOARD = 3;
     public static final int TOGGLE_PAN_ZOOM = 4;
-    public static final int TOGGLE_TOUCH_SENSITIVITY = 5;
     public static final int TOGGLE_ONSCREEN_CONTROLLER = 6;
     public static final int TOGGLE_FLOATING_BUTTON = 7;
 
@@ -235,7 +233,6 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_FLOATING_BUTTON = 12;
     private static final int ACTION_PAN_ZOOM = 13;
     private static final int ACTION_MOUSE_MODE = 14;
-    private static final int ACTION_TOUCH_SENSITIVITY = 15;
     private static final int ACTION_UPLOAD_CLIPBOARD = 16;
     private static final int ACTION_FETCH_CLIPBOARD = 17;
     private static final int ACTION_SERVER_COMMANDS = 18;
@@ -546,8 +543,6 @@ public class OverlayMenuView extends LinearLayout {
             }
             addTile(R.drawable.ic_overlay_maximize,
                 getContext().getString(R.string.overlay_menu_pan_zoom), ACTION_PAN_ZOOM, TOGGLE_PAN_ZOOM);
-            addTile(R.drawable.ic_overlay_settings,
-                getContext().getString(R.string.overlay_menu_touch_sensitivity), ACTION_TOUCH_SENSITIVITY, TOGGLE_TOUCH_SENSITIVITY);
             addTile(R.drawable.ic_overlay_save,
                 getContext().getString(R.string.overlay_menu_upload_clipboard), ACTION_UPLOAD_CLIPBOARD);
             addTile(R.drawable.ic_overlay_folder,
@@ -1106,8 +1101,6 @@ public class OverlayMenuView extends LinearLayout {
                 closeMenu();
                 actionListener.onSelectMouseMode();
                 return;
-            } else if (action == ACTION_TOUCH_SENSITIVITY) {
-                actionListener.onToggleTouchSensitivity();
             } else if (action == ACTION_UPLOAD_CLIPBOARD) {
                 actionListener.onUploadClipboard();
                 shouldCloseMenu = true;

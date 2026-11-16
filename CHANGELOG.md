@@ -155,6 +155,10 @@ steps and the checksums for each version.
   so the button that picked Quit Session cancels it; the bitrate and touch mode pickers already
   work that way. And a controller run by Starwire's own USB driver can't answer it, as it can't
   move through the menu either.
+- **The stream menu's Sensitivity item is gone.** It switched Trackpad sensitivity off and on
+  during a stream, and nothing else in the app does that. The setting itself stays, in Settings
+  under Touch & mouse, and applies for the whole stream in both trackpad modes. Set it to 100% for
+  the usual pointer speed. Checked by tests, not yet tried in a stream.
 - **Google's video decoders, as on Pixel phones, are asked for the most frames they can handle**
   at the stream's size, instead of just the stream's frame rate. They set their speed to just
   meet what they're asked for. Moonlight X measured about 9 ms a frame before and about 7.8 ms
