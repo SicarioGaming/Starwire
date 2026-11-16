@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The PC USB helper's icon, windows/starwire-usb.ico: a USB plug in Starwire's colours on the
+     dark tile of the microphone receiver's icon, so the two are easy to tell apart by the clock.
+     make-usb-icon.mjs draws it at each size. An element with data-min="N" is drawn only at N px
+     and up, and one with data-max="N" only up to N px. The 16, 20 and 24 px plugs are drawn on
+     their own pixel grids (a viewBox the size of the icon), so their edges land on whole pixels;
+     the big plug's edges land on whole pixels at 32 and 64 px. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="space" gradientUnits="userSpaceOnUse" cx="128" cy="112" r="176">
+      <stop offset="0" stop-color="#2B1660"/>
+      <stop offset="1" stop-color="#170C3A"/>
+    </radialGradient>
+    <radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="128" cy="124" r="112">
+      <stop offset="0" stop-color="#7C3AED" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#7C3AED" stop-opacity="0"/>
+    </radialGradient>
+    <!-- The colours of the ring in the receiver's icon: orange, red, violet and blue -->
+    <linearGradient id="rainbow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF9004"/>
+      <stop offset="0.36" stop-color="#FF2E54"/>
+      <stop offset="0.68" stop-color="#C959DD"/>
+      <stop offset="1" stop-color="#0894FF"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D9D0F5"/>
+    </linearGradient>
+    <radialGradient id="star" gradientUnits="userSpaceOnUse" cx="192" cy="112" r="24">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="tile">
+      <rect x="4" y="4" width="248" height="248" rx="56"/>
+    </clipPath>
+  </defs>
+
+  <!-- The tile, as in the receiver's icon -->
+  <rect x="4" y="4" width="248" height="248" rx="56" fill="url(#space)"/>
+  <g clip-path="url(#tile)">
+    <rect x="0" y="0" width="256" height="256" fill="url(#glow)"/>
+    <!-- Stars -->
+    <g data-min="32" fill="#FFFFFF" fill-opacity="0.8">
+      <circle cx="50" cy="54" r="3.4"/>
+      <circle cx="208" cy="58" r="2.8"/>
+      <circle cx="34" cy="138" r="2.4"/>
+      <circle cx="224" cy="150" r="2.8"/>
+      <circle cx="52" cy="212" r="3"/>
+      <circle cx="206" cy="218" r="3.6"/>
+    </g>
+    <g data-min="32" fill="#E9D5FF" fill-opacity="0.6">
+      <circle cx="32" cy="94" r="1.8"/>
+      <circle cx="172" cy="236" r="1.8"/>
+      <circle cx="226" cy="104" r="1.6"/>
+    </g>
+  </g>
+
+  <!-- The plug, from the top: the metal end with its two holes, the body in the ring's colours,
+       the boot, and the cable running off the bottom of the tile -->
+  <g data-min="32">
+    <path d="M88 32h80a8 8 0 0 1 8 8v72h-96v-72a8 8 0 0 1 8-8z" fill="url(#metal)"/>
+    <rect x="96" y="48" width="24" height="16" fill="#1B0F45"/>
+    <rect x="136" y="48" width="24" height="16" fill="#1B0F45"/>
+    <rect x="64" y="112" width="128" height="80" rx="20" fill="url(#rainbow)"/>
+    <rect x="96" y="192" width="64" height="16" fill="#C4B5FD"/>
+    <rect x="112" y="208" width="32" height="44" fill="#B9A8F5"/>
+  </g>
+  <svg data-min="24" data-max="24" viewBox="0 0 24 24" width="256" height="256">
+    <rect x="8" y="2" width="8" height="8" fill="url(#metal)"/>
+    <rect x="9" y="4" width="2" height="1" fill="#1B0F45"/>
+    <rect x="13" y="4" width="2" height="1" fill="#1B0F45"/>
+    <rect x="6" y="10" width="12" height="8" rx="1.5" fill="url(#rainbow)"/>
+    <rect x="9" y="18" width="6" height="1" fill="#C4B5FD"/>
+    <rect x="11" y="19" width="2" height="4.6" fill="#B9A8F5"/>
+  </svg>
+  <svg data-min="20" data-max="20" viewBox="0 0 20 20" width="256" height="256">
+    <rect x="6" y="2" width="8" height="6" fill="url(#metal)"/>
+    <rect x="7" y="3" width="2" height="1" fill="#1B0F45"/>
+    <rect x="11" y="3" width="2" height="1" fill="#1B0F45"/>
+    <rect x="5" y="8" width="10" height="7" rx="1" fill="url(#rainbow)"/>
+    <rect x="8" y="15" width="4" height="1" fill="#C4B5FD"/>
+    <rect x="9" y="16" width="2" height="3.7" fill="#B9A8F5"/>
+  </svg>
+  <svg data-max="16" viewBox="0 0 16 16" width="256" height="256">
+    <rect x="5" y="2" width="6" height="5" fill="url(#metal)"/>
+    <rect x="6" y="3" width="1" height="1" fill="#1B0F45"/>
+    <rect x="9" y="3" width="1" height="1" fill="#1B0F45"/>
+    <rect x="4" y="7" width="8" height="5" rx="1" fill="url(#rainbow)"/>
+    <rect x="6" y="12" width="4" height="1" fill="#C4B5FD"/>
+    <rect x="7" y="13" width="2" height="2.75" fill="#B9A8F5"/>
+  </svg>
+
+  <!-- A star on the plug's corner, like the one on the receiver's ring -->
+  <g data-min="40">
+    <circle cx="192" cy="112" r="24" fill="url(#star)"/>
+    <circle cx="192" cy="112" r="7" fill="#FFFFFF"/>
+  </g>
+</svg>

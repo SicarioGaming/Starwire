@@ -101,10 +101,12 @@ steps and the checksums for each version.
 - **The PC's side of sharing a USB device from the phone.** Starwire's USB helper
   for Windows (`setup-usb.cmd`, in the Windows zip) can now take a device over the encrypted USB tunnel
   ([usb-protocol.md](docs/dev/usb-protocol.md)): from a phone paired with the PC's microphone
-  receiver, once USB sharing is on in its menu and Allow USB is ticked there for that phone. It
-  checks the device against the device rules, attaches it with usbip-win2's driver through a
-  relay on the PC itself, checks what the device tells Windows, and detaches only its own device
-  when the session ends. USB sharing is off until you turn it on, and the firewall rule covers
+  receiver, once USB sharing is on in its menu and Allow USB is ticked there for that phone. Its
+  icon by the clock is a USB plug on a dark tile, so it's easy to tell from the microphone
+  receiver's. Tests check that the setup builds the icon into the helper and puts it next to it,
+  but it hasn't been seen by the clock on a PC yet. The helper checks the device against the
+  device rules, attaches it with usbip-win2's driver through a relay on the PC itself, checks
+  what the device tells Windows, and detaches only its own device when the session ends. USB sharing is off until you turn it on, and the firewall rule covers
   Private and Domain networks only. The app's side (USB devices, above) and this helper were
   tried together once, with usbip-win2's driver: a tablet shared a device and the PC used it.
   Tested on Windows 11 with a fake driver and a test phone over 127.0.0.1, and with the shared

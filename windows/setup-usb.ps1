@@ -4,10 +4,12 @@ Sets up Starwire's USB helper, so a phone running Starwire can share a USB devic
 
 .DESCRIPTION
 - Builds the USB helper (StarwireUsbHelper.cs and the Usb*.cs files next to this script) with the
-  C# compiler that comes with Windows, and installs it in Program Files\Starwire USB.
+  C# compiler that comes with Windows, and installs it in Program Files\Starwire USB, with its
+  icon (starwire-usb.ico).
 - Lets it through Windows Firewall on TCP 6981, for local-network and private VPN addresses, on
   Private and Domain networks only. Not on Public networks, like a cafe's Wi-Fi.
-- Starts it now and whenever you sign in. It runs as an icon by the clock.
+- Starts it now and whenever you sign in. It runs as an icon by the clock: a USB plug on a dark
+  tile.
 
 USB sharing stays off until you turn it on in the icon's menu, and each phone also needs Allow
 USB ticked there. A phone can only share with a PC its microphone is paired with, so set up the
@@ -26,8 +28,8 @@ The TCP port the helper listens on while USB sharing is on. Default 6981.
 Don't start the helper when you sign in.
 
 .PARAMETER Uninstall
-Gives back any device the helper attached, then removes the helper, its firewall rule, its
-startup entry, its TLS key and its own files (usb-allowed.dat, usb-settings.txt,
+Gives back any device the helper attached, then removes the helper and its icon, its firewall
+rule, its startup entry, its TLS key and its own files (usb-allowed.dat, usb-settings.txt,
 usb-attached.txt and its log). The microphone receiver and its pairings stay.
 
 .PARAMETER InstallDir
@@ -63,6 +65,10 @@ $startupShortcut = Join-Path $StartupFolder 'Starwire USB helper.lnk'
 $ruleName = 'Starwire USB helper'
 $sourceNames = @('StarwireUsbHelper.cs', 'UsbTunnel.cs', 'UsbRelay.cs', 'UsbTunnelCodec.cs', 'UsbDeviceRules.cs')
 $sources = @($sourceNames | ForEach-Object { Join-Path $here $_ })
+# Its icon goes in the program and next to it, where the helper looks first for the small sizes
+# the clock uses. Without it the clock showed Windows' plain program icon.
+$icon = Join-Path $here 'starwire-usb.ico'
+$installedIcon = Join-Path $InstallDir 'starwire-usb.ico'
 # The helper's own files. Never mic-pairings.dat, the microphone receiver's: the helper only reads it.
 $dataFiles = @('usb-allowed.dat', 'usb-settings.txt', 'usb-attached.txt', 'usb-helper-log.txt', 'usb-helper-log.old.txt') |
     ForEach-Object { Join-Path $DataFolder $_ }
@@ -92,7 +98,7 @@ function Get-Csc {
 
 # A Windows app rather than a console one, so it runs as a notification-area icon with no window
 function Build-Helper($out) {
-    foreach ($s in $sources) {
+    foreach ($s in $sources + $icon) {
         if (-not (Test-Path $s)) {
             Write-Host "$(Split-Path -Leaf $s) must be next to this script. Unzip the whole download and run it from there." -ForegroundColor Yellow
             return $false
@@ -104,7 +110,8 @@ function Build-Helper($out) {
         return $false
     }
     New-Item -ItemType Directory -Force (Split-Path -Parent $out) | Out-Null
-    & $csc /nologo /optimize /target:winexe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Core.dll "/out:$out" $sources | Out-Host
+    Copy-Item $icon (Split-Path -Parent $out) -Force
+    & $csc /nologo /optimize /target:winexe "/win32icon:$icon" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Security.dll /r:System.Core.dll "/out:$out" $sources | Out-Host
     return ($LASTEXITCODE -eq 0 -and (Test-Path $out))
 }
 
@@ -123,7 +130,7 @@ if ($Plan) {
         Firewall     = Get-FirewallRule $exe $Port
         Startup      = $(if ($NoStartup) { $null } else { $startupShortcut })
         Arguments    = "--tunnel-port $Port"
-        Removes      = @($exe, $shortcut, $startupShortcut) + $dataFiles
+        Removes      = @($exe, $installedIcon, $shortcut, $startupShortcut) + $dataFiles
         RemovesRule  = $ruleName
         Keeps        = @(Join-Path $DataFolder 'mic-pairings.dat')
     } | ConvertTo-Json -Depth 4
@@ -199,7 +206,7 @@ if ($Uninstall) {
     Stop-InstalledHelper
     Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
     # Only what the setup put there, then the folder if that leaves it empty
-    Remove-Item $exe, $shortcut -ErrorAction SilentlyContinue
+    Remove-Item $exe, $installedIcon, $shortcut -ErrorAction SilentlyContinue
     if ((Test-Path $InstallDir) -and -not (Get-ChildItem $InstallDir -Force)) {
         Remove-Item $InstallDir -ErrorAction SilentlyContinue
     }
@@ -257,11 +264,11 @@ else {
 }
 # Started through Explorer so it runs as you, not as administrator
 Start-Process explorer.exe -ArgumentList "`"$shortcut`""
-Done 'Running, with no window: its icon is in the notification area, by the clock.'
+Done 'Running, with no window: its icon, a USB plug on a dark tile, is in the notification area by the clock. It may be under the ^ arrow.'
 
 Step 'Next'
 Say '1. Pair the phone with the microphone receiver first, if you haven''t: its icon > Pair a device.'
-Say '2. Right-click the USB helper''s icon > Let paired phones share USB devices.'
+Say '2. Right-click the USB helper''s icon (the USB plug) > Let paired phones share USB devices.'
 Say '3. In the same menu, Allow USB for > tick your phone.'
 if ($Port -ne 6981) { Note "The helper listens on TCP $Port. Starwire connects to 6981." }
 Finish 0

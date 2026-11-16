@@ -869,7 +869,7 @@ ok "check-publish.sh stops with an error, never \"clean\", when a step fails or 
 # stops it; and the Release workflow makes its zip only this way.
 begin
 mic="setup-microphone.cmd setup-microphone.ps1 StarwireMicReceiver.cs SecureMic.cs starwire-mic.ico README.md"
-usb="setup-usb.cmd setup-usb.ps1 StarwireUsbHelper.cs UsbTunnel.cs UsbRelay.cs UsbTunnelCodec.cs UsbDeviceRules.cs USB-HELPER.md"
+usb="setup-usb.cmd setup-usb.ps1 StarwireUsbHelper.cs UsbTunnel.cs UsbRelay.cs UsbTunnelCodec.cs UsbDeviceRules.cs starwire-usb.ico USB-HELPER.md"
 want=$(printf '%s\n' $mic $usb | LC_ALL=C sort)
 set +e
 listed=$(bash "$HERE/make-windows-zip.sh" --list 2>&1)
@@ -1093,6 +1093,77 @@ fi
 if [ -n "$(ls -A "$work/tmp")" ]; then fail "upstream/check.sh left its temporary folder behind: $(ls -A "$work/tmp")"; fi
 rm -rf "$work"
 ok "upstream/check.sh lists new upstream commits and leaves nothing running in its temporary folder"
+
+# 23. The PC's USB helper has an icon of its own. It had none, so the clock showed Windows' plain
+# program icon, and among the hidden icons there was no telling which one to right-click. The
+# icon, windows/starwire-usb.ico (icons/make-usb-icon.mjs makes it), must be a Windows icon with
+# the sizes the clock and Explorer use, and not the microphone receiver's. setup-usb.ps1 must
+# build it into the helper (/win32icon), put it next to the helper, where the helper looks first,
+# and remove it on -Uninstall. The Windows zip must carry it.
+begin
+ico=windows/starwire-usb.ico
+ico_sizes() {  # an .ico file: prints each image's size, like 16x16, or "bad: why" for one that's wrong
+    od -An -v -tu1 "$1" | awk '
+        { for (i = 1; i <= NF; i++) b[n++] = $i }
+        function le(at, len,   v, i) { v = 0; for (i = len - 1; i >= 0; i--) v = v * 256 + b[at + i]; return v }
+        function be(at, len,   v, i) { v = 0; for (i = 0; i < len; i++) v = v * 256 + b[at + i]; return v }
+        END {
+            if (n < 6 || le(0, 2) != 0 || le(2, 2) != 1 || le(4, 2) < 1) { print "bad: it has no icon header"; exit }
+            count = le(4, 2)
+            if (6 + 16 * count > n) { print "bad: its list of images is cut short"; exit }
+            for (i = 0; i < count; i++) {
+                at = 6 + 16 * i; w = b[at] ? b[at] : 256; h = b[at + 1] ? b[at + 1] : 256
+                len = le(at + 8, 4); off = le(at + 12, 4)
+                if (len < 26 || off < 6 + 16 * count || off + len > n) {
+                    print "bad: image " i + 1 " is outside the file"
+                } else if (be(off, 4) == 2303741511 && be(off + 4, 4) == 218765834) {
+                    # A PNG, whose IHDR has its width and height
+                    if (be(off + 16, 4) != w || be(off + 20, 4) != h) print "bad: image " i + 1 " is a PNG of another size than " w "x" h
+                    else print w "x" h
+                } else if (le(off, 4) == 40) {
+                    # A bitmap, whose height counts its mask too
+                    if (le(off + 4, 4) != w || le(off + 8, 4) != 2 * h) print "bad: image " i + 1 " is a bitmap of another size than " w "x" h
+                    else print w "x" h
+                } else {
+                    print "bad: image " i + 1 " is neither a PNG nor a bitmap"
+                }
+            }
+        }'
+}
+if [ ! -s "$ico" ]; then
+    fail "$ico is missing or empty, so the USB helper has no icon of its own"
+else
+    sizes=$(ico_sizes "$ico")
+    bad=$(sed -n 's/^bad: //p' <<< "$sizes")
+    good=$(echo $(grep -v '^bad: ' <<< "$sizes" || true))
+    [ -z "$bad" ] || fail "$ico isn't a good Windows icon: $(echo $bad)"
+    missing=""
+    for size in 16 20 24 32 48 64 256; do
+        grep -qx "${size}x$size" <<< "$sizes" || missing="$missing ${size}x$size"
+    done
+    [ -z "$missing" ] || fail "$ico has no image of these sizes:$missing (it has: ${good:-none})"
+    if cmp -s "$ico" windows/starwire-mic.ico; then fail "$ico is the microphone receiver's icon, not one of its own"; fi
+fi
+setup=$(tr -d '\r' < windows/setup-usb.ps1)
+icon_var=$(sed -n "s/^\(\$[A-Za-z0-9_]*\) = Join-Path \$here 'starwire-usb.ico'\$/\1/p" <<< "$setup" | head -n 1)
+installed_var=$(sed -n "s/^\(\$[A-Za-z0-9_]*\) = Join-Path \$InstallDir 'starwire-usb.ico'\$/\1/p" <<< "$setup" | head -n 1)
+if [ -z "$icon_var" ]; then
+    fail "setup-usb.ps1 doesn't take starwire-usb.ico from its folder (\$icon = Join-Path \$here 'starwire-usb.ico')"
+else
+    grep -E '^[[:space:]]*& \$csc ' <<< "$setup" | grep -qF "/win32icon:$icon_var" ||
+        fail "setup-usb.ps1 doesn't build the helper with its icon (/win32icon:$icon_var in the csc command)"
+    grep -qE "^[[:space:]]*Copy-Item \\$icon_var " <<< "$setup" ||
+        fail "setup-usb.ps1 doesn't copy $icon_var next to the helper, where the helper looks for it"
+fi
+if [ -z "$installed_var" ]; then
+    fail "setup-usb.ps1 doesn't name the icon it installs (\$installedIcon = Join-Path \$InstallDir 'starwire-usb.ico')"
+else
+    grep -E '^[[:space:]]*Remove-Item ' <<< "$setup" | grep -qF "$installed_var" ||
+        fail "setup-usb.ps1 -Uninstall doesn't remove the icon it installed ($installed_var)"
+fi
+grep -qx 'starwire-usb.ico' <<< "$(bash "$HERE/make-windows-zip.sh" --list 2>&1 || true)" ||
+    fail "make-windows-zip.sh doesn't put starwire-usb.ico in the Windows zip"
+ok "the USB helper has an icon of its own, with every size the clock uses, built in and installed by setup-usb.ps1, and in the Windows zip"
 
 if [ $failures -ne 0 ]; then
     echo "$failures problem(s)" >&2
