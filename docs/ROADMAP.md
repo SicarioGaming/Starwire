@@ -34,8 +34,7 @@ Source: Artemide Experimental Async 0.5.1 (`derflacco/moonlight-android`, tag
   - [x] Pan/zoom mode (pinch to zoom, drag to pan, double-tap to reset)
   - [x] Touch mode picker with Artemide's six modes (multi-touch, direct touch, natural and
         gaming trackpad, disabled, swapped clicks); starts from the trackpad setting each stream
-  - [x] Touch sensitivity: a trackpad sensitivity setting, toggled from the menu (the menu
-        item was taken out in 0.3.0)
+  - [x] Touch sensitivity: a trackpad sensitivity setting, toggled from the menu
   - [x] Clipboard send/get and PC (server) commands. Vibepollo supports both
         (`/actions/clipboard`, packet 0x3000); each needs the client's permission in Vibepollo.
         Server commands needed a change to moonlight-common-c, committed to Starwire's fork
