@@ -168,8 +168,8 @@ steps and the checksums for each version.
   USB devices pages keep their own layout on the wider sheet. Checked by tests and screenshots on a
   computer, at the size of my RedMagic Astra tablet's screen among others. Tried on that tablet in a
   test build that left out the menu's Sensitivity button: its 20 buttons showed in rows of seven,
-  seven and six, and the menu looked good. With Sensitivity, as released, it has three full rows of
-  seven there, which hasn't been seen on a device yet.
+  seven and six, and the menu looked good. On the final debug build of 0.3.0, with Sensitivity
+  back, all 21 showed there in three full rows of seven.
 - **Google's video decoders, as on Pixel phones, are asked for the most frames they can handle**
   at the stream's size, instead of just the stream's frame rate. They set their speed to just
   meet what they're asked for. Moonlight X measured about 9 ms a frame before and about 7.8 ms
@@ -246,9 +246,10 @@ steps and the checksums for each version.
   leaves the cursor where the finger went down. The same goes for multi-touch mode when the PC
   can't take touches, and with the buttons swapped it's the other way round. Checked by tests on a
   computer. On that tablet and PC, a test build with the first version of this fix gave a
-  right-click for a long press. Two smaller changes came after that test and haven't been tried on a
-  device yet: counting the 20 pixels from where the finger was at 0.65 seconds, and letting go of a
-  tap's click as soon as your finger goes down again.
+  right-click for a long press. Two smaller changes came after that test. On the final debug build
+  of 0.3.0, a long press still gave a right-click, and a quick double tap gave a double-click,
+  which is what letting go of a tap's click as soon as your finger goes down again is for. Counting
+  the 20 pixels from where the finger was at 0.65 seconds hasn't been tried on a device yet.
 - Starwire no longer tries to show an error or a "please wait" box on a screen Android has
   already closed. That could happen when a connection error or the host's answer came in late.
   This is tested on a computer, not yet on a phone. The idea is from Moonlight V+ (qiin2333).

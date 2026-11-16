@@ -102,14 +102,15 @@ the stream menu, and the fix for a long press in direct touch mode. Later that d
 build with the first version of the long press fix and the seven buttons per row. A long press in
 direct touch mode now gave a right-click on the PC, and the stream menu looked good on my tablet.
 That build left out the menu's Sensitivity button, so the menu had 20 buttons there, in rows of
-seven, seven and six. Sensitivity is back in this release, which makes three full rows of seven on
-my tablet.
+seven, seven and six. Then I tried the final debug build, which has the same app code as this
+release. The stream menu showed all 21 buttons in three full rows of seven, a long press still
+gave a right-click, and a quick double tap gave a double-click on the PC.
 **Not tried yet:** Starwire's trigger presets, apart from the Test button's gun click, and the
 strength steps on a controller, and vibration strength, the left edge swipe, the virtual desktop
-shortcuts and Quit Session's question during a stream. The fixes for #14 and #5, the stream menu
-with Sensitivity back, and two smaller changes to the long press fix that came after the test
-build have not been tried on a device either, and I have not seen the USB helper's own icon on my
-PC yet. These are checked by tests on a computer.
+shortcuts and Quit Session's question during a stream. The fixes for #14 and #5, and one smaller
+change to the long press fix, which counts the 20 pixels before a drag with the right button from
+where the finger was at 0.65 seconds, have not been tried on a device either, and I have not seen
+the USB helper's own icon on my PC yet. These are checked by tests on a computer.
 
 **Updating from 0.2.1:** install the new APK over 0.2.1. On the PC, the microphone receiver has
 not changed, so you can keep it as it is. The USB helper is new, and you only need it for USB
@@ -696,7 +697,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | From 0.3.0: Back opens the menu instead of ending the stream, and Back again closes it. It's on by default, with a switch in Settings → In-stream menu. A short press of a TV remote's Back opens the menu too. Tested in JVM tests and tried in a stream on my RedMagic Astra tablet, not yet on a phone or a TV | Idea from Artemis (Yukino Song / ClassicOldSong), via Artemide. The TV remote part is new in Starwire, on Moonlight X's remote handling |
 | On/off switches on the items that toggle something, and the menu stays open when you tap them | New in Starwire |
 | The menu header shows the game's cover art, or a Starwire tile for Desktop and games without art | New in Starwire |
-| From 0.3.0: up to seven buttons per row on screens about 1000 dp wide and up, such as a tablet held sideways, so all the built-in buttons show in three rows without scrolling. Phones and most handhelds keep up to five per row. Checked by tests and screenshots on a computer. Tried on my RedMagic Astra tablet in a test build that left out the Sensitivity button, with 20 buttons in rows of seven, seven and six. With Sensitivity back, it has three full rows of seven there, not yet seen on a device | New in Starwire |
+| From 0.3.0: up to seven buttons per row on screens about 1000 dp wide and up, such as a tablet held sideways, so all the built-in buttons show in three rows without scrolling. Phones and most handhelds keep up to five per row. Checked by tests and screenshots on a computer. Tried on my RedMagic Astra tablet in a test build that left out the Sensitivity button, with 20 buttons in rows of seven, seven and six. On the final debug build of 0.3.0, with Sensitivity back, all 21 showed there in three full rows of seven | New in Starwire |
 | Shortcuts page: Esc, F11, Alt+F4, Alt+Enter, Ctrl+V, Win, Win+D, Win+G, Ctrl+Alt+Tab, Shift+Tab, Win+Shift+Left, Ctrl+Alt+Shift+F1/F12, Win+Alt+B | Ported from Axixi2233's Moonlight fork (axi), via Artemis and Artemide |
 | From 0.3.0: Win+Ctrl+Left and Win+Ctrl+Right (previous and next desktop) side by side, then Win+Tab (Task View), on the Shortcuts page. Checked by tests, not yet tried in a stream | New in Starwire |
 | Custom shortcuts imported from a file (same JSON format) | Format from Axixi2233's fork (axi) and Artemis (Yukino Song); importer written new for Starwire |
