@@ -1,8 +1,7 @@
 # Releasing Starwire
 
 **Status:** the one-time history switch below was done on 23 Oct 2026, so the public repo now
-carries the real history, shared with Moonlight X. The release steps are still a proposal until
-the next release uses them.
+carries the real history, shared with Moonlight X. The release steps were first used for 0.2.1.
 
 ## Why change
 
@@ -204,8 +203,9 @@ dates are in UTC.
    `versionName` and `versionCode` in app/build.gradle together, and move CHANGELOG.md's
    `[Unreleased]` lines under the new version. Reword the README rows that say "Coming in the
    next release" or "Coming in" this version to say "From" it, like "From 0.2.1"
-   (NextReleaseRowsTest fails until you do). The release checklist done
-   and the on-device tests passing (`.github/tools/device-test.sh -s <serial> --allow-stream`).
+   (NextReleaseRowsTest fails until you do). Before merging, the on-device tests pass
+   (`.github/tools/device-test.sh -s <serial> --allow-stream`), and any sign-off AGENTS.md asks
+   for is given.
 2. Merge it into `main` as one merge commit:
 
    ```
@@ -240,14 +240,22 @@ dates are in UTC.
    not by the branch: until the new run shows up, the newest run on `main` is the last release's.
 
    ```
-   git push origin main
-   git push public main
-   sha=$(git rev-parse main)
-   until id=$(gh run list --repo SicarioGaming/Starwire --workflow build.yml --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId') && [ -n "$id" ]; do sleep 10; done
-   gh run watch --repo SicarioGaming/Starwire --exit-status "$id"
-   git push origin vX.Y.Z
-   git push public vX.Y.Z
+   (
+     set -e
+     git push origin main
+     git push public main
+     sha=$(git rev-parse main)
+     until id=$(gh run list --repo SicarioGaming/Starwire --workflow build.yml --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId') && [ -n "$id" ]; do sleep 10; done
+     gh run watch --repo SicarioGaming/Starwire --exit-status "$id"
+     git push origin vX.Y.Z
+     git push public vX.Y.Z
+   )
    ```
+
+   They run in a subshell with `set -e`, so a refused push, or a run that fails or is cancelled,
+   stops them before the tag goes out. Then fix it on a branch, merge that into `main`, move the
+   tag to the new merge (it isn't out yet, so that's allowed), check again (step 5) and run these
+   again.
 
    The tag push to the public repo runs the **Release** workflow, which builds and signs the APK,
    makes the Windows zip with `.github/tools/make-windows-zip.sh` (the Build workflow makes it on
@@ -279,9 +287,9 @@ already out, or rewriting a commit that's already out. Wording fixes are new com
   private tags made at those releases, on different commits from the public ones (which mark the
   per-folder commits published at the time), and `starwire-v0.2.0` is left from when v0.2.0 was
   taken.
-- In UPDATING.md, point section 3 at this page. Its step 3 (`git push origin v<version>`) only
-  reaches the private repo, and `set-release-secrets.ps1` gives the signing secrets to the public
-  repo only, so that push can't make a release.
+- Done on 16 Nov 2026: UPDATING.md's section 3 points here now. Its old step 3 (`git push origin
+  v<version>`) only reached the private repo, and `set-release-secrets.ps1` gives the signing
+  secrets to the public repo only, so that push couldn't make a release.
 - Bring Moonlight X in with real merges (`git merge moonlightx/mlsoft-x`), which keeps its authors,
   and port single commits from other forks with `git cherry-pick -x`, which records where each one
   came from.

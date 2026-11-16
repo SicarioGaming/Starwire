@@ -16,9 +16,11 @@ The sources and the last commit reviewed for each are in `.github/tools/upstream
 
 ## 2. Bring a feature in
 
-- **Ported code** (Moonlight X, Artemide, Moonlight X Turnip, moonlight-common-c): add the source
-  as a git remote and port the commits by hand. Starwire's base has moved on, so plain merges
-  rarely apply cleanly.
+- **Ported code** (Moonlight X, Artemide, Moonlight X Turnip, Moonlight V+, Nightjar,
+  moonlight-common-c): add the source as a git remote, fetched without tags as RELEASING.md's
+  [The forks' remotes](RELEASING.md#the-forks-remotes) says, and bring each commit in with
+  `git cherry-pick -x`, which keeps its author and records where it came from. Starwire's base
+  has moved on, so expect to resolve conflicts by hand.
 - **Ideas** (Moonlight V+, Moonlit Artemis, upstream Moonlight): write the feature for Starwire.
 - Add an on-device test for it (`app/src/androidTest`) and run them all, with the smoke tests:
   `./gradlew assembleNonRootDebug assembleNonRootDebugAndroidTest`, then
@@ -41,7 +43,9 @@ The sources and the last commit reviewed for each are in `.github/tools/upstream
    `APK_SHA256`, `ZIP_SHA256` and `CERT_SHA256` where the checksums go; the release fills them
    in. If the notes have no `CERT_SHA256`, the release adds a **Check your download** part above
    the closing `GPL-3.0.` line by itself.
-3. Tag and push: `git tag v<version> && git push origin v<version>`.
+3. Merge, tag, check and publish as [RELEASING.md](RELEASING.md#releasing-after-the-switch) says,
+   in its steps 2 to 7: the tag is annotated, the version and publish checks come first, and
+   `main` and the tag go to the public repo one ref at a time.
 
 The **Release** workflow builds the signed APK, checks its signature, and publishes the GitHub
 release with the notes and checksums. It stops if the APK isn't signed with Starwire's release
@@ -55,7 +59,7 @@ variables → Actions), set once:
 | `STARWIRE_KEY_ALIAS` | `starwire` |
 | `STARWIRE_KEY_PASSWORD` | the key password |
 
-With the GitHub CLI signed in, `.\tools\set-release-secrets.ps1` sets all four from
-`keystore.properties` without showing the passwords.
+With the GitHub CLI signed in, `.\.github\tools\set-release-secrets.ps1` sets all four on the
+public repo from `keystore.properties`, without showing the passwords.
 
 Tags with a hyphen (like `v0.2.0-beta1`) are published as pre-releases.
