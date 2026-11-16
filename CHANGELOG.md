@@ -106,9 +106,10 @@ steps and the checksums for each version.
   receiver's. Tests check that the setup builds the icon into the helper and puts it next to it,
   but it hasn't been seen by the clock on a PC yet. The helper checks the device against the
   device rules, attaches it with usbip-win2's driver through a relay on the PC itself, checks
-  what the device tells Windows, and detaches only its own device when the session ends. USB sharing is off until you turn it on, and the firewall rule covers
-  Private and Domain networks only. The app's side (USB devices, above) and this helper were
-  tried together once, with usbip-win2's driver: a tablet shared a device and the PC used it.
+  what the device tells Windows, and detaches only its own device when the session ends. USB
+  sharing is off until you turn it on, and the firewall rule covers Private and Domain networks
+  only. The app's side (USB devices, above) and this helper were tried together once, with
+  usbip-win2's driver: a tablet shared a device and the PC used it.
   Tested on Windows 11 with a fake driver and a test phone over 127.0.0.1, and with the shared
   test vectors and device rules' cases. setup-usb.ps1 has only been tried without installing anything.
   The helper's tunnel server was checked against a hostile local network, and these hold in its
