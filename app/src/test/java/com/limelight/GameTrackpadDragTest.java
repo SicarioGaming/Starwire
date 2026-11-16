@@ -205,6 +205,25 @@ public class GameTrackpadDragTest {
         assertEquals(list("down3", "up3"), pc.sent);
     }
 
+    // A finger held still keeps wobbling for as long as it's held. Five times down six pixels and
+    // back adds up to more than the 25 a tap may move in all, but it never leaves the 20 around
+    // where it went down.
+    @Test
+    public void aLongPressThatKeepsWobblingIsStillARightClick() {
+        openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);
+        finger(MotionEvent.ACTION_DOWN, across(0.5f), down(0.3f));
+        advance(700);
+        for (int i = 0; i < 5; i++) {
+            finger(MotionEvent.ACTION_MOVE, across(0.5f), down(0.3f) + 6);
+            advance(16);
+            finger(MotionEvent.ACTION_MOVE, across(0.5f), down(0.3f));
+            advance(16);
+        }
+        finger(MotionEvent.ACTION_UP, across(0.5f), down(0.3f));
+        advance(1000);
+        assertEquals(list("down3", "up3"), pc.sent);
+    }
+
     @Test
     public void aLongPressThatWobblesThenDragsPressesWhereTheLongPressWas() {
         openStreamScreen(Game.MOUSE_MODE_TRACKPAD_GAMING);

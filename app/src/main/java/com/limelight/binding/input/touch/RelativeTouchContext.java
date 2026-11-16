@@ -249,6 +249,12 @@ public class RelativeTouchContext implements TouchContext {
             return;
         }
 
+        // A long press that waits is only a drag once it leaves the tap bounds. A finger held
+        // still keeps wobbling, and its small moves would soon add up to the distance below.
+        if (longPressPending) {
+            return;
+        }
+
         // Check if we've exceeded the maximum distance moved
         distanceMoved += Math.sqrt(Math.pow(eventX - lastTouchX, 2) + Math.pow(eventY - lastTouchY, 2));
         if (distanceMoved >= TAP_DISTANCE_THRESHOLD) {

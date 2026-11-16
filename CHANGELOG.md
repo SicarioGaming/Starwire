@@ -188,10 +188,10 @@ steps and the checksums for each version.
 - **A long press and a drag in the gaming trackpad mode drag with the left button.** With
   Long-press to right-click on, as it is by default, the long press held the right button. So
   the PC got a right-button drag, with a right-click where it ended, and nothing was dragged.
-  It had been that way since 0.1.0. Now a long press presses nothing until the finger moves or
-  lifts. Moved, it presses the left button and drags. Lifted without moving, it's a right-click,
-  as before. The cursor holds still while the long press waits, so both start where the long
-  press was. A second finger tapped during a long press used to press the right button twice,
+  It had been that way since 0.1.0. Now a long press presses nothing until the finger moves away
+  or lifts. Moved away, it presses the left button and drags. The small wobble of a finger held
+  still doesn't count. Lifted without moving away, it's a right-click, as before. The cursor
+  holds still while the long press waits, so both start where the long press was. A second finger tapped during a long press used to press the right button twice,
   and now it's one right-click. With the setting off, a long press holds the left button
   straight away, as before. Thank you to kayakyakr for reporting it in
   [issue #5](https://github.com/SicarioGaming/Starwire/issues/5). Checked by tests, not yet
