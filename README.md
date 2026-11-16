@@ -104,7 +104,7 @@ build with the first version of the long press fix and the seven buttons per row
 direct touch mode now gave a right-click on the PC, and the stream menu looked good on my tablet.
 That build left out the menu's Sensitivity button, so the menu had 20 buttons there, in rows of
 seven, seven and six. Then I tried a later debug build, whose app code is the same as this
-release's apart from some credit and licence text in Settings → About. The stream menu showed all
+release's apart from some credit and licence text in Settings. The stream menu showed all
 21 buttons in three full rows of seven, a long press still gave a right-click, and a quick double
 tap gave a double-click on the PC. With the final debug build, which has the same app code as this
 release, 146 of the 147 on-device tests passed and 1 skipped.
@@ -266,8 +266,8 @@ so you can keep it as it is. The USB helper is new, and you only need it for USB
   before it learned to skip it.
 - Everything else new in this release, such as vibration strength, the left edge swipe, the
   virtual desktop shortcuts and Quit Session's question, is checked by tests on a computer and has
-  not been tried in a stream yet. The fixes for #14 and #5 are also checked by tests on a computer
-  and have not been tried on a device yet.
+  not been tried in a stream yet. The fixes for multi-touch mode, #14 and #5 are also checked by
+  tests on a computer and have not been tried on a device yet.
 - 1,072 unit tests for the app pass on a computer (314 in 0.2.1). The USB helper's own tests pass
   on Windows 11, with a fake driver and a test phone over 127.0.0.1.
 - The emulator tests on 17 virtual Android devices run on GitHub when the release is published,
@@ -736,7 +736,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | From 0.3.0: Back opens the menu instead of ending the stream, and Back again closes it. It's on by default, with a switch in Settings → In-stream menu. A short press of a TV remote's Back opens the menu too. Tested in JVM tests and tried in a stream on my RedMagic Astra tablet, not yet on a phone or a TV | Idea from Artemis (Yukino Song / ClassicOldSong), via Artemide. The TV remote part is new in Starwire, on Moonlight X's remote handling |
 | On/off switches on the items that toggle something, and the menu stays open when you tap them | New in Starwire |
 | The menu header shows the game's cover art, or a Starwire tile for Desktop and games without art | New in Starwire |
-| From 0.3.0: up to seven buttons per row on screens about 1000 dp wide and up, such as a tablet held sideways, so all the built-in buttons show in three rows without scrolling. Phones and most handhelds keep up to five per row. Checked by tests and screenshots on a computer. Tried on my RedMagic Astra tablet in a test build that left out the Sensitivity button, with 20 buttons in rows of seven, seven and six. On the final debug build of 0.3.0, with Sensitivity back, all 21 showed there in three full rows of seven | New in Starwire |
+| From 0.3.0: up to seven buttons per row on screens about 1000 dp wide and up, such as a tablet held sideways, so all the built-in buttons show in three rows without scrolling. Phones and most handhelds keep up to five per row. Checked by tests and screenshots on a computer. Tried on my RedMagic Astra tablet in a test build that left out the Sensitivity button, with 20 buttons in rows of seven, seven and six. On a later debug build, with Sensitivity back, all 21 showed there in three full rows of seven | New in Starwire |
 | Shortcuts page: Esc, F11, Alt+F4, Alt+Enter, Ctrl+V, Win, Win+D, Win+G, Ctrl+Alt+Tab, Shift+Tab, Win+Shift+Left, Ctrl+Alt+Shift+F1/F12, Win+Alt+B | Ported from Axixi2233's Moonlight fork (axi), via Artemis and Artemide |
 | From 0.3.0: Win+Ctrl+Left and Win+Ctrl+Right (previous and next desktop) side by side, then Win+Tab (Task View), on the Shortcuts page. Checked by tests, not yet tried in a stream | New in Starwire |
 | Custom shortcuts imported from a file (same JSON format) | Format from Axixi2233's fork (axi) and Artemis (Yukino Song); importer written new for Starwire |

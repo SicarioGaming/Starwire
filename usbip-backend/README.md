@@ -51,6 +51,8 @@ authorised. A JVM test checks the option is off, and a device test checks a conn
   `UsbExporterLoopbackTest`, runs the real exporter on 127.0.0.1 with no USB device.
 - Tried: on 16 November 2026, the app's `UsbExporterLoopbackTest` passed on a RedMagic Astra
   tablet (Android 16). The same day, a DualSense plugged into that tablet by cable was shared
-  through this exporter with a Windows 11 PC, and used there.
+  through this exporter with a Windows 11 PC, and used there. In the emulator run on 27 October,
+  the same test passed on 14 of the 17 emulators. The two Android TV emulators are 32-bit x86,
+  which has no exporter library, so they skipped it. One emulator stopped early, before it ran.
 - Not tried yet: V+'s own device tests (`NativeUsbIpTest`, `UsbIpBackendLifecycleTest`), which
-  no script runs, the app's device test on an emulator, and any USB device but a DualSense.
+  no script runs, and any USB device but a DualSense.

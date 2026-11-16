@@ -79,8 +79,14 @@ What it doesn't protect against:
 
 - The device rules go by what a device says about itself, so a device that misreports what it is
   could reach a Windows driver meant for the device it claims to be.
+- A lost or stolen phone that's still paired and unlocked can share what the rules allow,
+  keyboards and mice included, since it can say yes itself. Unpair it in the microphone
+  receiver's menu (see above), or untick it under **Allow USB for** in the helper's menu.
+- Code that can read the phone's pairing key, such as root malware or a custom Vulkan driver,
+  doesn't need Starwire's checks or your yes. Only the helper's own checks stand between it and
+  Windows' USB drivers, which run in the kernel.
 - On the phone, the USB exporter trusts its own loopback connection (127.0.0.1).
-- Malware on the Android device or the PC can reach the device directly.
+- Malware on the PC can reach USB devices directly.
 
 ## The custom Vulkan driver option
 

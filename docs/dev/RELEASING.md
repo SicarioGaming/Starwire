@@ -290,6 +290,5 @@ already out, or rewriting a commit that's already out. Wording fixes are new com
 - Done on 16 Nov 2026: UPDATING.md's section 3 points here now. Its old step 3 (`git push origin
   v<version>`) only reached the private repo, and `set-release-secrets.ps1` gives the signing
   secrets to the public repo only, so that push couldn't make a release.
-- Bring Moonlight X in with real merges (`git merge moonlightx/mlsoft-x`), which keeps its authors,
-  and port single commits from other forks with `git cherry-pick -x`, which records where each one
-  came from.
+- Bring commits in from Moonlight X and the other forks with `git cherry-pick -x`, which keeps
+  each one's author and records where it came from, as UPDATING.md says.

@@ -80,8 +80,8 @@ steps and the checksums for each version.
   the effect's mode and bytes in hex as the PC sent them, and what Starwire did with it: passed
   it on to the pad, held it because no pad was ready yet, turned the trigger off for a mode it
   doesn't pass on, or ignored it for the Off preset. A trigger's effect is logged when it
-  changes, not each time the game sends it again. At most 10 lines go out in a second, timed from
-  that second's first line. Changes past that are counted but not logged. After that second, a
+  changes, not each time the game sends it again. Up to 10 changes are logged in a second, timed
+  from that second's first line. Changes past that are counted but not logged. After that second, a
   line says how many were left out, if any, and each trigger's last change is logged with its own
   time. Nothing about the pad, the PC or you is in it. Checked by JVM tests, not yet read on a
   device.

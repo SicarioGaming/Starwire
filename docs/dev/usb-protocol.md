@@ -114,7 +114,7 @@ PC:                                            helper -- relay (127.0.0.1) -- us
 - **The relay** is part of the helper. For each attach it listens on a new port on 127.0.0.1 and
   takes one connection, only while its own attach is in progress. It also checks that the
   connection belongs to the System process (process 4), since the driver connects from the
-  kernel. That last check is still to be confirmed on a real attach.
+  kernel. On 16 November 2026, the real driver's three attaches passed this check.
 - **Inside the tunnel** is plain USB/IP, as the Linux kernel's USB/IP protocol document describes
   it, so the exporter and the driver talk as if they were connected directly. The relay reads it
   on the way and enforces the checks below.
@@ -139,12 +139,14 @@ PC:                                            helper -- relay (127.0.0.1) -- us
   exchange, no CBC, no pre-shared keys, no compression.
 - Each side sends exactly one certificate: X.509, self-signed, a P-256 key, signed with ECDSA and
   SHA-256, subject and issuer `CN=Starwire` and nothing that names the phone or the PC, and a
-  random serial number. Starwire makes a new one for each connection. The helper makes one when it
-  starts. Neither is saved with the pairing. SslStream on Windows only takes a private key that's
-  in a saved key container (with a key held only in memory, the handshake fails; checked on
-  Windows 11 with .NET Framework 4.8.1). So the helper makes a new container for its own Windows
-  account when it starts, and deletes it when it exits and again at its next start, in case it
-  crashed.
+  random serial number. Starwire makes a new one for each connection. The helper makes one each
+  time it starts listening, which is when it starts with USB sharing on or when you turn sharing
+  on. Neither is saved with the pairing. SslStream on Windows only takes a private key that's in a
+  saved key container (with a key held only in memory, the handshake fails; checked on Windows 11
+  with .NET Framework 4.8.1). So each time the helper starts listening, it deletes any old
+  container for its own Windows account, in case it crashed, and makes a new one. It deletes the
+  container when it stops listening. `--forget-key`, which `setup-usb.ps1 -Uninstall` runs,
+  deletes one that a crash left behind.
 - Neither side checks a chain, names or dates, so a wrong clock doesn't matter. Each checks that
   the other's certificate has a P-256 key. The TLS handshake proves the other side holds that
   key's private half, and BIND proves the certificate belongs to someone with the pairing.
