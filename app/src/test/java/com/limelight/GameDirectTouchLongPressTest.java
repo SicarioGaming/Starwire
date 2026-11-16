@@ -522,6 +522,63 @@ public class GameDirectTouchLongPressTest {
                 (200 + HELD_MS) + " up3"), pc.timed);
     }
 
+    // A quick double tap: a tap of 120 ms, then 60 ms later one of 30 ms. The first click's button
+    // is let go as the finger goes down again, sooner than its 100 ms, so the second click is a
+    // click of its own and not a second press of a button that's still down.
+    @Test
+    public void aQuickDoubleTapIsTwoClicks() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
+        finger(MotionEvent.ACTION_DOWN);
+        advance(120);
+        finger(MotionEvent.ACTION_UP);
+        advance(60);
+        finger(MotionEvent.ACTION_DOWN);
+        advance(30);
+        finger(MotionEvent.ACTION_UP);
+        advance(1000);
+        assertEquals(list("120 " + placedAtTheFinger(), "120 down1", "180 up1", "210 down1", "310 up1"),
+                pc.timed);
+    }
+
+    // A tap of 300 ms, then 30 ms later a quick tap 200 pixels across. The first click's button is
+    // let go before the cursor moves, so the second tap isn't a drag from the first.
+    @Test
+    public void aQuickTapSomewhereElseRightAfterATapIsAClickOfItsOwn() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
+        finger(MotionEvent.ACTION_DOWN);
+        advance(300);
+        finger(MotionEvent.ACTION_UP);
+        advance(30);
+        finger(MotionEvent.ACTION_DOWN, 200, 0);
+        advance(50);
+        finger(MotionEvent.ACTION_UP, 200, 0);
+        advance(1000);
+        assertEquals(list("300 " + placedAtTheFinger(), "300 down1", "330 up1",
+                "380 " + placed(200, 0), "380 down1", "480 up1"), pc.timed);
+    }
+
+    // A tap of 150 ms, then 50 ms later a drag from the same spot. The tap's button is let go as
+    // the finger goes down again, so the drag holds the left button from its start until the
+    // finger lifts.
+    @Test
+    public void aDragRightAfterATapHoldsTheLeftButtonUntilItLifts() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
+        finger(MotionEvent.ACTION_DOWN);
+        advance(150);
+        finger(MotionEvent.ACTION_UP);
+        advance(50);
+        finger(MotionEvent.ACTION_DOWN);
+        advance(40);
+        finger(MotionEvent.ACTION_MOVE, 40, 0);
+        advance(60);
+        finger(MotionEvent.ACTION_MOVE, 80, 0);
+        advance(20);
+        finger(MotionEvent.ACTION_UP, 80, 0);
+        advance(1000);
+        assertEquals(list("150 " + placedAtTheFinger(), "150 down1", "200 up1", "240 down1",
+                "240 " + placed(40, 0), "300 " + placed(80, 0), "320 up1"), pc.timed);
+    }
+
     @Test
     public void withTheButtonsSwappedAStillPressIsARightClickWhenTheFingerLifts() {
         openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED);

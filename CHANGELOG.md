@@ -221,10 +221,11 @@ steps and the checksums for each version.
   the right button, at the same 0.65 seconds, and lets go of it when you lift. After that,
   moving your finger more than 20 pixels from where it was then drags with the right button, so a
   finger that drifted a little before the long press still gives a right-click. A shorter press
-  that doesn't move is sent as a click when you lift. Moving your finger more than 30 pixels
-  still drags with the left button, from where it went down. The same goes for multi-touch mode
-  when the PC can't take touches, and with the buttons swapped it's the other way round. Checked
-  by tests on a computer; not tried on a device yet.
+  that doesn't move is sent as a click when you lift. Its button is let go 0.1 seconds later, or
+  as soon as your finger goes down again, so each tap of a quick double tap is a click of its own.
+  Moving your finger more than 30 pixels still drags with the left button, from where it went
+  down. The same goes for multi-touch mode when the PC can't take touches, and with the buttons
+  swapped it's the other way round. Checked by tests on a computer; not tried on a device yet.
 - Starwire no longer tries to show an error or a "please wait" box on a screen Android has
   already closed. That could happen when a connection error or the host's answer came in late.
   This is tested on a computer, not yet on a phone. The idea is from Moonlight V+ (qiin2333).

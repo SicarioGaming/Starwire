@@ -24,6 +24,8 @@ public class AbsoluteTouchContext implements TouchContext {
     private boolean confirmedLongPress;
     private boolean confirmedLongPressDrag;
     private boolean confirmedTap;
+    // Set while a tap's click waits out its 100 ms before its button is let go
+    private boolean tapButtonUpPending;
 
     // Tap and long-press buttons; swapped by Artemide's "left/right click swapped" mouse mode
     private final byte buttonPrimary;
@@ -50,6 +52,7 @@ public class AbsoluteTouchContext implements TouchContext {
     private final Runnable leftButtonUpRunnable = new Runnable() {
         @Override
         public void run() {
+            tapButtonUpPending = false;
             conn.sendMouseButtonUp(buttonPrimary);
         }
     };
@@ -106,6 +109,15 @@ public class AbsoluteTouchContext implements TouchContext {
         cancelled = confirmedTap = confirmedLongPress = confirmedLongPressDrag = false;
 
         if (actionIndex == 0) {
+            // Let go of the last tap's click now if it's still waiting out its 100 ms. Anything
+            // this touch presses would otherwise go down while that button is still held, so a
+            // second click would be lost in the first, and a drag would let go when the 100 ms
+            // were up.
+            if (tapButtonUpPending) {
+                handler.removeCallbacks(leftButtonUpRunnable);
+                leftButtonUpRunnable.run();
+            }
+
             // Start the long press timer. No button goes down until we know whether this is a
             // tap, a drag or a long press. Sunshine's input.cpp, which Vibepollo uses, merges a
             // left button release followed by a right button press into a right click inside the
@@ -156,9 +168,10 @@ public class AbsoluteTouchContext implements TouchContext {
                 tapConfirmed();
 
                 // Release the left mouse button in 100ms to allow for apps that use polling
-                // to detect mouse button presses.
+                // to detect mouse button presses. A new touch lets go of it sooner.
                 handler.removeCallbacks(leftButtonUpRunnable);
                 handler.postDelayed(leftButtonUpRunnable, 100);
+                tapButtonUpPending = true;
             }
         }
 
