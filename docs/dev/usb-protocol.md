@@ -25,10 +25,14 @@ server, BIND against the receiver's pairings, the per-phone Allow USB list, the 
 relay and the USB/IP checks, and each way a session ends. Its tests run on Windows against the
 shared vectors and device rules' cases, and drive the whole path over 127.0.0.1 with a fake driver
 and a test phone. On 16 November 2026, the maintainer tried the app and the real helper together
-for the first time: a USB device plugged into a RedMagic Astra tablet (Android 16) was shared
-with a Windows 11 PC through the real usbip-win2 driver, worked there, and was given back when it
-was selected again. That run used a test build from before the fix for a device unplugged at the
-moment sharing starts (END 2, below). The helper's branch had drifted from `feature/usb-tunnel`'s copy of this
+for the first time, with the final 0.3.0 build: a DualSense plugged by cable into the
+maintainer's RedMagic Astra tablet (Android 16) was shared three times with a Windows 11 PC
+through the real usbip-win2 driver. The helper logged the share and attached it, Windows showed a
+working DualSense Wireless Controller, and the maintainer used it on the PC. Stopping the share
+gave it back to the tablet all three times, and it worked there again. On the first of the three
+stops, the pad reset on the tablet and came back as a new USB device, so Starwire ended that share
+with END 2, as for a device unplugged from the phone, instead of END 1; the pad still came back
+and worked. The helper's branch had drifted from `feature/usb-tunnel`'s copy of this
 contract (the waiting-room rule and the split of the pairing-file reads below); the two are to be
 reconciled on `feature/usb-tunnel`, which holds the canonical contract.
 

@@ -1,11 +1,14 @@
 # Sharing a USB device from the phone: the PC's USB helper
 
-**Experimental, and tried once with a tablet.** This is the PC's side. Starwire's side, which
-shares the device from the phone, is the "USB devices (Experimental)" setting. The two were tried
-together once, on a RedMagic Astra (Android 16) and a Windows 11 PC with usbip-win2's driver: a
-device plugged into the tablet showed up on the PC and worked there, and Stop gave it back. The
-helper's own tests run on Windows 11 with a fake driver and a test phone over 127.0.0.1. The setup
-has only been tried without installing anything.
+**Experimental, and tried with a tablet.** This is the PC's side. Starwire's side, which shares
+the device from the phone, is the "USB devices (Experimental)" setting. The two were tried
+together with the final 0.3.0 build, on a RedMagic Astra tablet (Android 16) and a Windows 11 PC
+with usbip-win2's driver. setup-usb.cmd installed and started the helper. A DualSense plugged into
+the tablet by cable was shared, the helper attached it, Windows showed a working DualSense
+Wireless Controller, and it was used on the PC. Stopping the share gave it back to the tablet all
+three times. On one of those stops, the pad reset on the tablet first, so Starwire ended that
+share as if it had been unplugged; it still came back and worked. The helper's own tests run on
+Windows 11 with a fake driver and a test phone over 127.0.0.1.
 
 The helper lets a phone running Starwire lend a USB device plugged into it (a pad, a wheel, a
 headset) to this PC, so Windows sees it as if it were plugged in here. It uses usbip-win2's USB/IP
