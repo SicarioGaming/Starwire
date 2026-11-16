@@ -213,6 +213,16 @@ steps and the checksums for each version.
   left button straight away, as before. Thank you to kayakyakr for reporting it in
   [issue #5](https://github.com/SicarioGaming/Starwire/issues/5). Checked by tests, not yet
   tried in a stream.
+- **A long press in direct touch mode sends only the right button.** On my RedMagic Astra tablet,
+  streaming from my Windows 11 PC with Vibepollo, a long press came through as a left click.
+  Starwire pressed the left button first and switched to the right one at 0.65 seconds, and 0.2.1
+  did the same. Going by its source code, Vibepollo, like Sunshine, folds a right press that
+  comes straight after a left release into that left click. Now a finger held still sends only
+  the right button, at the same 0.65 seconds, and lets go of it when you lift. A shorter press
+  that doesn't move is sent as a click when you lift. Moving your finger more than 30 pixels
+  still drags with the left button, from where it went down. The same goes for multi-touch mode
+  when the PC can't take touches, and with the buttons swapped it's the other way round. Checked
+  by tests on a computer; not tried on a device yet.
 - Starwire no longer tries to show an error or a "please wait" box on a screen Android has
   already closed. That could happen when a connection error or the host's answer came in late.
   This is tested on a computer, not yet on a phone. The idea is from Moonlight V+ (qiin2333).
