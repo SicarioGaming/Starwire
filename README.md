@@ -85,22 +85,31 @@ PC" is now called Virtual display.
 </tr>
 </table>
 
-**All device tests for this release were performed on my RedMagic Astra tablet** (Android 16)
-with a DualSense controller, streaming from my Windows 11 PC with Vibepollo, on 16 November. I
-used a debug build of the final 0.3.0 code, installed over 0.2.1. Over Bluetooth, Starwire found
-the controller, and the Test button's gun click was felt in both triggers. In a stream of Phantom
-Blade Zero, the game's own trigger effects came through to the controller. setup-usb.cmd installed
-the PC's USB helper, and the DualSense, plugged into the tablet by cable, was shared with the PC
-from the stream menu. Windows showed it as a working DualSense Wireless Controller, I used it on
-the PC, and each of the three times I stopped the share, it went back to the tablet and worked
-there again. During a stream, Back opened the stream menu and the Brightness item
-worked. After the update, the tablet still streamed from my PC without pairing again, and the USB
-helper accepted the tablet's microphone pairing.
+**All device tests for this release were performed on my RedMagic Astra tablet** (Android 16),
+streaming from my Windows 11 PC with Vibepollo, on 16 November. For most of them, I used a debug
+build of 0.3.0 from that day with a DualSense controller, installed over 0.2.1. Over Bluetooth,
+Starwire found the controller, and the Test button's gun click was felt in both triggers. In a
+stream of Phantom Blade Zero, the game's own trigger effects came through to the controller.
+setup-usb.cmd installed the PC's USB helper, and the DualSense, plugged into the tablet by cable,
+was shared with the PC from the stream menu. Windows showed it as a working DualSense Wireless
+Controller, I used it on the PC, and each of the three times I stopped the share, it went back to
+the tablet and worked there again. During a stream, Back opened the stream menu and the Brightness
+item worked. After the update, the tablet still streamed from my PC without pairing again, and the
+USB helper accepted the tablet's microphone pairing.
+
+**Three changes came after that build:** the USB helper's own icon, up to seven buttons per row in
+the stream menu, and the fix for a long press in direct touch mode. Later that day, I tried a test
+build with the first version of the long press fix and the seven buttons per row. A long press in
+direct touch mode now gave a right-click on the PC, and the stream menu looked good on my tablet.
+That build left out the menu's Sensitivity button, so the menu had 20 buttons there, in rows of
+seven, seven and six. Sensitivity is back in this release, which makes three full rows of seven on
+my tablet.
 **Not tried yet:** Starwire's trigger presets, apart from the Test button's gun click, and the
 strength steps on a controller, and vibration strength, the left edge swipe, the virtual desktop
-shortcuts and Quit Session's question during a stream. The fixes for #14, #5 and the long press
-in direct touch mode have not been tried on a device either. These are checked by tests on a
-computer.
+shortcuts and Quit Session's question during a stream. The fixes for #14 and #5, the stream menu
+with Sensitivity back, and two smaller changes to the long press fix that came after the test
+build have not been tried on a device either, and I have not seen the USB helper's own icon on my
+PC yet. These are checked by tests on a computer.
 
 **Updating from 0.2.1:** install the new APK over 0.2.1. On the PC, the microphone receiver has
 not changed, so you can keep it as it is. The USB helper is new, and you only need it for USB
@@ -141,7 +150,7 @@ devices.
   emulators do not get the setting, even ones that can run ARM apps.
 
 <p align="center">
-<img src="docs/images/0.3.0/dualsense-signal-path.png" width="820" alt="Illustration: how the DualSense gets its effects. A game on the Windows PC programs the triggers of the DualSense the host emulates. Vibepollo sends them to the tablet as control message 0x5503. Starwire reads it, turns unknown trigger modes off, builds Bluetooth report 0x31 and sends it with sendData, and the DualSense plays the effects on R2 and L2. Tried in a stream with Starwire on 16 Nov, with the final 0.3.0 build: in Phantom Blade Zero, the game's own trigger effects came through Vibepollo and Starwire to the DualSense, and the status line showed no fallback afterwards. Before that, on 26 Oct, a test app sent the light bar colour and four trigger effects from the tablet to a DualSense. The message layout and the report bytes are also checked by unit tests.">
+<img src="docs/images/0.3.0/dualsense-signal-path.png" width="820" alt="Illustration: how the DualSense gets its effects. A game on the Windows PC programs the triggers of the DualSense the host emulates. Vibepollo sends them to the tablet as control message 0x5503. Starwire reads it, turns unknown trigger modes off, builds Bluetooth report 0x31 and sends it with sendData, and the DualSense plays the effects on R2 and L2. Tried in a stream with Starwire on 16 Nov, with a debug build of 0.3.0: in Phantom Blade Zero, the game's own trigger effects came through Vibepollo and Starwire to the DualSense, and the status line showed no fallback afterwards. Before that, on 26 Oct, a test app sent the light bar colour and four trigger effects from the tablet to a DualSense. The message layout and the report bytes are also checked by unit tests.">
 <br>
 <sub>This is an illustration of how a game's trigger effects reach the controller, and of which steps were tried.</sub>
 </p>
@@ -211,20 +220,21 @@ devices.
 
 **What was tested, and what was not:**
 
-- **On a device:** the device tests are described above, under "All device tests for this
-  release". In Phantom Blade Zero, L2 was hard to pull when my character had no resources for a
-  skill, and the trigger effects switched off and on as expected in the game's menus. Afterwards,
-  the status line showed no fallback for that stream. On one of the three times I stopped sharing
-  the DualSense, it reset itself first, as described under Known issues.
+- **On a device:** the device tests are described above, under "All device tests for this release"
+  and "Three changes came after that build". In Phantom Blade Zero, L2 was hard to pull when my
+  character had no resources for a skill, and the trigger effects switched off and on as expected
+  in the game's menus. Afterwards, the status line showed no fallback for that stream. On one of
+  the three times I stopped sharing the DualSense, it reset itself first, as described under Known
+  issues.
 - Before that, on 26 October, a separate test app, not Starwire, sent four trigger effects to a
   DualSense from the same tablet, and the light bar changed.
 - **Not tried on a controller yet:** Starwire's own trigger presets, apart from the gun click
   that the Test button sends, and the strength steps.
-- **Not run on this build:** the on-device test suite.
+- **Not run on these builds:** the on-device test suite.
 - Everything else new in this release, such as vibration strength, the left edge swipe, the
   virtual desktop shortcuts and Quit Session's question, is checked by tests on a computer and has
-  not been tried in a stream yet. The fixes for #14, #5 and the long press in direct touch mode
-  are also checked by tests on a computer and have not been tried on a device yet.
+  not been tried in a stream yet. The fixes for #14 and #5 are also checked by tests on a computer
+  and have not been tried on a device yet.
 - 1,030 unit tests for the app pass on a computer (314 in 0.2.1). The USB helper's own tests pass
   on Windows 11, with a fake driver and a test phone over 127.0.0.1.
 - The emulator tests on 17 virtual Android devices run on GitHub when the release is published,
@@ -680,7 +690,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | From 0.3.0: Back opens the menu instead of ending the stream, and Back again closes it. It's on by default, with a switch in Settings → In-stream menu. A short press of a TV remote's Back opens the menu too. Tested in JVM tests and tried in a stream on my RedMagic Astra tablet, not yet on a phone or a TV | Idea from Artemis (Yukino Song / ClassicOldSong), via Artemide. The TV remote part is new in Starwire, on Moonlight X's remote handling |
 | On/off switches on the items that toggle something, and the menu stays open when you tap them | New in Starwire |
 | The menu header shows the game's cover art, or a Starwire tile for Desktop and games without art | New in Starwire |
-| From 0.3.0: up to seven buttons per row on screens about 1000 dp wide and up, such as a tablet held sideways, so all the built-in buttons show in three rows without scrolling. Phones and most handhelds keep up to five per row. Checked by tests and screenshots on a computer, not yet seen on a device | New in Starwire |
+| From 0.3.0: up to seven buttons per row on screens about 1000 dp wide and up, such as a tablet held sideways, so all the built-in buttons show in three rows without scrolling. Phones and most handhelds keep up to five per row. Checked by tests and screenshots on a computer. Tried on my RedMagic Astra tablet in a test build that left out the Sensitivity button, with 20 buttons in rows of seven, seven and six. With Sensitivity back, it has three full rows of seven there, not yet seen on a device | New in Starwire |
 | Shortcuts page: Esc, F11, Alt+F4, Alt+Enter, Ctrl+V, Win, Win+D, Win+G, Ctrl+Alt+Tab, Shift+Tab, Win+Shift+Left, Ctrl+Alt+Shift+F1/F12, Win+Alt+B | Ported from Axixi2233's Moonlight fork (axi), via Artemis and Artemide |
 | From 0.3.0: Win+Ctrl+Left and Win+Ctrl+Right (previous and next desktop) side by side, then Win+Tab (Task View), on the Shortcuts page. Checked by tests, not yet tried in a stream | New in Starwire |
 | Custom shortcuts imported from a file (same JSON format) | Format from Axixi2233's fork (axi) and Artemis (Yukino Song); importer written new for Starwire |
