@@ -43,7 +43,7 @@ public class OverlayMenuView extends LinearLayout {
     // seven hold every built-in tool, so the main page doesn't scroll. The sheet grows by two
     // tiles of the same size.
     private static final int WIDE_COLUMNS = 7;
-    // The most of the screen's width that wider sheet may take, so most of the game still shows.
+    // The most of the screen's width that wider sheet may take, so the game still shows beside it.
     // Screens under about 1000 dp wide, like phones and most handhelds, keep the usual sheet.
     private static final float WIDE_SHEET_SHARE = 0.6f;
     // Fewer, wider tiles where five would break a label mid-word (a narrow screen, large text),

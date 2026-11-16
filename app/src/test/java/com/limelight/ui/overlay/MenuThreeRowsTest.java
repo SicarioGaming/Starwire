@@ -136,7 +136,7 @@ public class MenuThreeRowsTest {
             assertNotNull("no " + activity.getString(label) + " on the menu", button);
             assertShowsWhole(button);
         }
-        // Most of the game still shows beside the sheet
+        // The sheet takes at most 60% of the screen's width, so the game still shows beside it
         assertTrue("the sheet is " + dp(menu.getWidth()) + " dp of the screen's " + dp(frame.getWidth()),
                 menu.getWidth() <= frame.getWidth() * 0.6f);
     }
