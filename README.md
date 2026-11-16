@@ -41,7 +41,7 @@ Controllers → DualSense**.
 <td width="50%" valign="top">
 
 <img src="docs/images/0.3.0/adaptive-triggers.gif" alt="Illustration: three drawn scenes, a bow, a car braking and a rivet tool, each with a drawn trigger and a curve of what the effect's bytes ask for. It ends on four effects a test app sent to a wireless DualSense on 26 Oct 2026, all felt as expected, and says Starwire itself later passed a game's own trigger effects through to the pad in a stream.">
-<sub>Illustration, not a capture. The curves are drawn from the bytes of four effects a separate test app sent to a DualSense on 26 Oct. Since then, a game's own effects have come through Starwire to the pad in a stream.</sub>
+<sub>Illustration, not a capture. The curves are drawn from the bytes of the effects a separate test app sent to a DualSense on 26 Oct. Since then, a game's own effects have come through Starwire to the pad in a stream.</sub>
 
 </td>
 </tr>
@@ -88,7 +88,8 @@ plugged into the tablet showed up on the PC and worked there, and Stop gave it b
 the menu, the Brightness item and the stream menu worked, and updating over 0.2.1 kept my PCs,
 settings and microphone pairing. **Not tried yet:** Starwire's own trigger presets and
 strength steps on a pad, and vibration strength, the left edge swipe and the virtual desktop
-shortcuts in a stream. Those are checked by tests on a computer.
+shortcuts in a stream. Those are checked by tests on a computer. The USB helper's setup script
+has only been run without installing anything.
 
 **Updating from 0.2.1:** install the new APK over 0.2.1. On the PC, the microphone receiver
 hasn't changed, so keep it as it is. The USB helper is new, and only needed for USB devices.
@@ -128,7 +129,7 @@ hasn't changed, so keep it as it is. The USB helper is new, and only needed for 
 <p align="center">
 <img src="docs/images/0.3.0/dualsense-signal-path.png" width="820" alt="Illustration: how the DualSense gets its effects. A game on the Windows PC programs the triggers of the DualSense the host emulates. Vibepollo sends them to the tablet as control message 0x5503. Starwire reads it, turns unknown trigger modes off, builds Bluetooth report 0x31 and sends it with sendData, and the DualSense plays the effects on R2 and L2. Tried in a stream with Starwire, game to pad. Before that, on 26 Oct, a test app sent the light bar colour and four trigger effects from the tablet to the same pad. The message layout and the report bytes are also checked by unit tests.">
 <br>
-<sub>How a game's trigger effects reach the pad, and which steps were tried.</sub>
+<sub>Illustration: how a game's trigger effects reach the pad, and which steps were tried.</sub>
 </p>
 
 **What's new:**
@@ -162,9 +163,11 @@ hasn't changed, so keep it as it is. The USB helper is new, and only needed for 
 - A button or key you were holding when you opened the stream menu no longer stays pressed on the
   PC.
 - Prevent packet loss sent a packet type that Sunshine, Apollo and Vibepollo don't know, and
-  Vibepollo's debug log got about 50 lines a second from it. It now sends a ping.
+  Vibepollo's debug log got about 50 lines a second from it. It now sends a ping. Not yet tried
+  with Vibepollo logging at its debug level.
 - Sunshine, Apollo and Vibepollo no longer get a message only GeForce Experience needs. Vibepollo
-  warned about it each time a stream started.
+  warned about it each time a stream started. Controller vibration hasn't been tried with this
+  build yet.
 - If you change the bitrate mid-stream twice in a row, your latest choice wins. The idea is from
   Moonlight V+ (qiin2333).
 - No error or "please wait" box on a screen Android has already closed. The idea is from
@@ -172,7 +175,7 @@ hasn't changed, so keep it as it is. The USB helper is new, and only needed for 
 - With gesture navigation, the last setting scrolls clear of the gesture bar. From Moonlight X.
 - The games screen takes a new font size from Android's settings straight away.
 - On Android 5.0 and 5.1, the encrypted microphone's code refuses a damaged packet instead of
-  throwing an error. Streams weren't affected.
+  throwing an error. Streams weren't affected. The fix hasn't run on Android 5.0 or 5.1 yet.
 
 <!-- IF #14/#5 SHIP: start. Keep only the lines below whose fix is in 0.3.0. If neither is, cut everything from here to "IF #14/#5 SHIP: end". -->
 **Fixed after reports on GitHub:**
@@ -350,8 +353,8 @@ PC. One device at a time, on 64-bit ARM with Android 9 and newer. The
 
 Android 5.0+. PyroWave, the experimental custom Turnip driver option and USB devices need a
 64-bit ARM device, and USB devices needs Android 9 or newer. DualSense trigger effects need
-Android 12 or newer. Updates from the Releases page install over the top and keep your settings, and
-[Obtainium](https://github.com/ImranR98/Obtainium) can keep it updated for you.
+Android 12 or newer. Updates from the Releases page install over the top and keep your settings,
+and [Obtainium](https://github.com/ImranR98/Obtainium) can keep it updated for you.
 
 ## New in 0.2.0: your microphone on the PC, with any host
 
@@ -741,19 +744,30 @@ repos a star:
 | [Moonlit Artemis](https://github.com/4had45/moonlit-artemis) | Mohammad Forhad (4had45) | Ideas: monitor switcher, pinch to zoom anytime |
 | [Moonlight Fold](https://github.com/sblocktechnologies/moonlight-fold) | sblocktechnologies | Idea: letting the stream follow a foldable's inner screen |
 | [Nightjar](https://github.com/RamazanKara/nightjar) | Ramazan Kara | Ported: passing the host's DualSense trigger effects from moonlight-common-c to Java |
-| [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass) | LSPosed | Reaching the hidden Android call that sends the DualSense's trigger effects (Apache-2.0) |
-| [Nielk1's trigger effect notes](https://gist.github.com/Nielk1/6d54cc2c00d2201ccb8c2720ad7538db) | Nielk1 | The layout of the DualSense's trigger effects, and which modes Starwire passes on to the pad (MIT) |
-| [hid-playstation](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c) (Linux) and [SDL](https://github.com/libsdl-org/SDL) | Sony Interactive Entertainment; Sam Lantinga and SDL's contributors | The layout of the DualSense's reports, read from their code, not copied |
 | [Apollo microphone](https://github.com/logabell/apollo-microphone) | logabell | The in-stream microphone: the Android capture, the moonlight-common-c changes, and the Apollo build that receives it |
 | [VBAN and VB-Cable](https://vb-audio.com/Cable/) | VB-Audio (Vincent Burel) | VBAN, the network audio format Starwire's microphone uses, and VB-Cable, the virtual microphone the receiver plays into (donationware) |
 | [PyroWave](https://github.com/Themaister/pyrowave) | Hans-Kristian Arntzen (Themaister) | The PyroWave codec (MIT) |
 | [libadrenotools](https://github.com/bylaws/libadrenotools) | Billy Laws (bylaws) | Loading a custom Adreno Vulkan driver (BSD-2-Clause) |
 | [usbipdcpp](https://github.com/yunsmall/usbipdcpp) | yunsmall | The USB/IP server inside the app that USB sharing uses (LGPL-3.0). This product uses usbipdcpp (https://github.com/yunsmall/usbipdcpp), licensed under LGPLv3. |
-| [libusb](https://github.com/libusb/libusb) | libusb's authors | Reaching the shared USB device for usbipdcpp, inside the app (LGPL-2.1) |
 | [Vibepollo](https://github.com/Nonary/Vibepollo) | Chase Payne (Nonary) | The host Starwire is developed with (fork of Apollo) |
 | [Apollo](https://github.com/ClassicOldSong/Apollo) / [Sunshine](https://github.com/LizardByte/Sunshine) | ClassicOldSong / LizardByte | The hosts Vibepollo is built on |
 | [Claude Code](https://claude.com/claude-code) | Anthropic | Writing the Starwire code, ports, redesign and tests |
 | [REA](https://github.com/morluto/rea) | morluto | Reverse-engineering and analysis (MIT) |
+
+The DualSense and USB parts also rely on these:
+
+- [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass) by LSPosed (Apache-2.0)
+  reaches the hidden Android call that sends the DualSense's trigger effects.
+- [Nielk1's trigger effect notes](https://gist.github.com/Nielk1/6d54cc2c00d2201ccb8c2720ad7538db)
+  (MIT) give the layout of the trigger effects, and which modes Starwire passes on to the pad.
+- Linux's [hid-playstation](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c)
+  driver (Sony Interactive Entertainment) and [SDL](https://github.com/libsdl-org/SDL) (Sam Lantinga
+  and SDL's contributors) are where the layout of the DualSense's reports was read from, not copied.
+- [libusb](https://github.com/libusb/libusb) (LGPL-2.1) reaches the shared USB device for usbipdcpp,
+  inside the app.
+- [usbip-win2](https://github.com/vadimgrn/usbip-win2) by vadimgrn is the Windows driver, version
+  0.9.8.1, that the PC's USB helper attaches a shared device with. You install it yourself; it isn't
+  part of Starwire.
 
 If I've credited something wrongly or missed you, please let me know.
 
