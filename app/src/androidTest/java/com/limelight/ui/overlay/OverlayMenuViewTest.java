@@ -318,7 +318,7 @@ public class OverlayMenuViewTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN);
         assertTrue(selected(com.limelight.R.string.overlay_menu_close));
 
-        // Up from the last tile lands one row higher. The grid has two to five columns,
+        // Up from the last tile lands one row higher. The grid has two to seven columns,
         // depending on the screen's width and font size (the tiles in the first row say how many)
         int[] tiles = {
                 com.limelight.R.string.overlay_menu_keyboard, com.limelight.R.string.overlay_menu_full_keyboard,
@@ -333,7 +333,7 @@ public class OverlayMenuViewTest {
                 com.limelight.R.string.overlay_menu_brightness,
         };
         int columns = ((ViewGroup) findButton(menu, str(tiles[0])).getParent()).getChildCount();
-        assertTrue(columns + " columns", columns >= 2 && columns <= 5);
+        assertTrue(columns + " columns", columns >= 2 && columns <= 7);
         int last = tiles.length - 1;
         int above = last - columns;
         press(KeyEvent.KEYCODE_DPAD_UP);

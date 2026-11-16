@@ -159,6 +159,9 @@ devices.
 - **Shortcuts for Windows' virtual desktops** on the stream menu's Shortcuts page: Win+Ctrl+Left,
   Win+Ctrl+Right and Win+Tab (Task View).
 - **Quit Session asks first,** because it closes the game on the PC. From Moonlight X.
+- **The stream menu fits up to seven buttons per row on wide screens** such as tablets, so every
+  button shows without scrolling. The Sensitivity button is gone from the menu. Trackpad
+  sensitivity is still in Settings, under Touch & mouse, and now applies for the whole stream.
 - **Virtual display** is the new name of the setting that used to be called "Display on the PC",
   with the choices Host default, On and Off. A choice you already made stays as it was. Thank you
   to u/elenayebenes for asking about it.

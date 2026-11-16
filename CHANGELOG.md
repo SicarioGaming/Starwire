@@ -155,6 +155,15 @@ steps and the checksums for each version.
   so the button that picked Quit Session cancels it; the bitrate and touch mode pickers already
   work that way. And a controller run by Starwire's own USB driver can't answer it, as it can't
   move through the menu either.
+- **The stream menu fits up to seven buttons per row on wide screens,** such as a tablet held
+  sideways, so every button shows in three rows without scrolling, USB devices and Fix PC Cursor
+  included. The sheet grows by two buttons of the usual size and covers a bit more of the game, at
+  most 60% of the screen's width. Screens under about 1000 dp wide, like phones and most
+  handhelds, and screens where a label would no longer fit whole (with a large font size, say)
+  keep the usual sheet with up to five per row, and scroll as before. The Shortcuts, Monitors and
+  USB devices pages keep their own layout on the wider sheet. Checked by tests and screenshots on a
+  computer, at the size of my RedMagic Astra tablet's screen among others, not yet seen on a
+  device.
 - **The stream menu's Sensitivity item is gone.** It switched Trackpad sensitivity off and on
   during a stream, and nothing else in the app does that. The setting itself stays, in Settings
   under Touch & mouse, and applies for the whole stream in both trackpad modes. Set it to 100% for
