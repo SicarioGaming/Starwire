@@ -98,7 +98,9 @@ worked. After the update, the tablet still streamed from my PC without pairing a
 helper accepted the tablet's microphone pairing.
 **Not tried yet:** Starwire's trigger presets, apart from the Test button's gun click, and the
 strength steps on a controller, and vibration strength, the left edge swipe, the virtual desktop
-shortcuts and Quit Session's question during a stream. These are checked by tests on a computer.
+shortcuts and Quit Session's question during a stream. The fixes for #14, #5 and the long press
+in direct touch mode have not been tried on a device either. These are checked by tests on a
+computer.
 
 **Updating from 0.2.1:** install the new APK over 0.2.1. On the PC, the microphone receiver has
 not changed, so you can keep it as it is. The USB helper is new, and you only need it for USB
@@ -180,10 +182,12 @@ devices.
   in a right-click. A long press followed by a drag now drags with the left button, and a long
   press without moving is still a right-click. Thank you to kayakyakr for reporting it
   ([#5](https://github.com/SicarioGaming/Starwire/issues/5)).
-- **In direct touch mode, a long press came through on the PC as a left click** with Vibepollo,
-  because Starwire pressed the left button first and switched to the right one at 0.65 seconds.
-  A finger held still now sends only the right button, and a shorter press that does not move is
-  sent as a click when you lift.
+- **In direct touch mode, a long press came through on the PC as a left click** with Vibepollo.
+  Starwire pressed the left button first and switched to the right one at 0.65 seconds, which,
+  going by Vibepollo's source code, is the likely cause. A finger held still now sends only the
+  right button, and moving it more than 20 pixels after that drags with the right button. A
+  shorter press is a click when you lift, so it no longer holds the left button down, and a drag
+  with the left button starts once your finger has moved 30 pixels.
 - A tap near the left edge of the screen goes to the game. Thank you to u/zolidz64 for reporting
   it.
 - A button or key that was held down when you opened the stream menu no longer stays pressed on
