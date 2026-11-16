@@ -46,16 +46,17 @@ steps and the checksums for each version.
   tests only so far: pads on Starwire's USB driver, pads whose motors Android drives, built-in
   controls, the on-screen controls and the fallback to this device. No test covers Shield
   controllers, or audio haptics, which goes through the same code as the game's rumble. It hasn't
-  been tried on a device or felt on a real controller yet, the G8+ included.
-- **DualSense trigger effects over Bluetooth (Experimental, off by default),** in Settings,
-  Controllers, DualSense. On Android 12 and newer, a DualSense paired over Bluetooth gets the
-  game's own adaptive trigger effects from a host that sends them (going by its source,
-  Vibepollo does when it emulates a DualSense), or one of four presets when the game sends
+  been tried on a device or felt on a real controller yet, my GameSir G8+ included.
+- **DualSense trigger effects over Bluetooth (Experimental, off by default),** in Settings →
+  Controllers → DualSense. On Android 12 and newer, a DualSense paired over Bluetooth gets the
+  game's own adaptive trigger effects from a host that sends them (Vibepollo does when it
+  emulates a DualSense), or one of four presets when the game sends
   none: light resistance, gun click, heavy pedal or buzz. The game's effects win over a preset,
   and "Off" turns both off. Trigger strength has 8 steps and uses the pad's own power limit.
   Starwire checks the link every time the pad connects and goes back to the usual path if
-  anything fails; the status line says why. Test sends one effect. Rumble and the light bar work
-  as before. It asks for the Nearby devices permission and uses a hidden Android call, through
+  anything fails; the status line says why. Test sends one effect. Rumble and the light bar stay
+  on Android's usual path, as before, but neither has been checked during a stream with trigger
+  effects on yet. It asks for the Nearby devices permission and uses a hidden Android call, through
   HiddenApiBypass (LSPosed), whose files Gradle checks by SHA-256. How the reports reach the pad
   and how the pad is found are ported from Moonlight V+ (qiin2333), with two changes: setReport is
   only used on a phone without sendData, and a DualShock 4 is never taken for the pad. The code
@@ -69,7 +70,7 @@ steps and the checksums for each version.
   fallback for that stream. Apart from the Test button's gun click, the presets and the strength
   steps have not been tried on a pad yet. Before that, on 26 October, a separate test app used the
   same hidden sendData call on one tablet and one DualSense. It changed the light bar, and four
-  trigger effects felt as expected: firm resistance, a weapon click, a buzz and off.
+  trigger effects felt as expected: firm resistance, a weapon click, a vibration and off.
   setReport did nothing there.
   Starwire's presets use other values, and light resistance and heavy pedal use a kind of effect
   that test didn't try. Tested with JVM tests against a fake Bluetooth link.
@@ -79,10 +80,11 @@ steps and the checksums for each version.
   the effect's mode and bytes in hex as the PC sent them, and what Starwire did with it: passed
   it on to the pad, held it because no pad was ready yet, turned the trigger off for a mode it
   doesn't pass on, or ignored it for the Off preset. A trigger's effect is logged when it
-  changes, not each time the game sends it again. After 10 lines in a second, counted from the
-  first of them, changes are only counted until that second is up. Then a line says how many
-  were left out, if any, and each trigger's last change is logged with its own time. Nothing
-  about the pad, the PC or you is in it. Checked by JVM tests, not yet read on a device.
+  changes, not each time the game sends it again. At most 10 lines go out in a second, timed from
+  that second's first line. Changes past that are counted but not logged. After that second, a
+  line says how many were left out, if any, and each trigger's last change is logged with its own
+  time. Nothing about the pad, the PC or you is in it. Checked by JVM tests, not yet read on a
+  device.
 - **USB devices (Experimental):** share a wired device plugged into the phone with the PC you
   stream from. Turn on "USB devices (Experimental)" under Controllers (off by default), and the
   stream menu gets a "USB devices" page. It lists what's plugged in: which devices can't be shared
@@ -105,10 +107,12 @@ steps and the checksums for each version.
   the stream menu, Windows showed it as a working DualSense Wireless Controller, and I used it on
   the PC. Stopping the share gave it back to the tablet all three times, and it worked there again.
   On the first stop, the pad reset on the tablet and came back as a new USB device, so Starwire
-  ended that share as if it had been unplugged (END 2) instead of as a normal stop. Not tried yet:
-  the question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
-  x86_64 in debug builds), and its licences are in Settings > About > Open-source licences. The
-  setting's credit line names Moonlight V+ and usbipdcpp, as Settings > About > Credits does.
+  ended that share as if it had been unplugged instead of as a normal stop. The DualSense is the
+  only device shared so far. Not tried yet: a wheel, a stick, an audio device, a keyboard or a
+  mouse, so the question for keyboards and mice hasn't been seen on a device; a device the rules
+  refuse; and sharing from a phone. The APK carries the exporter for 64-bit ARM (and
+  x86_64 in debug builds), and its licences are in Settings → About → Open-source licences. The
+  setting's credit line names Moonlight V+ and usbipdcpp, as Settings → About → Credits does.
 - **The PC's side of sharing a USB device from the phone.** Starwire's USB helper
   for Windows (`setup-usb.cmd`, in the Windows zip) can now take a device over the encrypted USB tunnel
   ([usb-protocol.md](docs/dev/usb-protocol.md)): from a phone paired with the PC's microphone
@@ -117,35 +121,37 @@ steps and the checksums for each version.
   receiver's. Tests check that the setup builds the icon into the helper and puts it next to it,
   but it hasn't been seen by the clock on a PC yet. The helper checks the device against the
   device rules, attaches it with usbip-win2's driver through a relay on the PC itself, checks
-  what the device tells Windows, and detaches only its own device when the session ends. USB
-  sharing is off until you turn it on, and the firewall rule covers Private and Domain networks
+  what the device tells Windows, and detaches only its own device when the session ends. The
+  driver's commands, their layouts and its error codes are adapted from usbip-win2 0.9.8.1
+  (vadimgrn, BSD-2-Clause), and how it finds the port of a device it attached before a detach
+  follows Vibepollo (Chase Payne, Nonary). USB sharing is off until you turn it on, and the
+  firewall rule covers Private and Domain networks
   only. The app's side (USB devices, above) and this helper were tried together on my RedMagic Astra
   tablet and my Windows 11 PC, with usbip-win2's driver and a debug build of 0.3.0 from 16 November,
   before the helper had its own icon: setup-usb.cmd installed and started the helper, the helper
   logged the share and attached the DualSense the tablet shared, and the PC used it. Tested on
   Windows 11 with a fake driver and a test phone over 127.0.0.1, and with the shared test vectors
   and device rules' cases.
-  The helper's tunnel server was checked against a hostile local network, and these hold in its
-  tests: when a session is stuck because the relay is blocked writing to a phone that stopped
-  reading, or blocked writing to a driver that stopped reading, unpairing, Stop sharing and
-  turning USB off still close the sockets, end the session and detach the device; the number of
-  waiting connections stays within its cap and the per-address record is pruned under a flood, so
-  the per-connection worker threads stay bounded; each address is rate limited to one new waiting
-  connection every two seconds, so one host can't churn the waiting room or starve another's BIND;
-  a BIND whose connection is closed stops waiting and reads no pairings; a flood of BINDs leaves a
-  pairing-file read a second for the sharing phone's pairing check and the menu; the running
-  pairing check ends the session if the pairings file can't be read twice in a row; and the menu
-  reads the paired phones off the icon's thread. The tests run over 127.0.0.1 with a fake driver
-  and a test phone; the send timeouts are turned off in the teardown tests, so they prove the
-  teardown itself finishes. These cases haven't been tried with a real phone, a real device or the
-  real driver.
+  The helper's tunnel server also has tests for a hostile local network. When a session is stuck
+  because the relay is blocked writing to a phone or a driver that stopped reading, unpairing,
+  Stop sharing and turning USB off still close the sockets, end the session and detach the
+  device. Under a flood of connections, the number waiting stays within its cap and the record
+  kept for each address is pruned, so the threads that serve them stay bounded. Each address can
+  open one new waiting connection every two seconds, so one host can't churn the waiting room or
+  starve another's BIND. A BIND whose connection is closed stops waiting and reads no pairings. A
+  flood of BINDs still leaves one pairing-file read a second for the sharing phone's pairing check
+  and the menu. The running pairing check ends the session if the pairings file can't be read
+  twice in a row, and the menu reads the paired phones off the icon's thread. The tests run over
+  127.0.0.1 with a fake driver and a test phone. The send timeouts are turned off in the teardown
+  tests, so they prove the teardown itself finishes. These cases haven't been tried with a real
+  phone, a real device or the real driver.
 
 ### Changed
 
 - **The Starwire wordmark** on the games screen is a little bigger. Beside a long PC name it
   shrinks to make room, back to the size it was before, or further if the name would still reach
-  it. It stays the same size on screens under 360 dp wide, like a Fold's cover screen. Checked
-  by tests and screenshots on a computer, not yet seen on a device.
+  it. It stays the same size on screens under 360 dp wide, like a Galaxy Z Fold's cover screen.
+  Checked by tests and screenshots on a computer, not yet seen on a device.
 - **Virtual display** is the new name of the setting that was called "Display on the PC", in
   Settings under PC and in a game's App Settings, so it's easier to find. Its choices are now Host
   default, On (a screen made for this device) and Off (the PC's main monitor). A choice you
@@ -154,7 +160,7 @@ steps and the checksums for each version.
 - **Quit Session in the stream menu asks first,** because it closes the game on the PC and
   anything unsaved there is lost. Yes quits. No or Back keeps streaming. Tests answer it by touch,
   and with a controller's A and B buttons as Android passes them on. From Moonlight X. Not yet
-  tried in a stream, so we don't know yet which answer a controller starts on. Two catches with a
+  tried in a stream, so I don't know yet which answer a controller starts on. Two catches with a
   controller. With Flip face buttons on, the question doesn't swap A and B the way the menu does,
   so the button that picked Quit Session cancels it; the bitrate and touch mode pickers already
   work that way. And a controller run by Starwire's own USB driver can't answer it, as it can't
@@ -168,13 +174,13 @@ steps and the checksums for each version.
   USB devices pages keep their own layout on the wider sheet. Checked by tests and screenshots on a
   computer, at the size of my RedMagic Astra tablet's screen among others. Tried on that tablet in a
   test build that left out the menu's Sensitivity button: its 20 buttons showed in rows of seven,
-  seven and six, and the menu looked good. On the final debug build of 0.3.0, with Sensitivity
-  back, all 21 showed there in three full rows of seven.
+  seven and six, and the menu looked good. On a later debug build, with Sensitivity back, all 21
+  showed there in three full rows of seven.
 - **Google's video decoders, as on Pixel phones, are asked for the most frames they can handle**
   at the stream's size, instead of just the stream's frame rate. They set their speed to just
   meet what they're asked for. Moonlight X measured about 9 ms a frame before and about 7.8 ms
   after, at 120 FPS on a Pixel 10 Pro. From Moonlight X. Checked by tests, but not tried here:
-  we don't have a Pixel.
+  I don't have a Pixel.
 - **The stats box has rounded corners.** From Moonlight X. Checked by a test, not yet seen in a
   stream.
 - **The Windows zip has the USB helper's files too,** next to the microphone's, which are the
@@ -198,7 +204,7 @@ steps and the checksums for each version.
 - **A tap near the left edge of the screen goes to the game** like any other tap. It used to open
   the brightness slider instead. Now the stream menu's Brightness item opens the slider. A swipe
   in from the left edge can open it too, but that's off by default. To turn it on, go to
-  Settings, In-stream menu, Left edge swipe action, and pick Brightness adjustment. The swipe
+  Settings → In-stream menu → Left edge swipe action, and pick Brightness adjustment. The swipe
   works in the trackpad, direct touch and multi-touch modes. It starts within 80 dp of the left
   edge (about 1.3 cm) and moves 60 dp to the right (about 1 cm) within half a second. That isn't
   fast, so a slow drag to the right from near the edge, like moving the cursor, opens the slider
@@ -246,8 +252,8 @@ steps and the checksums for each version.
   leaves the cursor where the finger went down. The same goes for multi-touch mode when the PC
   can't take touches, and with the buttons swapped it's the other way round. Checked by tests on a
   computer. On that tablet and PC, a test build with the first version of this fix gave a
-  right-click for a long press. Two smaller changes came after that test. On the final debug build
-  of 0.3.0, a long press still gave a right-click, and a quick double tap gave a double-click,
+  right-click for a long press. Two smaller changes came after that test. On a later debug build,
+  a long press still gave a right-click, and a quick double tap gave a double-click,
   which is what letting go of a tap's click as soon as your finger goes down again is for. Counting
   the 20 pixels from where the finger was at 0.65 seconds hasn't been tried on a device yet.
 - Starwire no longer tries to show an error or a "please wait" box on a screen Android has
@@ -283,15 +289,16 @@ steps and the checksums for each version.
   so the device tests that open them never finished. A possible cause is fixed. Each time Android
   measured the system bars, these screens and the settings screens set the navigation bar's look
   again, even when nothing had changed, and Android can answer that by measuring again. They now
-  set it only when it changes. Whether that was the cause is only known after the next emulator
-  run. Checked by JVM tests, not yet tried on a device.
+  set it only when it changes. In the emulator run on 27 October, after this change, the device
+  tests finished on all three Android 11 phone emulators. One run can't show that this was the
+  cause. Also checked by JVM tests.
 - On Android 5.0 and 5.1, the encrypted microphone's code threw an error on a forged or damaged
   audio packet instead of refusing it. These versions get AES-GCM from Android's old copy of
   BouncyCastle, which reports a bad packet in a different way. Starwire only sends audio, so
   streams weren't affected, but the on-device test failed on Android 5.0. In that same run,
   Android 5.0 matched every line of the shared test vectors. JVM tests now run the shared test
-  vectors through a stand-in for how Android 5.0 and 5.1 report a bad packet. The fix hasn't
-  been run on Android 5.0 yet, and no test has run on Android 5.1.
+  vectors through a stand-in for how Android 5.0 and 5.1 report a bad packet. With the fix, that
+  on-device test passed on the Android 5.0 emulator on 27 October. No test has run on Android 5.1.
 
 ## [0.2.1] - 2026-10-23
 

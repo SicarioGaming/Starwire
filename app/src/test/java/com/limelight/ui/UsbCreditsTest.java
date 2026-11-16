@@ -70,7 +70,7 @@ public class UsbCreditsTest {
         String features = readme.substring(readme.indexOf("## Where every feature comes from"));
         String row = null;
         for (String line : features.split("\n")) {
-            if (line.startsWith("| USB devices (Experimental)")) {
+            if (line.startsWith("| ") && line.contains("USB devices (Experimental), the phone's side")) {
                 row = line;
                 break;
             }

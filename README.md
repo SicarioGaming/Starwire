@@ -79,7 +79,7 @@ PC" is now called Virtual display.
 <td width="50%" valign="top">
 
 <img src="docs/images/0.3.0/back-opens-menu.gif" alt="Illustration: a back swipe on a tablet opens Starwire's stream menu, and Back again closes it. A setting, on by default; turned off, Back ends the stream as before. Checked by JVM tests and tried in a stream on a tablet, not yet on a phone or TV.">
-<sub>This is an illustration. The menu comes from the app's own screenshot test with the game's name replaced, and the stream behind it is a drawing.</sub>
+<sub>This is an illustration. The menu comes from the app's own screenshot test from before 0.3.0's wider tablet menu, with the game's name replaced, and the stream behind it is a drawing.</sub>
 
 </td>
 </tr>
@@ -87,34 +87,46 @@ PC" is now called Virtual display.
 
 **All device tests for this release were performed on my RedMagic Astra tablet** (Android 16),
 streaming from my Windows 11 PC with Vibepollo, on 16 November. For most of them, I used a debug
-build of 0.3.0 from that day with a DualSense controller, installed over 0.2.1. Over Bluetooth,
-Starwire found the controller, and the Test button's gun click was felt in both triggers. In a
-stream of Phantom Blade Zero, the game's own trigger effects came through to the controller.
-setup-usb.cmd installed the PC's USB helper, and the DualSense, plugged into the tablet by cable,
-was shared with the PC from the stream menu. Windows showed it as a working DualSense Wireless
-Controller, I used it on the PC, and each of the three times I stopped the share, it went back to
-the tablet and worked there again. During a stream, Back opened the stream menu and the Brightness
-item worked. After the update, the tablet still streamed from my PC without pairing again, and the
-USB helper accepted the tablet's microphone pairing.
+build of 0.3.0 from that day with a DualSense controller, installed over the debug build of 0.2.1.
+Over Bluetooth, Starwire found the controller, and the Test button's gun click was felt in both
+triggers. In a stream of Phantom Blade Zero, the game's own trigger effects came through to the
+controller. setup-usb.cmd, as it was before the helper had its own icon, installed the PC's USB
+helper, and the DualSense, plugged into the tablet by cable, was shared with the PC from the stream
+menu. Windows showed it as a working DualSense Wireless Controller, I used it on the PC, and each
+of the three times I stopped the share, it went back to the tablet and worked there again. During a
+stream, Back opened the stream menu and the Brightness item worked. After the update, the tablet
+still streamed from my PC without pairing again, and the USB helper accepted the tablet's
+microphone pairing.
 
 **Three changes came after that build:** the USB helper's own icon, up to seven buttons per row in
 the stream menu, and the fix for a long press in direct touch mode. Later that day, I tried a test
 build with the first version of the long press fix and the seven buttons per row. A long press in
 direct touch mode now gave a right-click on the PC, and the stream menu looked good on my tablet.
 That build left out the menu's Sensitivity button, so the menu had 20 buttons there, in rows of
-seven, seven and six. Then I tried the final debug build, which has the same app code as this
-release. The stream menu showed all 21 buttons in three full rows of seven, a long press still
-gave a right-click, and a quick double tap gave a double-click on the PC.
-**Not tried yet:** Starwire's trigger presets, apart from the Test button's gun click, and the
-strength steps on a controller, and vibration strength, the left edge swipe, the virtual desktop
-shortcuts and Quit Session's question during a stream. The fixes for #14 and #5, and one smaller
-change to the long press fix, which counts the 20 pixels before a drag with the right button from
-where the finger was at 0.65 seconds, have not been tried on a device either, and I have not seen
-the USB helper's own icon on my PC yet. These are checked by tests on a computer.
+seven, seven and six. Then I tried a later debug build, whose app code is the same as this
+release's apart from some credit and licence text in Settings → About. The stream menu showed all
+21 buttons in three full rows of seven, a long press still gave a right-click, and a quick double
+tap gave a double-click on the PC. With the final debug build, which has the same app code as this
+release, 146 of the 147 on-device tests passed and 1 skipped.
 
-**Updating from 0.2.1:** install the new APK over 0.2.1. On the PC, the microphone receiver has
-not changed, so you can keep it as it is. The USB helper is new, and you only need it for USB
-devices.
+**Not tried yet:**
+
+- On a controller: the strength steps, and Starwire's trigger presets apart from the Test
+  button's gun click.
+- During a stream: vibration strength, the left edge swipe, the virtual desktop shortcuts and Quit
+  Session's question.
+- With USB devices: any device but the DualSense, such as a racing wheel, a flight stick, a
+  headset, a keyboard or a mouse, a device the rules refuse, and sharing from a phone.
+- On a device: the fixes for #14 and #5, and the long press fix's smaller change that counts the
+  20 pixels before a drag with the right button from where the finger was at 0.65 seconds.
+- On my PC: the USB helper's own icon.
+
+These are checked by tests on a computer.
+
+**Updating from 0.2.1:** install the new APK over 0.2.1. It is signed with the same key, so it
+should keep your PCs, settings and microphone pairing. I tried that with debug builds, not yet
+with the release APK over the released 0.2.1. On the PC, the microphone receiver has not changed,
+so you can keep it as it is. The USB helper is new, and you only need it for USB devices.
 
 **Two things work differently after the update:**
 
@@ -135,10 +147,13 @@ devices.
 - **DualSense trigger effects** (Settings → Controllers → DualSense (Experimental) → Trigger
   effects): this needs Android 12 or newer and a DualSense paired over Bluetooth. A controller
   connected by cable is not supported yet. The setting asks for the Nearby devices permission, and
-  it uses a hidden Android function, so a future Android update could stop it from working. The
-  presets are light resistance, gun click, heavy pedal and buzz, and the Test button sends one
-  effect. If a check fails when the controller connects, Starwire falls back to the usual
-  controller path, and the status line explains why. Rumble and the light bar work as before.
+  it uses a hidden Android function, so a future Android update could stop it from working. On the
+  PC, the host has to emulate a DualSense: on mine, Vibepollo's Emulated Gamepad Type was set to
+  Vibepollo Virtual Gamepad (automatic). The presets are light resistance, gun click, heavy pedal
+  and buzz, and the Test button sends one effect. If a check fails when the controller connects,
+  Starwire falls back to the usual controller path, and the status line explains why. Rumble and
+  the light bar stay on Android's usual path, as before, but I haven't checked either of them
+  during a stream with trigger effects on yet.
 - **USB devices** (Settings → Controllers → USB devices (Experimental)): once this is on, the
   stream menu has a USB devices page. Select a device there to share it, and select it again,
   unplug it or end the stream to give it back. Controllers, racing wheels, flight sticks and
@@ -148,7 +163,8 @@ devices.
   microphone receiver with this device paired, the [USB helper](windows/USB-HELPER.md)
   (`setup-usb.cmd`, in the Windows zip) and usbip-win2's driver, version 0.9.8.1. Starwire only
   shares devices with a PC on your home network or a private VPN. x86_64 Chromebooks and
-  emulators do not get the setting, even ones that can run ARM apps.
+  emulators do not get the setting, even ones that can run ARM apps. So far I have only shared a
+  DualSense.
 
 <p align="center">
 <img src="docs/images/0.3.0/dualsense-signal-path.png" width="820" alt="Illustration: how the DualSense gets its effects. A game on the Windows PC programs the triggers of the DualSense the host emulates. Vibepollo sends them to the tablet as control message 0x5503. Starwire reads it, turns unknown trigger modes off, builds Bluetooth report 0x31 and sends it with sendData, and the DualSense plays the effects on R2 and L2. Tried in a stream with Starwire on 16 Nov, with a debug build of 0.3.0: in Phantom Blade Zero, the game's own trigger effects came through Vibepollo and Starwire to the DualSense, and the status line showed no fallback afterwards. Before that, on 26 Oct, a test app sent the light bar colour and four trigger effects from the tablet to a DualSense. The message layout and the report bytes are also checked by unit tests.">
@@ -180,19 +196,19 @@ devices.
   can handle at the stream's size. This comes from Moonlight X, which measured about 9 ms per frame
   before the change and about 7.8 ms after it at 120 FPS on a Pixel 10 Pro. I have not tried this
   myself, because I do not have a Pixel.
-- The Starwire wordmark on the games screen is a little bigger, and the stats box has rounded
-  corners (from Moonlight X).
+- The Starwire wordmark on the games screen is a little bigger.
+- The stats box has rounded corners. From Moonlight X.
 
 **Fixes:**
 
 - **Multi-touch mode sent mouse clicks to the PC instead of touches,** and had done so since
   0.1.0. Each finger now reaches the PC as a touch of its own, with up to two at a time.
 - **The left part of the stream menu was cut off** when the floating menu button was turned off,
-  however the menu was opened. The whole menu now shows. Thank you to SippyCupXIII for reporting
-  it on an AYN Odin 2 Portal ([#14](https://github.com/SicarioGaming/Starwire/issues/14)).
-- **In touchpad mode, dragging after a long press used the right mouse button,** so a drop ended
-  in a right-click. A long press followed by a drag now drags with the left button, and a long
-  press without moving is still a right-click. Thank you to kayakyakr for reporting it
+  no matter how the menu was opened. The whole menu now shows. Thank you to SippyCupXIII for
+  reporting it on an AYN Odin 2 Portal ([#14](https://github.com/SicarioGaming/Starwire/issues/14)).
+- **In the gaming trackpad mode, dragging after a long press used the right mouse button,** so a
+  drop ended in a right-click. A long press followed by a drag now drags with the left button, and
+  a long press without moving is still a right-click. Thank you to kayakyakr for reporting it
   ([#5](https://github.com/SicarioGaming/Starwire/issues/5)).
 - **In direct touch mode, a long press came through on the PC as a left click** with Vibepollo.
   Starwire pressed the left button first and switched to the right one at 0.65 seconds, which,
@@ -217,7 +233,12 @@ devices.
 - With gesture navigation, the last setting now scrolls clear of the gesture bar. From Moonlight X.
 - The games screen now picks up a new font size from Android's settings straight away.
 - On Android 5.0 and 5.1, the encrypted microphone's code now refuses a damaged packet instead of
-  throwing an error. Streams were not affected. The fix has not run on Android 5.0 or 5.1 yet.
+  throwing an error. Streams were not affected. With the fix, the device test that had failed
+  passed on the Android 5.0 emulator on 27 October. Nothing has run on Android 5.1 yet.
+- On the Android 11 phone emulators, the PC list and the games screen kept the app from going
+  idle, so the device tests there never finished. A possible cause is fixed: these screens and the
+  settings now set the navigation bar's look only when it changes. In the emulator run on 27
+  October, after this change, the device tests there finished.
 
 **What was tested, and what was not:**
 
@@ -231,20 +252,23 @@ devices.
   DualSense from the same tablet, and the light bar changed.
 - **Not tried on a controller yet:** Starwire's own trigger presets, apart from the gun click
   that the Test button sends, and the strength steps.
+- **Not tried with USB yet:** any device but the DualSense, such as a racing wheel, a flight stick,
+  a headset, a keyboard or a mouse, so the question Starwire asks before it shares a keyboard or
+  mouse hasn't been seen on a device either. Nor have a device the rules refuse, or sharing from a
+  phone. Tests on a computer check the device rules and that question.
 - **On-device tests:** the test suite that runs on a device ran on my tablet with the final debug
-  build. Its first run ended early: 125 of its 147 tests passed and 2 failed, and the second
-  failure crashed the app before the last 20 could run. Both failures were in the tests, and both
-  are fixed. One expected the stream menu's narrower sheet. The other recreates a screen. On my
-  tablet, the phone maker's game mode crashes the app when a screen is recreated, which a smoke
-  test had already found, so that test now skips there too. Then, with the fixed tests, I ran the
-  20 tests that had not run and the 20 in the two test files with the failures: 39 passed and 1
-  skipped. So on this build, 146 of the 147 tests passed and 1 skipped. Both times, 5 of the 6
-  smoke tests passed, one of them a short stream from my PC, and 1 skipped for the same game mode.
+  build, which has the same app code as this release. 146 of its 147 tests passed and 1 skipped,
+  and 5 of the 6 smoke tests passed, one of them a short stream from my PC, with 1 skipped. Both
+  skipped tests recreate a screen, which the phone maker's game mode on my tablet turns into a
+  crash, as described under Known issues. Earlier that day, on a build with the same code apart
+  from that credit and licence text, the suite had stopped early: one test still expected the
+  stream menu's narrower sheet, which was a mistake in the test, and the other hit that crash
+  before it learned to skip it.
 - Everything else new in this release, such as vibration strength, the left edge swipe, the
   virtual desktop shortcuts and Quit Session's question, is checked by tests on a computer and has
   not been tried in a stream yet. The fixes for #14 and #5 are also checked by tests on a computer
   and have not been tried on a device yet.
-- 1,070 unit tests for the app pass on a computer (314 in 0.2.1). The USB helper's own tests pass
+- 1,072 unit tests for the app pass on a computer (314 in 0.2.1). The USB helper's own tests pass
   on Windows 11, with a fake driver and a test phone over 127.0.0.1.
 - The emulator tests on 17 virtual Android devices run on GitHub when the release is published,
   so their results come after the release and appear on the
@@ -254,6 +278,9 @@ devices.
 
 - The USB devices page shares one device at a time, and wired Xbox controllers are refused for
   now.
+- Starwire's device rules go by what a device says about itself, so a device that misreports what
+  it is could reach a Windows driver meant for the device it claims to be.
+  [usb-protocol.md](docs/dev/usb-protocol.md) has the details.
 - When I stopped sharing the DualSense, it once reset itself on the tablet and came back as a new
   USB device, so Starwire ended that share as if the controller had been unplugged, instead of as
   a normal stop. The controller still came back to the tablet and worked. This happened on one of
@@ -264,6 +291,10 @@ devices.
   seconds. Turning Easy Touch off fixed it: in the same test, 1 percent of the presses were lost.
   Other apps that filter key presses through Android's accessibility settings might do the same,
   but I have only tested Easy Touch.
+- On my RedMagic Astra tablet, the phone maker's game mode crashes the app when one of its screens
+  is recreated while it is open, as two of Starwire's tests do. The crash is in the phone's own
+  code. Starwire doesn't recreate its screens itself, but Android does after some changes, such as
+  a new display size or language while Starwire is open. I have only seen the crash in tests.
 - With Flip face buttons turned on, the Quit Session question does not swap A and B the way the
   menu does.
 - Once the left edge swipe is turned on, a slow drag to the right from near the left edge opens
@@ -408,7 +439,7 @@ side.
 4. **Play.** Tap a game, then **Play**.
 
 Android 5.0+. PyroWave, the experimental custom Turnip driver option and USB devices need a
-64-bit ARM device, and USB devices needs Android 9 or newer. DualSense trigger effects need
+64-bit ARM device, and USB devices need Android 9 or newer. DualSense trigger effects need
 Android 12 or newer. Updates from the Releases page install over the top and keep your settings,
 and [Obtainium](https://github.com/ImranR98/Obtainium) can keep it updated for you.
 
@@ -742,7 +773,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Prevent Packet Loss (keeps Wi-Fi awake during streams) | Option from Artemis (Yukino Song), via Artemide; rewritten for Starwire as a small keep-alive ping |
 | Lite performance overlay (one compact line: data rate, ping, decode time, dropped frames, FPS) | Ported from Axixi2233's fork (axi), via Artemis and Artemide; the plain wording is new in Starwire |
 | 1% low FPS in the stats | Idea from Moonlight V+ (qiin2333) and Moonlight X Turnip (NoCrypt) |
-| From 0.3.0: Google's video decoders, as on Pixel phones, are asked for the most frames they can handle at the stream's size. Moonlight X measured about 9 ms a frame before and 7.8 ms after at 120 FPS on a Pixel 10 Pro. Not tried with Starwire: we don't have a Pixel | Ported from Moonlight X (MoreOrLessSoftware) |
+| From 0.3.0: Google's video decoders, as on Pixel phones, are asked for the most frames they can handle at the stream's size. Moonlight X measured about 9 ms a frame before and 7.8 ms after at 120 FPS on a Pixel 10 Pro. Not tried with Starwire: I don't have a Pixel | Ported from Moonlight X (MoreOrLessSoftware) |
 | From 0.3.0: rounded corners on the stats box | Ported from Moonlight X (MoreOrLessSoftware) |
 
 </details>
@@ -766,8 +797,8 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Or send it over the stream itself, with a choice of microphone **(needs [logabell's Apollo build](https://github.com/logabell/apollo-microphone/releases) on the PC)** | Ported from logabell's Artemis and moonlight-common-c microphone changes ([Artemis PR #537](https://github.com/ClassicOldSong/moonlight-android/pull/537)); echo-cancelled capture is new in Starwire |
 | Per-game settings for the new options (codec, V-Sync, LFR, async decode, display, touch mode, cursor, audio haptics, and from 0.2.1 the jitter buffer) | Extends Moonlight X's per-app settings (MoreOrLessSoftware); the per-game jitter buffer is from Moonlight X too |
 | From 0.3.0: DualSense trigger effects over Bluetooth (Experimental, Android 12 and newer): the game's own adaptive trigger effects, four presets for games that send none, a strength setting, a status line and a Test button. On my RedMagic Astra tablet (Android 16), Starwire found a DualSense over Bluetooth and the Test button's gun click was felt in both triggers, and in a stream of Phantom Blade Zero the game's own effects came through Starwire to the controller. Apart from that gun click, the presets and strength steps have not been tried on a pad yet. Before that, a separate test app changed a DualSense's light bar and sent it four trigger effects | Bluetooth route and pad matching ported from Moonlight V+ (qiin2333); the code that passes the host's effects to Java is from Nightjar (Ramazan Kara); report layout written from Linux's hid-playstation driver, SDL and Nielk1's trigger notes; uses HiddenApiBypass (LSPosed). The rest is new in Starwire |
-| USB devices (Experimental), the phone's side: a setting under Controllers adds a "USB devices" page to the stream menu, which shares a wired device with the PC through the USB/IP exporter inside the app and an encrypted tunnel to the PC's USB helper, after the device rules decide what may be shared (one device at a time, Android 9 or later on 64-bit ARM). Tested on a computer against a fake helper on 127.0.0.1, and tried on my RedMagic Astra tablet (Android 16) with a Windows 11 PC and the real helper: a DualSense plugged into the tablet by cable worked on the PC, and stopping the share gave it back all three times. On one of those stops, the pad reset on the tablet, so Starwire ended the share as if it had been unplugged; it still came back and worked | The exporter is ported from Moonlight V+'s usbip-backend (qiin2333 and CLF), after yunsmall's Android-Usbipdcpp, and built on usbipdcpp (yunsmall, LGPL-3.0) and libusb; the stream menu's page, the tunnel, the device rules and one-device sharing are new in Starwire |
-| USB devices, the PC's side: Starwire's USB helper for Windows (`setup-usb.cmd`, in the Windows zip) takes the device over the encrypted tunnel from a phone paired with the PC's microphone receiver, checks it against the same device rules and attaches it with usbip-win2's driver, version 0.9.8.1. Off until you turn it on in its menu, and each phone needs its own tick. Its own tests pass on Windows 11 with a fake driver and a test phone, and setup-usb.cmd installed and started it on a Windows 11 PC, where it attached a DualSense shared from a tablet. That was before the helper had its own icon, which hasn't been seen on a PC yet ([USB-HELPER.md](windows/USB-HELPER.md)) | New in Starwire; uses usbip-win2's driver, installed separately |
+| From 0.3.0: USB devices (Experimental), the phone's side: a setting under Controllers adds a "USB devices" page to the stream menu, which shares a wired device with the PC through the USB/IP exporter inside the app and an encrypted tunnel to the PC's USB helper, after the device rules decide what may be shared (one device at a time, Android 9 or later on 64-bit ARM). Tested on a computer against a fake helper on 127.0.0.1, and tried on my RedMagic Astra tablet (Android 16) with a Windows 11 PC and the real helper: a DualSense plugged into the tablet by cable worked on the PC, and stopping the share gave it back all three times. On one of those stops, the pad reset on the tablet, so Starwire ended the share as if it had been unplugged; it still came back and worked | The exporter is ported from Moonlight V+'s usbip-backend (qiin2333 and CLF), after yunsmall's Android-Usbipdcpp, and built on usbipdcpp (yunsmall, LGPL-3.0) and libusb; the stream menu's page, the tunnel, the device rules and one-device sharing are new in Starwire |
+| From 0.3.0: USB devices, the PC's side: Starwire's USB helper for Windows (`setup-usb.cmd`, in the Windows zip) takes the device over the encrypted tunnel from a phone paired with the PC's microphone receiver, checks it against the same device rules and attaches it with usbip-win2's driver, version 0.9.8.1. Off until you turn it on in its menu, and each phone needs its own tick. Its own tests pass on Windows 11 with a fake driver and a test phone, and setup-usb.cmd installed and started it on a Windows 11 PC, where it attached a DualSense shared from a tablet. That was before the helper had its own icon, which hasn't been seen on a PC yet ([USB-HELPER.md](windows/USB-HELPER.md)) | The driver's commands, their layouts and its error codes are adapted from usbip-win2 0.9.8.1 (vadimgrn, BSD-2-Clause), and it finds the driver and reads its list the way usbip-win2's own tool does; how it finds the port of a device it attached before a detach, and waits for the driver's queued detaches, follows Vibepollo (Chase Payne, Nonary); the rest is new in Starwire. It uses usbip-win2's driver, installed separately |
 
 </details>
 
@@ -824,7 +855,11 @@ The DualSense and USB parts also rely on these:
   inside the app.
 - [usbip-win2](https://github.com/vadimgrn/usbip-win2) by vadimgrn is the Windows driver, version
   0.9.8.1, that the PC's USB helper attaches a shared device with. You install it yourself; it isn't
-  part of Starwire.
+  part of Starwire. The helper's driver commands, their layouts and its error codes are adapted
+  from usbip-win2's headers (BSD-2-Clause, with its notice in `windows/StarwireUsbHelper.cs`).
+- [Vibepollo](https://github.com/Nonary/Vibepollo)'s `dualsense_usbip_transport.cpp` (Chase Payne,
+  Nonary) is what the PC's USB helper follows to find the port of a device it attached before a
+  detach, and to wait for the detaches the driver has queued.
 
 If I've credited something wrongly or missed you, please let me know.
 
@@ -842,7 +877,7 @@ Starwire is built for Android 5.0 or newer, on any CPU type (64-bit and 32-bit A
 but the devices I test on run recent Android, so older versions haven't been tried. If something
 breaks on yours, please open an issue. Some features need a recent device (async decoding, the
 Vulkan renderer), and PyroWave, the custom Turnip driver option and USB devices need a 64-bit ARM
-device (`arm64-v8a`), since their libraries are only built for that. USB devices also needs
+device (`arm64-v8a`), since their libraries are only built for that. USB devices also need
 Android 9 or newer, and DualSense trigger effects need Android 12 or newer. Updates install over
 the top with your settings kept, as long as they come from these releases. Tools such as
 [Obtainium](https://github.com/ImranR98/Obtainium) can keep it updated straight from the
