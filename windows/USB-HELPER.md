@@ -29,7 +29,8 @@ through Windows Firewall on TCP 6981 (local-network and private VPN addresses, P
 networks only, not Public), and starts it now and when you sign in. It never changes the
 microphone receiver or its setup.
 
-Then right-click the helper's icon by the clock:
+Then right-click the helper's icon by the clock, a USB plug on a dark tile (it may be under the ^
+arrow):
 
 1. **Let paired phones share USB devices.** Off until you turn it on. While it's off, the helper
    doesn't listen at all.
