@@ -1037,6 +1037,61 @@ planted_jobs=$(public_only "$work/guards.yml" | tr '\n' ' ')
 rm -rf "$work"
 ok "the Upstream changes workflow runs only on the public repo"
 
+# 22. upstream/check.sh, against made-up upstream repos on disk: it lists what's new, and no git it
+# runs is still going after it ends. git fetch ends by starting "git maintenance run --auto",
+# which on Linux goes on in the background writing commit-graph files. On 9 Nov 2026 that was
+# still writing in the temporary folder when check.sh's EXIT trap removed it, so rm failed ("cannot
+# remove .../repo/objects: Directory not empty") and the weekly run failed with it. Maintenance and
+# gc are what git leaves running, so this checks, from git's trace2 log, that check.sh starts
+# neither. Waiting for the race wouldn't be deterministic, and on Windows maintenance can't go into
+# the background, so the race never shows there.
+begin
+work="$(mktemp -d)"
+host_path() {  # Git Bash's /c/x as C:/x, for the paths git reads from its config and environment
+    if command -v cygpath > /dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi
+}
+mkdir -p "$work/tool" "$work/tmp"
+cp "$HERE/upstream/check.sh" "$work/tool/check.sh"
+git init -q --bare "$work/up/test/one.git"
+# 120 commits, a day apart: over the 100 new commits that make maintenance write a commit-graph
+for i in $(seq 1 120); do
+    printf 'commit refs/heads/main\ncommitter Up Stream <upstream@example.org> %d +0000\ndata <<EOF\nChange %d\nEOF\n\n' \
+        $((1700000000 + i * 86400)) "$i"
+done | git -C "$work/up/test/one.git" fast-import --quiet
+reviewed=$(git -C "$work/up/test/one.git" rev-parse main~2)
+# One source with two new commits, one whose reviewed commit isn't there, and one that can't be fetched
+printf '%s\n' "one   test/one   main  $reviewed  port" \
+    "gone  test/one   main  0123456789abcdef0123456789abcdef01234567  ideas" \
+    "none  test/none  main  $reviewed  port" > "$work/tool/sources.txt"
+# Only this config, which sends https://github.com/ to the made-up repos (with filters allowed, as
+# GitHub does), so a maintenance.auto in the user's own config can't hide the problem
+git config --file "$work/gitconfig" "url.$(host_path "$work/up")/.insteadOf" https://github.com/
+git config --file "$work/gitconfig" uploadpack.allowFilter true
+set +e
+upstream_report=$(TMPDIR="$work/tmp" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$(host_path "$work/gitconfig")" \
+    GIT_TRACE2_EVENT="$(host_path "$work/trace.json")" bash "$work/tool/check.sh" 2> "$work/stderr")
+status=$?
+set -e
+if [ $status -ne 0 ] || [ -s "$work/stderr" ]; then
+    cat "$work/stderr" >&2
+    fail "upstream/check.sh exited $status (expected 0, and nothing on stderr)"
+fi
+for want in "## one: 2 new commit(s) (port)" "- Change 120 (Up Stream, 2024-03-13, \`$(git -C "$work/up/test/one.git" rev-parse --short=7 main)\`)" \
+            "- Change 119 (Up Stream, 2024-03-12, \`$(git -C "$work/up/test/one.git" rev-parse --short=7 main~1)\`)" \
+            "The reviewed commit \`01234567\` is no longer on \`main\` (history was rewritten)." \
+            "## none (test/none)" "Couldn't fetch \`main\`."; do
+    grep -qxF -- "$want" <<< "$upstream_report" || { printf '%s\n' "$upstream_report" >&2; fail "upstream/check.sh's report has no line \"$want\""; }
+done
+started=$(grep '"event":"start"' "$work/trace.json" 2> /dev/null || true)
+if ! grep -qE '"argv":\[[^]]*"fetch"' <<< "$started"; then
+    fail "git's trace2 log of upstream/check.sh has no fetch in it"
+elif grep -E '"argv":\[[^]]*"(maintenance|gc)"' <<< "$started" >&2; then
+    fail "upstream/check.sh started git maintenance or gc, which can still be writing in its temporary folder when it removes it"
+fi
+if [ -n "$(ls -A "$work/tmp")" ]; then fail "upstream/check.sh left its temporary folder behind: $(ls -A "$work/tmp")"; fi
+rm -rf "$work"
+ok "upstream/check.sh lists new upstream commits and leaves nothing running in its temporary folder"
+
 if [ $failures -ne 0 ]; then
     echo "$failures problem(s)" >&2
     exit 1
