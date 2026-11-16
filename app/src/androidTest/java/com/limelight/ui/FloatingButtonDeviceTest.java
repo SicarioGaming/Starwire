@@ -21,6 +21,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.limelight.R;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.preferences.StreamSettings;
+import com.limelight.testing.ZteGameMode;
 
 import org.junit.After;
 import org.junit.Before;
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * same place. A tap still only opens the menu. The stream screen needs a PC, so the real button
  * (floating_menu_button.xml) goes on the settings screen, set up the way Game sets it up. The
  * device's own saved spot is put back afterwards. FloatingButtonTest covers turns and resizes.
+ * It skips where the phone maker's game mode crashes recreated screens (ZteGameMode).
  */
 @RunWith(AndroidJUnit4.class)
 public class FloatingButtonDeviceTest {
@@ -82,6 +84,8 @@ public class FloatingButtonDeviceTest {
 
     @Test
     public void aDraggedButtonStartsInTheSameSpotOnTheNextScreen() {
+        // The next screen is this one recreated
+        ZteGameMode.assumeScreensCanBeRecreated();
         try (ActivityScenario<StreamSettings> scenario = ActivityScenario.launch(StreamSettings.class)) {
             scenario.onActivity(this::addButton);
             waitFor("the button to be laid out", () -> button.isLaidOut());
