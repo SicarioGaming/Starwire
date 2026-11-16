@@ -118,8 +118,10 @@ decoder, Adreno GPU, real controller or microphone, so tests that need one skip 
 the public repo, and on the private repo only when started by hand.
 
 What the tests don't cover yet, to be honest about it: the custom Turnip driver option with a
-real Turnip driver, hosts other than Vibepollo, and the encrypted microphone from a real device to
-a real PC, which so far has only been checked by hand (from my tablet over Wi-Fi).
+real Turnip driver, hosts other than Vibepollo, the encrypted microphone from a real device to a
+real PC, which so far has only been checked by hand (from my tablet over Wi-Fi), and a real
+DualSense or a real USB device, which have also only been tried by hand. The usbip-backend
+module's own device tests from Moonlight V+ are built but not run by any script.
 
 ## Pull requests
 

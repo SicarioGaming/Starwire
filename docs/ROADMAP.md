@@ -54,8 +54,8 @@ Source: Artemide Experimental Async 0.5.1 (`derflacco/moonlight-android`, tag
 - [x] Virtual Display: a "Virtual display" setting (host default, on, off) and
       "Start in Virtual/Primary Display" when long-pressing a game. Host default sends nothing,
       because Vibepollo treats `virtualDisplay=0` as turning its virtual display off
-- [x] Prevent Packet Loss: a tiny ignored control packet every 20 ms keeps Wi-Fi awake
-      (new `LiSendKeepAlivePayload` in common-c)
+- [x] Prevent Packet Loss: a ping every 20 ms keeps Wi-Fi awake (`LiSendKeepAlivePayload` in
+      common-c; up to 0.2.1 it was a packet type the hosts didn't know)
 - [x] V-Sync and Fast V-Sync: one "V-Sync" setting (Off, V-Sync, Fast V-Sync), off by
       default and used only by the direct renderer. Fast V-Sync is Artemide's nano pacer
       (NanoPacer.java) in "Prefer lowest latency" pacing. Artemide's own V-Sync only drives
