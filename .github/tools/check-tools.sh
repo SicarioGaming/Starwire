@@ -1165,6 +1165,14 @@ grep -qx 'starwire-usb.ico' <<< "$(bash "$HERE/make-windows-zip.sh" --list 2>&1 
     fail "make-windows-zip.sh doesn't put starwire-usb.ico in the Windows zip"
 ok "the USB helper has an icon of its own, with every size the clock uses, built in and installed by setup-usb.ps1, and in the Windows zip"
 
+# 24. The docs give device-test.sh its device with -s. AGENTS.md said "device-test.sh <serial>",
+# which the script refuses as an unknown option before it does anything.
+begin
+while IFS= read -r hit; do
+    fail "a doc runs device-test.sh with a bare argument, which it refuses (it takes -s <serial>): $hit"
+done < <(git -C "$ROOT" grep -nE 'device-test\.sh +[^-[:space:]`]' -- '*.md' || true)
+ok "the docs give device-test.sh its device with -s"
+
 if [ $failures -ne 0 ]; then
     echo "$failures problem(s)" >&2
     exit 1
