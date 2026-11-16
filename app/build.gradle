@@ -118,6 +118,9 @@ android {
                 jvmArgs '--add-opens=java.base/jdk.internal.access=ALL-UNNAMED'
                 // Half-size screenshots: a quarter of the repo space, still clear enough to review
                 systemProperty 'roborazzi.record.resizeScale', '0.5'
+                // Comparing the tablet and unfolded screenshots ran out of memory at Gradle's
+                // default 512 MB once 0.3.0 added its screens; 2 GB leaves room
+                maxHeapSize = '2g'
             }
         }
     }
