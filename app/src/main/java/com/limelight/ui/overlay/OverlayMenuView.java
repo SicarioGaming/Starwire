@@ -37,8 +37,15 @@ import java.util.List;
 public class OverlayMenuView extends LinearLayout {
     private static final int BUTTON_SPACING_DP = 8;
     private static final int SHEET_WIDTH_DP = 440;
-    // At most five across, so the built-in tools fit on a tablet without scrolling
+    // At most five across on that sheet
     private static final int MAIN_COLUMNS = 5;
+    // Seven across where the screen is wide enough, like a tablet held sideways: three rows of
+    // seven hold every built-in tool, so the main page doesn't scroll. The sheet grows by two
+    // tiles of the same size.
+    private static final int WIDE_COLUMNS = 7;
+    // The most of the screen's width that wider sheet may take, so the game still shows beside it.
+    // Screens under about 1000 dp wide, like phones and most handhelds, keep the usual sheet.
+    private static final float WIDE_SHEET_SHARE = 0.6f;
     // Fewer, wider tiles where five would break a label mid-word (a narrow screen, large text),
     // down to this many
     private static final int MIN_COLUMNS = 2;
@@ -68,7 +75,6 @@ public class OverlayMenuView extends LinearLayout {
         void onToggleFloatingButton();
         void onTogglePanZoom();
         void onSelectMouseMode();
-        void onToggleTouchSensitivity();
         void onUploadClipboard();
         void onFetchClipboard();
         void onShowServerCommands();
@@ -109,7 +115,6 @@ public class OverlayMenuView extends LinearLayout {
     public static final int TOGGLE_MOUSE_EMULATION = 2;
     public static final int TOGGLE_FULL_KEYBOARD = 3;
     public static final int TOGGLE_PAN_ZOOM = 4;
-    public static final int TOGGLE_TOUCH_SENSITIVITY = 5;
     public static final int TOGGLE_ONSCREEN_CONTROLLER = 6;
     public static final int TOGGLE_FLOATING_BUTTON = 7;
 
@@ -196,6 +201,9 @@ public class OverlayMenuView extends LinearLayout {
     private LinearLayout gridContainer;
     private LinearLayout barContainer;
     private int columns = MAIN_COLUMNS;
+    // The sheet's widest, in pixels: SHEET_WIDTH_DP, or wider for seven across. The main page
+    // sets it, and the other pages keep it, so the sheet doesn't change size between pages.
+    private int sheetWidth;
 
     // The bar: Close (index 0) on its own row, then Quit and Disconnect side by side; or all
     // three in one row on short screens (the tests read the height too)
@@ -235,7 +243,6 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_FLOATING_BUTTON = 12;
     private static final int ACTION_PAN_ZOOM = 13;
     private static final int ACTION_MOUSE_MODE = 14;
-    private static final int ACTION_TOUCH_SENSITIVITY = 15;
     private static final int ACTION_UPLOAD_CLIPBOARD = 16;
     private static final int ACTION_FETCH_CLIPBOARD = 17;
     private static final int ACTION_SERVER_COMMANDS = 18;
@@ -284,6 +291,7 @@ public class OverlayMenuView extends LinearLayout {
         setClickable(true);
         int padding = dp(20);
         setPadding(padding, padding, padding, padding);
+        sheetWidth = dp(SHEET_WIDTH_DP);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             setDefaultFocusHighlightEnabled(false);
@@ -433,8 +441,8 @@ public class OverlayMenuView extends LinearLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        // A sheet, not the whole screen: at most SHEET_WIDTH_DP wide
-        int max = dp(SHEET_WIDTH_DP);
+        // A sheet, not the whole screen: at most sheetWidth wide
+        int max = sheetWidth;
         if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED
                 || MeasureSpec.getSize(widthMeasureSpec) > max) {
             widthMeasureSpec = MeasureSpec.makeMeasureSpec(max, MeasureSpec.EXACTLY);
@@ -546,8 +554,6 @@ public class OverlayMenuView extends LinearLayout {
             }
             addTile(R.drawable.ic_overlay_maximize,
                 getContext().getString(R.string.overlay_menu_pan_zoom), ACTION_PAN_ZOOM, TOGGLE_PAN_ZOOM);
-            addTile(R.drawable.ic_overlay_settings,
-                getContext().getString(R.string.overlay_menu_touch_sensitivity), ACTION_TOUCH_SENSITIVITY, TOGGLE_TOUCH_SENSITIVITY);
             addTile(R.drawable.ic_overlay_save,
                 getContext().getString(R.string.overlay_menu_upload_clipboard), ACTION_UPLOAD_CLIPBOARD);
             addTile(R.drawable.ic_overlay_folder,
@@ -578,7 +584,7 @@ public class OverlayMenuView extends LinearLayout {
                 CustomCommand command = customCommands.get(i);
                 addTile(command.getIconResId(), command.getName(), ACTION_CUSTOM_BASE + i);
             }
-            columns = mainColumns();
+            fitMainPage();
         }
         arrangeGrid();
 
@@ -646,9 +652,12 @@ public class OverlayMenuView extends LinearLayout {
         });
     }
 
-    // Five across where every label fits whole, else fewer. The sheet's width comes from the
-    // screen, as in onMeasure, so it's known before the sheet is first laid out.
-    private int mainColumns() {
+    // The main page's columns and the sheet's width. Seven across on a sheet grown to hold them,
+    // where it takes at most WIDE_SHEET_SHARE of the screen and every label still fits whole.
+    // Otherwise the usual sheet, five across where every label fits whole, else fewer. The
+    // sheet's width comes from the screen, as in onMeasure, so it's known before the sheet is
+    // first laid out.
+    private void fitMainPage() {
         int margins = 0;
         if (getLayoutParams() instanceof MarginLayoutParams) {
             MarginLayoutParams params = (MarginLayoutParams) getLayoutParams();
@@ -656,10 +665,25 @@ public class OverlayMenuView extends LinearLayout {
         }
         float density = getResources().getDisplayMetrics().density;
         int screen = (int) (getResources().getConfiguration().screenWidthDp * density);
-        int sheet = Math.min(dp(SHEET_WIDTH_DP), screen - margins);
+        int padding = getPaddingLeft() + getPaddingRight();
+        int gap = dp(BUTTON_SPACING_DP);
+        int sidePadding = dp(OverlayMenuButton.TILE_SIDE_PADDING_DP);
         Paint paint = OverlayMenuButton.tileLabelPaint(getContext());
-        return TileColumns.fit(gridLabels, paint::measureText, sheet - getPaddingLeft() - getPaddingRight(),
-            dp(BUTTON_SPACING_DP), dp(OverlayMenuButton.TILE_SIDE_PADDING_DP),
+
+        // Seven tiles as wide as five make on the usual sheet
+        int tile = (dp(SHEET_WIDTH_DP) - padding - gap * (MAIN_COLUMNS - 1)) / MAIN_COLUMNS;
+        int wide = tile * WIDE_COLUMNS + gap * (WIDE_COLUMNS - 1) + padding;
+        if (wide <= screen * WIDE_SHEET_SHARE && wide <= screen - margins
+                && TileColumns.fits(gridLabels, paint::measureText, wide - padding, gap, sidePadding,
+                    OverlayMenuButton.TILE_LABEL_LINES, WIDE_COLUMNS)) {
+            sheetWidth = wide;
+            columns = WIDE_COLUMNS;
+            return;
+        }
+
+        sheetWidth = dp(SHEET_WIDTH_DP);
+        int sheet = Math.min(sheetWidth, screen - margins);
+        columns = TileColumns.fit(gridLabels, paint::measureText, sheet - padding, gap, sidePadding,
             OverlayMenuButton.TILE_LABEL_LINES, MAIN_COLUMNS, MIN_COLUMNS);
     }
 
@@ -1106,8 +1130,6 @@ public class OverlayMenuView extends LinearLayout {
                 closeMenu();
                 actionListener.onSelectMouseMode();
                 return;
-            } else if (action == ACTION_TOUCH_SENSITIVITY) {
-                actionListener.onToggleTouchSensitivity();
             } else if (action == ACTION_UPLOAD_CLIPBOARD) {
                 actionListener.onUploadClipboard();
                 shouldCloseMenu = true;
