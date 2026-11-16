@@ -9,8 +9,9 @@ it, Windows showed a working DualSense Wireless Controller, and it was used on t
 the share gave it back to the tablet all three times. On one of those stops, the pad reset on the
 tablet first, so Starwire ended that share as if it had been unplugged; it still came back and
 worked. That was before the helper got its own icon. setup-usb.cmd now builds the icon into the
-helper and puts it next to it. Tests check that, but it hasn't been tried on a PC yet. The
-helper's own tests run on Windows 11 with a fake driver and a test phone over 127.0.0.1.
+helper and puts it next to it. Tests check that, but the icon hasn't been seen by the clock on a
+PC yet. The helper's own tests run on Windows 11 with a fake driver and a test phone over
+127.0.0.1.
 
 The helper lets a phone running Starwire lend a USB device plugged into it (a pad, a wheel, a
 headset) to this PC, so Windows sees it as if it were plugged in here. It uses usbip-win2's USB/IP
