@@ -73,7 +73,7 @@ public final class OpenSourceNotices {
                     "Cameron Gutman and the Moonlight contributors, with the forks in Credits",
                     "GPL-3.0.txt", "https://github.com/moonlight-stream/moonlight-android",
                     RENDERER, "libevdev_reader.so"),
-            new Component(APP, "moonlight-common-c", "976f261", "GPL-3.0",
+            new Component(APP, "moonlight-common-c", "6917da8", "GPL-3.0",
                     "Cameron Gutman and the Moonlight contributors (Starwire's fork)",
                     "GPL-3.0.txt", "https://github.com/SicarioGaming/moonlight-common-c",
                     CORE),
