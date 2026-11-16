@@ -9,9 +9,10 @@ is the contract between the two sides: the app's tunnel
 (`windows/StarwireUsbHelper.cs`). Both are to be tested against the same vectors file, byte for
 byte.
 
-**Status.** Written before the code. It has had one security review (Rv-1, first round), whose
-findings are fixed here, but not its second round or the maintainer's sign-off, so it can still
-change. The frames, keys and MACs exist (`SwutCodec.java`), and so does Starwire's end of the
+**Status.** Written before the code. It has had one security review round on the contract (Rv-1),
+whose findings are fixed here, as well as separate reviews of the tunnel, the exporter and the
+helper. The maintainer signed off on this design on 16 November 2026 for 0.3.0, where USB devices
+ships as Experimental, and it can still change in later versions. The frames, keys and MACs exist (`SwutCodec.java`), and so does Starwire's end of the
 tunnel (`UsbTunnel.java` and `SwutTls.java`: TLS, BIND, SHARE, the relay to the exporter, and
 each way a session ends). Starwire's copy of the device rules (`UsbDeviceRules.java`) decides
 every one of their cases, and the exporter (`UsbExporter.java`) applies them before it exports
@@ -23,9 +24,11 @@ the exporter's native part on 127.0.0.1. The helper's side is in code too (`wind
 server, BIND against the receiver's pairings, the per-phone Allow USB list, the device rules, the
 relay and the USB/IP checks, and each way a session ends. Its tests run on Windows against the
 shared vectors and device rules' cases, and drive the whole path over 127.0.0.1 with a fake driver
-and a test phone. The app and the real helper haven't talked to each other yet, nothing has run on
-a phone, no real device has gone through either side, and the helper hasn't run against the real
-usbip-win2 driver. The helper's branch had drifted from `feature/usb-tunnel`'s copy of this
+and a test phone. On 16 November 2026, the maintainer tried the app and the real helper together
+for the first time: a USB device plugged into a RedMagic Astra tablet (Android 16) was shared
+with a Windows 11 PC through the real usbip-win2 driver, worked there, and was given back when it
+was selected again. That run used a test build from before the fix for a device unplugged at the
+moment sharing starts (END 2, below). The helper's branch had drifted from `feature/usb-tunnel`'s copy of this
 contract (the waiting-room rule and the split of the pairing-file reads below); the two are to be
 reconciled on `feature/usb-tunnel`, which holds the canonical contract.
 
