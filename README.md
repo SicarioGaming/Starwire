@@ -249,6 +249,12 @@ devices.
   USB device, so Starwire ended that share as if the controller had been unplugged, instead of as
   a normal stop. The controller still came back to the tablet and worked. This happened on one of
   the three stops in my test.
+- On my RedMagic Astra tablet, with nubia's Easy Touch accessibility service turned on, Android
+  lost about 40 percent of the button presses from my GameSir G8+ controller, and some of its
+  releases, before they reached Starwire, so buttons were missed or stayed held on the PC for
+  seconds. Turning Easy Touch off fixed it: in the same test, 1 percent of the presses were lost.
+  Other apps that filter key presses through Android's accessibility settings might do the same,
+  but I have only tested Easy Touch.
 - With Flip face buttons turned on, the Quit Session question does not swap A and B the way the
   menu does.
 - Once the left edge swipe is turned on, a slow drag to the right from near the left edge opens
