@@ -19,7 +19,8 @@ steps and the checksums for each version.
 
 - **A Brightness item in the stream menu,** which opens the brightness slider. A controller moves
   it in 5% steps, and A, B or Back closes it. It isn't shown on Android TV. From Moonlight X.
-  Checked by tests, and tried in a stream on my RedMagic Astra tablet with the final 0.3.0 build.
+  Checked by tests, and tried in a stream on my RedMagic Astra tablet with a debug build of 0.3.0
+  from 16 November.
 - **A Left edge swipe action setting,** in Settings under In-stream menu. It says what a swipe in
   from the left edge of the screen does while streaming: open the brightness slider, open the
   stream menu, or nothing. It's off (Disabled) by default, so the swipe goes to the game until you
@@ -37,8 +38,8 @@ steps and the checksums for each version.
   that Android sends as Back still reaches the PC as a right-click, and a controller's B still
   goes to the game. The idea comes from Artemis (Yukino Song), via Artemide. Thank you to
   u/Glove5751 for asking for it. Tested in JVM tests, with a stand-in for the remote, and tried in
-  a stream on my RedMagic Astra tablet with the final 0.3.0 build. Not yet tried on a phone or a
-  TV.
+  a stream on my RedMagic Astra tablet with a debug build of 0.3.0 from 16 November. Not yet tried
+  on a phone or a TV.
 - **Controller vibration strength,** under Controllers: 0 to 100% of the game's rumble, on every
   controller and on this device when it vibrates in place of one. Audio haptics on the controller
   follows it too. 0% turns both off, and new installs start at 100%, as before. Checked by unit
@@ -60,15 +61,15 @@ steps and the checksums for each version.
   only used on a phone without sendData, and a DualShock 4 is never taken for the pad. The code
   that passes the host's effects to Java is Nightjar's (Ramazan Kara). Only the trigger modes
   Nielk1's notes list reach the pad; any other mode turns the trigger off. **Tried on my
-  RedMagic Astra tablet (Android 16) with the final 0.3.0 build:** over Bluetooth, Starwire found
-  the DualSense (the status line said "DualSense found"), and the Test button's gun click was felt
-  in both triggers. In a stream of Phantom Blade Zero from Vibepollo, the game's own trigger
-  effects came through: L2 was hard to pull when the character had no resources for a skill, and
-  the effects switched off and on as expected in the game's menus. The status line showed no
+  RedMagic Astra tablet (Android 16) with a debug build of 0.3.0 from 16 November:** over Bluetooth,
+  Starwire found the DualSense (the status line said "DualSense found"), and the Test button's gun
+  click was felt in both triggers. In a stream of Phantom Blade Zero from Vibepollo, the game's own
+  trigger effects came through: L2 was hard to pull when the character had no resources for a skill,
+  and the effects switched off and on as expected in the game's menus. The status line showed no
   fallback for that stream. Apart from the Test button's gun click, the presets and the strength
-  steps have not been tried on a pad yet. Before that, on 26 October, a separate test app used
-  the same hidden sendData call on one tablet and one DualSense. It changed the light bar, and
-  four trigger effects felt as expected: firm resistance, a weapon click, a buzz and off.
+  steps have not been tried on a pad yet. Before that, on 26 October, a separate test app used the
+  same hidden sendData call on one tablet and one DualSense. It changed the light bar, and four
+  trigger effects felt as expected: firm resistance, a weapon click, a buzz and off.
   setReport did nothing there.
   Starwire's presets use other values, and light resistance and heavy pedal use a kind of effect
   that test didn't try. Tested with JVM tests against a fake Bluetooth link.
@@ -99,13 +100,13 @@ steps and the checksums for each version.
   x86_64 Chromebooks and emulators don't get the setting, even ones that run ARM apps. Tested
   on a computer: the stream menu's page, the exporter with its device rules and the tunnel
   together, against a fake PC helper and a stand-in for the exporter's native part on 127.0.0.1.
-  Tried on my RedMagic Astra tablet (Android 16) with the final 0.3.0 build, my Windows 11 PC and
-  the real helper: a DualSense plugged into the tablet by cable was shared from the stream menu,
-  Windows showed it as a working DualSense Wireless Controller, and I used it on the PC. Stopping
-  the share gave it back to the tablet all three times, and it worked there again. On the first
-  stop, the pad reset on the tablet and came back as a new USB device, so Starwire ended that
-  share as if it had been unplugged (END 2) instead of as a normal stop. Not tried yet: the
-  question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
+  Tried on my RedMagic Astra tablet (Android 16) with a debug build of 0.3.0 from 16 November, my
+  Windows 11 PC and the real helper: a DualSense plugged into the tablet by cable was shared from
+  the stream menu, Windows showed it as a working DualSense Wireless Controller, and I used it on
+  the PC. Stopping the share gave it back to the tablet all three times, and it worked there again.
+  On the first stop, the pad reset on the tablet and came back as a new USB device, so Starwire
+  ended that share as if it had been unplugged (END 2) instead of as a normal stop. Not tried yet:
+  the question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
   x86_64 in debug builds), and its licences are in Settings > About > Open-source licences. The
   setting's credit line names Moonlight V+ and usbipdcpp, as Settings > About > Credits does.
 - **The PC's side of sharing a USB device from the phone.** Starwire's USB helper
@@ -118,11 +119,12 @@ steps and the checksums for each version.
   device rules, attaches it with usbip-win2's driver through a relay on the PC itself, checks
   what the device tells Windows, and detaches only its own device when the session ends. USB
   sharing is off until you turn it on, and the firewall rule covers Private and Domain networks
-  only. The app's side (USB devices, above) and this helper were tried together on my RedMagic
-  Astra tablet and my Windows 11 PC, with usbip-win2's driver and the final 0.3.0 build:
-  setup-usb.cmd installed and started the helper, the helper logged the share and attached the
-  DualSense the tablet shared, and the PC used it. Tested on Windows 11 with a fake driver and a
-  test phone over 127.0.0.1, and with the shared test vectors and device rules' cases.
+  only. The app's side (USB devices, above) and this helper were tried together on my RedMagic Astra
+  tablet and my Windows 11 PC, with usbip-win2's driver and a debug build of 0.3.0 from 16 November,
+  before the helper had its own icon: setup-usb.cmd installed and started the helper, the helper
+  logged the share and attached the DualSense the tablet shared, and the PC used it. Tested on
+  Windows 11 with a fake driver and a test phone over 127.0.0.1, and with the shared test vectors
+  and device rules' cases.
   The helper's tunnel server was checked against a hostile local network, and these hold in its
   tests: when a session is stuck because the relay is blocked writing to a phone that stopped
   reading, or blocked writing to a driver that stopped reading, unpairing, Stop sharing and
@@ -164,8 +166,10 @@ steps and the checksums for each version.
   most handhelds, and screens where a label would no longer fit whole (with a large font size, say)
   keep the usual sheet with up to five per row, and scroll as before. The Shortcuts, Monitors and
   USB devices pages keep their own layout on the wider sheet. Checked by tests and screenshots on a
-  computer, at the size of my RedMagic Astra tablet's screen among others, not yet seen on a
-  device.
+  computer, at the size of my RedMagic Astra tablet's screen among others. Tried on that tablet in a
+  test build that left out the menu's Sensitivity button: its 20 buttons showed in rows of seven,
+  seven and six, and the menu looked good. With Sensitivity, as released, it has three full rows of
+  seven there, which hasn't been seen on a device yet.
 - **Google's video decoders, as on Pixel phones, are asked for the most frames they can handle**
   at the stream's size, instead of just the stream's frame rate. They set their speed to just
   meet what they're asked for. Moonlight X measured about 9 ms a frame before and about 7.8 ms
@@ -240,8 +244,11 @@ steps and the checksums for each version.
   the left button starts once your finger has moved 30 pixels, from where it went down. Before,
   it started after 20 pixels, or with any move once 0.1 seconds had passed, so a shorter drag now
   leaves the cursor where the finger went down. The same goes for multi-touch mode when the PC
-  can't take touches, and with the buttons swapped it's the other way round. Checked by tests on
-  a computer; not tried on a device yet.
+  can't take touches, and with the buttons swapped it's the other way round. Checked by tests on a
+  computer. On that tablet and PC, a test build with the first version of this fix gave a
+  right-click for a long press. Two smaller changes came after that test and haven't been tried on a
+  device yet: counting the 20 pixels from where the finger was at 0.65 seconds, and letting go of a
+  tap's click as soon as your finger goes down again.
 - Starwire no longer tries to show an error or a "please wait" box on a screen Android has
   already closed. That could happen when a connection error or the host's answer came in late.
   This is tested on a computer, not yet on a phone. The idea is from Moonlight V+ (qiin2333).
