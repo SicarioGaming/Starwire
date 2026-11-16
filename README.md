@@ -42,15 +42,15 @@ newer, and you can find it in **Settings → Controllers → DualSense**.
 <td width="50%" valign="top">
 
 <img src="docs/images/0.3.0/adaptive-triggers.gif" alt="Illustration: three drawn scenes, a bow, a car braking and a rivet tool, each with a drawn trigger and a curve of what the effect's bytes ask for. It ends on four effects a test app sent to a wireless DualSense on 26 Oct 2026, all felt as expected, and says Starwire itself later passed a game's own trigger effects through to the pad in a stream.">
-<sub>This is an illustration, not a screen capture. The curves are drawn from the bytes of the effects that a separate test app sent to a DualSense on 26 October. Since then, a game's own effects have come through Starwire to the controller during a stream.</sub>
+<sub>This is an illustration, not a screen capture. The curves are drawn from the bytes of the effects that a separate test app sent to a DualSense on 26 October. Since then, in a stream of Phantom Blade Zero on my RedMagic Astra tablet, the game's own effects have come through Starwire to the controller.</sub>
 
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
 
-<img src="docs/images/0.3.0/usb-devices.gif" alt="Illustration: a wired pad is plugged into a tablet, and an encrypted link over the home network or a VPN, using the microphone pairing, carries it to the PC's USB helper and usbip-win2 driver, where it shows up as if plugged in there. Experimental, off by default. Tried once with a RedMagic Astra and a Windows 11 PC.">
-<sub>This is an illustration, not a screen capture. I tried it with my RedMagic Astra tablet and my Windows 11 PC: the device worked on the PC, and selecting it again gave it back to the tablet.</sub>
+<img src="docs/images/0.3.0/usb-devices.gif" alt="Illustration: a wired pad is plugged into a tablet, and an encrypted link over the home network or a VPN, using the microphone pairing, carries it to the PC's USB helper and usbip-win2 driver, where it shows up as if plugged in there. Experimental, off by default. Tried with a RedMagic Astra tablet and a Windows 11 PC: it worked on the PC, and Stop gave it back.">
+<sub>This is an illustration, not a screen capture. I tried it with a DualSense, my RedMagic Astra tablet and my Windows 11 PC: Windows showed the controller working, I used it on the PC, and each of the three times I stopped the share, it went back to the tablet.</sub>
 
 </td>
 <td width="50%" valign="top">
@@ -86,15 +86,19 @@ PC" is now called Virtual display.
 </table>
 
 **All device tests for this release were performed on my RedMagic Astra tablet** (Android 16)
-with a DualSense controller, streaming from my Windows 11 PC with Vibepollo, using a test build of
-0.3.0 from 27 October. A game's own trigger effects came through to the controller. A USB device
-plugged into the tablet appeared on the PC and worked there, and selecting it again gave it back
-to the tablet. Back opened the stream menu, the Brightness item and the stream menu itself worked
-during a stream, and updating over 0.2.1 kept my PCs, my settings and my microphone pairing.
-**Not tried yet:** Starwire's own trigger presets and strength steps on a controller, and
-vibration strength, the left edge swipe and the virtual desktop shortcuts during a stream. These
-are checked by tests on a computer. The USB setup script has also had less testing than the rest
-of this release.
+with a DualSense controller, streaming from my Windows 11 PC with Vibepollo, on 16 November. I
+used a debug build of the final 0.3.0 code, installed over 0.2.1. Over Bluetooth, Starwire found
+the controller, and the Test button's gun click was felt in both triggers. In a stream of Phantom
+Blade Zero, the game's own trigger effects came through to the controller. setup-usb.cmd installed
+the PC's USB helper, and the DualSense, plugged into the tablet by cable, was shared with the PC
+from the stream menu. Windows showed it as a working DualSense Wireless Controller, I used it on
+the PC, and each of the three times I stopped the share, it went back to the tablet and worked
+there again. During a stream, Back opened the stream menu and the Brightness item
+worked. After the update, the tablet still streamed from my PC without pairing again, and the USB
+helper accepted the tablet's microphone pairing.
+**Not tried yet:** Starwire's trigger presets, apart from the Test button's gun click, and the
+strength steps on a controller, and vibration strength, the left edge swipe, the virtual desktop
+shortcuts and Quit Session's question during a stream. These are checked by tests on a computer.
 
 **Updating from 0.2.1:** install the new APK over 0.2.1. On the PC, the microphone receiver has
 not changed, so you can keep it as it is. The USB helper is new, and you only need it for USB
@@ -198,17 +202,19 @@ devices.
 **What was tested, and what was not:**
 
 - **On a device:** the device tests are described above, under "All device tests for this
-  release". That test build came before the last fixes in this release, which include the fixes
-  for #14 and #5 and a fix for unplugging a USB device at the moment sharing starts. Those fixes
-  are checked by tests on a computer.
+  release". In Phantom Blade Zero, L2 was hard to pull when my character had no resources for a
+  skill, and the trigger effects switched off and on as expected in the game's menus. Afterwards,
+  the status line showed no fallback for that stream. On one of the three times I stopped sharing
+  the DualSense, it reset itself first, as described under Known issues.
 - Before that, on 26 October, a separate test app, not Starwire, sent four trigger effects to the
   same DualSense from the same tablet, and the light bar changed.
-- **Not tried on a controller yet:** Starwire's own trigger presets and strength steps.
-- **Not run on this build:** the on-device test suite. The USB setup script has also had less
-  testing than the rest of this release.
-- Everything else new in this release, such as vibration strength, the left edge swipe and the
-  virtual desktop shortcuts, is checked by tests on a computer and has not been tried in a stream
-  yet.
+- **Not tried on a controller yet:** Starwire's own trigger presets, apart from the gun click
+  that the Test button sends, and the strength steps.
+- **Not run on this build:** the on-device test suite.
+- Everything else new in this release, such as vibration strength, the left edge swipe, the
+  virtual desktop shortcuts and Quit Session's question, is checked by tests on a computer and has
+  not been tried in a stream yet. The fixes for #14 and #5 are also checked by tests on a computer
+  and have not been tried on a device yet.
 - 1,030 unit tests for the app pass on a computer (314 in 0.2.1). The USB helper's own tests pass
   on Windows 11, with a fake driver and a test phone over 127.0.0.1.
 - The emulator tests on 17 virtual Android devices run on GitHub when the release is published,
@@ -219,6 +225,10 @@ devices.
 
 - The USB devices page shares one device at a time, and wired Xbox controllers are refused for
   now.
+- When I stopped sharing the DualSense, it once reset itself on the tablet and came back as a new
+  USB device, so Starwire ended that share as if the controller had been unplugged, instead of as
+  a normal stop. The controller still came back to the tablet and worked. This happened on one of
+  the three stops in my test.
 - With Flip face buttons turned on, the Quit Session question does not swap A and B the way the
   menu does.
 - Once the left edge swipe is turned on, a slow drag to the right from near the left edge opens
@@ -323,8 +333,9 @@ set it up.
 ### 🎯 Adaptive triggers on a DualSense
 Experimental, from 0.3.0. A DualSense paired over Bluetooth receives the game's own trigger
 effects from a host that sends them, or one of four presets for games that send none, with 8
-strength steps. It needs Android 12 or newer. A game's effects have come through to the
-controller during a stream on my RedMagic Astra, but I have not yet felt the presets.
+strength steps. It needs Android 12 or newer. In a stream of Phantom Blade Zero on my RedMagic
+Astra tablet, the game's own effects came through to the controller. Apart from the Test button's
+gun click, I have not yet tried the presets or the strength steps on a controller.
 
 </td>
 <td width="50%" valign="top">
@@ -333,7 +344,9 @@ controller during a stream on my RedMagic Astra, but I have not yet felt the pre
 Experimental, from 0.3.0. Plug a wired controller, racing wheel, flight stick or headset into
 your phone or tablet and use it on the PC you are streaming from, through an encrypted connection
 and a small USB helper on the PC. It shares one device at a time and needs a 64-bit ARM device
-with Android 9 or newer. The [USB helper guide](windows/USB-HELPER.md) covers the PC side.
+with Android 9 or newer. I have shared a DualSense from my RedMagic Astra tablet with my Windows 11
+PC this way and used it on the PC. The [USB helper guide](windows/USB-HELPER.md) covers the PC
+side.
 
 </td>
 </tr>
@@ -654,7 +667,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Floating menu button (tap to open, drag to move) | Ported from Artemis (Yukino Song / ClassicOldSong), via Artemide |
 | A smaller floating button that stays see-through until you touch it, and closes the menu too | New in Starwire, on the Artemis button |
 | The floating button stays where you dragged it, with a spot for landscape and one for portrait | New in Starwire |
-| From 0.3.0: Back opens the menu instead of ending the stream, and Back again closes it. It's on by default, with a switch in Settings → In-stream menu. A short press of a TV remote's Back opens the menu too. Tested in JVM tests and tried in a stream on a tablet, not yet on a phone or a TV | Idea from Artemis (Yukino Song / ClassicOldSong), via Artemide. The TV remote part is new in Starwire, on Moonlight X's remote handling |
+| From 0.3.0: Back opens the menu instead of ending the stream, and Back again closes it. It's on by default, with a switch in Settings → In-stream menu. A short press of a TV remote's Back opens the menu too. Tested in JVM tests and tried in a stream on my RedMagic Astra tablet, not yet on a phone or a TV | Idea from Artemis (Yukino Song / ClassicOldSong), via Artemide. The TV remote part is new in Starwire, on Moonlight X's remote handling |
 | On/off switches on the items that toggle something, and the menu stays open when you tap them | New in Starwire |
 | The menu header shows the game's cover art, or a Starwire tile for Desktop and games without art | New in Starwire |
 | Shortcuts page: Esc, F11, Alt+F4, Alt+Enter, Ctrl+V, Win, Win+D, Win+G, Ctrl+Alt+Tab, Shift+Tab, Win+Shift+Left, Ctrl+Alt+Shift+F1/F12, Win+Alt+B | Ported from Axixi2233's Moonlight fork (axi), via Artemis and Artemide |
@@ -670,7 +683,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | On-screen controller toggle | Ported from Artemis (Yukino Song), via Artemide |
 | Monitor switcher (Monitor 1–6, using the host's Ctrl+Alt+Shift+F1… shortcuts) | Idea from Moonlit Artemis (Mohammad Forhad / 4had45) |
 | Change bitrate mid-stream **(Vibepollo)** | Idea from Moonlight V+ (qiin2333) |
-| From 0.3.0: a Brightness item that opens the brightness slider, left out on Android TV. A controller moves it in 5% steps. A swipe in from the left edge of the screen can open the slider or the menu too. It's off by default: turn it on in Settings, In-stream menu, Left edge swipe action. The swipe starts within 80 dp of the edge (about 1.3 cm) and moves 60 dp to the right (about 1 cm) within half a second, so a slow drag from near the edge counts too, and the drag goes to the game until then. A tap at the edge goes to the game. The slider stays up until you change it, then hides 2 seconds after your last change. Checked by tests. The Brightness item was tried in a stream on a tablet; the swipe hasn't been tried in a stream yet | Ported from Moonlight X (MoreOrLessSoftware), as a tile in Starwire's menu and a setting under In-stream menu |
+| From 0.3.0: a Brightness item that opens the brightness slider, left out on Android TV. A controller moves it in 5% steps. A swipe in from the left edge of the screen can open the slider or the menu too. It's off by default: turn it on in Settings, In-stream menu, Left edge swipe action. The swipe starts within 80 dp of the edge (about 1.3 cm) and moves 60 dp to the right (about 1 cm) within half a second, so a slow drag from near the edge counts too, and the drag goes to the game until then. A tap at the edge goes to the game. The slider stays up until you change it, then hides 2 seconds after your last change. Checked by tests. The Brightness item was tried in a stream on my RedMagic Astra tablet; the swipe hasn't been tried in a stream yet | Ported from Moonlight X (MoreOrLessSoftware), as a tile in Starwire's menu and a setting under In-stream menu |
 | From 0.3.0: Quit Session asks before it closes the game on the PC. Yes quits, and No or Back keeps streaming. Checked by tests with touch and a controller's A and B buttons, not yet tried in a stream | Ported from Moonlight X (MoreOrLessSoftware) |
 
 </details>
@@ -716,9 +729,9 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Send your microphone to the PC with any host: a VBAN stream to Starwire's receiver on the PC, which plays it into VB-Cable. Encrypted from 0.2.1, and only from devices you've paired with the PC; a "Not encrypted" option stays for Voicemeeter and other VBAN apps ([see above](#new-in-020-your-microphone-on-the-pc-with-any-host)). The receiver has no window, just an icon by the clock with pairing, a mic check and a test tone | New in Starwire, with its Windows receiver and setup script; VBAN is VB-Audio's network audio format |
 | Or send it over the stream itself, with a choice of microphone **(needs [logabell's Apollo build](https://github.com/logabell/apollo-microphone/releases) on the PC)** | Ported from logabell's Artemis and moonlight-common-c microphone changes ([Artemis PR #537](https://github.com/ClassicOldSong/moonlight-android/pull/537)); echo-cancelled capture is new in Starwire |
 | Per-game settings for the new options (codec, V-Sync, LFR, async decode, display, touch mode, cursor, audio haptics, and from 0.2.1 the jitter buffer) | Extends Moonlight X's per-app settings (MoreOrLessSoftware); the per-game jitter buffer is from Moonlight X too |
-| From 0.3.0: DualSense trigger effects over Bluetooth (Experimental, Android 12 and newer): the game's own adaptive trigger effects, four presets for games that send none, a strength setting, a status line and a Test button. In a stream on a RedMagic Astra (Android 16), a game's own effects came through Starwire to a DualSense. The presets and strength steps haven't been felt on a pad yet. Before that, a separate test app changed the same pad's light bar and sent it four trigger effects | Bluetooth route and pad matching ported from Moonlight V+ (qiin2333); the code that passes the host's effects to Java is from Nightjar (Ramazan Kara); report layout written from Linux's hid-playstation driver, SDL and Nielk1's trigger notes; uses HiddenApiBypass (LSPosed). The rest is new in Starwire |
-| USB devices (Experimental), the phone's side: a setting under Controllers adds a "USB devices" page to the stream menu, which shares a wired device with the PC through the USB/IP exporter inside the app and an encrypted tunnel to the PC's USB helper, after the device rules decide what may be shared (one device at a time, Android 9 or later on 64-bit ARM). Tested on a computer against a fake helper on 127.0.0.1, and tried once on a RedMagic Astra (Android 16) with a Windows 11 PC and the real helper: a device plugged into the tablet showed up on the PC and worked there, and Stop gave it back | The exporter is ported from Moonlight V+'s usbip-backend (qiin2333), after yunsmall's Android-Usbipdcpp, and built on usbipdcpp (yunsmall, LGPL-3.0) and libusb; the stream menu's page, the tunnel, the device rules and one-device sharing are new in Starwire |
-| USB devices, the PC's side: Starwire's USB helper for Windows (`setup-usb.cmd`, in the Windows zip) takes the device over the encrypted tunnel from a phone paired with the PC's microphone receiver, checks it against the same device rules and attaches it with usbip-win2's driver, version 0.9.8.1. Off until you turn it on in its menu, and each phone needs its own tick. Its own tests pass on Windows 11 with a fake driver and a test phone; the setup's install hasn't been tried yet ([USB-HELPER.md](windows/USB-HELPER.md)) | New in Starwire; uses usbip-win2's driver, installed separately |
+| From 0.3.0: DualSense trigger effects over Bluetooth (Experimental, Android 12 and newer): the game's own adaptive trigger effects, four presets for games that send none, a strength setting, a status line and a Test button. On my RedMagic Astra tablet (Android 16), Starwire found a DualSense over Bluetooth and the Test button's gun click was felt in both triggers, and in a stream of Phantom Blade Zero the game's own effects came through Starwire to the controller. Apart from that gun click, the presets and strength steps have not been tried on a pad yet. Before that, a separate test app changed the same pad's light bar and sent it four trigger effects | Bluetooth route and pad matching ported from Moonlight V+ (qiin2333); the code that passes the host's effects to Java is from Nightjar (Ramazan Kara); report layout written from Linux's hid-playstation driver, SDL and Nielk1's trigger notes; uses HiddenApiBypass (LSPosed). The rest is new in Starwire |
+| USB devices (Experimental), the phone's side: a setting under Controllers adds a "USB devices" page to the stream menu, which shares a wired device with the PC through the USB/IP exporter inside the app and an encrypted tunnel to the PC's USB helper, after the device rules decide what may be shared (one device at a time, Android 9 or later on 64-bit ARM). Tested on a computer against a fake helper on 127.0.0.1, and tried on my RedMagic Astra tablet (Android 16) with a Windows 11 PC and the real helper: a DualSense plugged into the tablet by cable worked on the PC, and stopping the share gave it back all three times. On one of those stops, the pad reset on the tablet, so Starwire ended the share as if it had been unplugged; it still came back and worked | The exporter is ported from Moonlight V+'s usbip-backend (qiin2333), after yunsmall's Android-Usbipdcpp, and built on usbipdcpp (yunsmall, LGPL-3.0) and libusb; the stream menu's page, the tunnel, the device rules and one-device sharing are new in Starwire |
+| USB devices, the PC's side: Starwire's USB helper for Windows (`setup-usb.cmd`, in the Windows zip) takes the device over the encrypted tunnel from a phone paired with the PC's microphone receiver, checks it against the same device rules and attaches it with usbip-win2's driver, version 0.9.8.1. Off until you turn it on in its menu, and each phone needs its own tick. Its own tests pass on Windows 11 with a fake driver and a test phone, and setup-usb.cmd installed and started it on a Windows 11 PC, where it attached a DualSense shared from a tablet ([USB-HELPER.md](windows/USB-HELPER.md)) | New in Starwire; uses usbip-win2's driver, installed separately |
 
 </details>
 

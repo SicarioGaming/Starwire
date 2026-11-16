@@ -19,7 +19,7 @@ steps and the checksums for each version.
 
 - **A Brightness item in the stream menu,** which opens the brightness slider. A controller moves
   it in 5% steps, and A, B or Back closes it. It isn't shown on Android TV. From Moonlight X.
-  Checked by tests, and tried in a stream on a tablet.
+  Checked by tests, and tried in a stream on my RedMagic Astra tablet with the final 0.3.0 build.
 - **A Left edge swipe action setting,** in Settings under In-stream menu. It says what a swipe in
   from the left edge of the screen does while streaming: open the brightness slider, open the
   stream menu, or nothing. It's off (Disabled) by default, so the swipe goes to the game until you
@@ -37,7 +37,8 @@ steps and the checksums for each version.
   that Android sends as Back still reaches the PC as a right-click, and a controller's B still
   goes to the game. The idea comes from Artemis (Yukino Song), via Artemide. Thank you to
   u/Glove5751 for asking for it. Tested in JVM tests, with a stand-in for the remote, and tried in
-  a stream on a tablet. Not yet tried on a phone or a TV.
+  a stream on my RedMagic Astra tablet with the final 0.3.0 build. Not yet tried on a phone or a
+  TV.
 - **Controller vibration strength,** under Controllers: 0 to 100% of the game's rumble, on every
   controller and on this device when it vibrates in place of one. Audio haptics on the controller
   follows it too. 0% turns both off, and new installs start at 100%, as before. Checked by unit
@@ -58,12 +59,17 @@ steps and the checksums for each version.
   and how the pad is found are ported from Moonlight V+ (qiin2333), with two changes: setReport is
   only used on a phone without sendData, and a DualShock 4 is never taken for the pad. The code
   that passes the host's effects to Java is Nightjar's (Ramazan Kara). Only the trigger modes
-  Nielk1's notes list reach the pad; any other mode turns the trigger off. **Tried on one
-  tablet:** in a stream, a game's own trigger effects came through to a DualSense on a RedMagic
-  Astra (Android 16). Nobody has felt the presets or the strength steps yet. Before that, a
-  separate test app used the same hidden sendData call on
-  one tablet and one DualSense. It changed the light bar, and four trigger effects felt as
-  expected: firm resistance, a weapon click, a buzz and off. setReport did nothing there.
+  Nielk1's notes list reach the pad; any other mode turns the trigger off. **Tried on my
+  RedMagic Astra tablet (Android 16) with the final 0.3.0 build:** over Bluetooth, Starwire found
+  the DualSense (the status line said "DualSense found"), and the Test button's gun click was felt
+  in both triggers. In a stream of Phantom Blade Zero from Vibepollo, the game's own trigger
+  effects came through: L2 was hard to pull when the character had no resources for a skill, and
+  the effects switched off and on as expected in the game's menus. The status line showed no
+  fallback for that stream. Apart from the Test button's gun click, the presets and the strength
+  steps have not been tried on a pad yet. Before that, on 26 October, a separate test app used
+  the same hidden sendData call on one tablet and one DualSense. It changed the light bar, and
+  four trigger effects felt as expected: firm resistance, a weapon click, a buzz and off.
+  setReport did nothing there.
   Starwire's presets use other values, and light resistance and heavy pedal use a kind of effect
   that test didn't try. Tested with JVM tests against a fake Bluetooth link.
 - **A log line for each DualSense trigger effect a game sends,** while Trigger effects is on, so
@@ -93,9 +99,13 @@ steps and the checksums for each version.
   x86_64 Chromebooks and emulators don't get the setting, even ones that run ARM apps. Tested
   on a computer: the stream menu's page, the exporter with its device rules and the tunnel
   together, against a fake PC helper and a stand-in for the exporter's native part on 127.0.0.1.
-  Tried once on a RedMagic Astra (Android 16) with a Windows 11 PC and the real helper: a device
-  plugged into the tablet showed up on the PC and worked there, and Stop gave it back. Not tried
-  yet: the question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
+  Tried on my RedMagic Astra tablet (Android 16) with the final 0.3.0 build, my Windows 11 PC and
+  the real helper: a DualSense plugged into the tablet by cable was shared from the stream menu,
+  Windows showed it as a working DualSense Wireless Controller, and I used it on the PC. Stopping
+  the share gave it back to the tablet all three times, and it worked there again. On the first
+  stop, the pad reset on the tablet and came back as a new USB device, so Starwire ended that
+  share as if it had been unplugged (END 2) instead of as a normal stop. Not tried yet: the
+  question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
   x86_64 in debug builds), and its licences are in Settings > About > Open-source licences. The
   setting's credit line names Moonlight V+ and usbipdcpp, as Settings > About > Credits does.
 - **The PC's side of sharing a USB device from the phone.** Starwire's USB helper
@@ -106,9 +116,11 @@ steps and the checksums for each version.
   relay on the PC itself, checks what the device tells Windows, and detaches only its own device
   when the session ends. USB sharing is off until you turn it on, and the firewall rule covers
   Private and Domain networks only. The app's side (USB devices, above) and this helper were
-  tried together once, with usbip-win2's driver: a tablet shared a device and the PC used it.
-  Tested on Windows 11 with a fake driver and a test phone over 127.0.0.1, and with the shared
-  test vectors and device rules' cases. setup-usb.ps1 has only been tried without installing anything.
+  tried together on my RedMagic Astra tablet and my Windows 11 PC, with usbip-win2's driver and
+  the final 0.3.0 build: setup-usb.cmd installed and started the helper, the helper logged the
+  share and attached the DualSense the tablet shared, and the PC used it. Tested on Windows 11
+  with a fake driver and a test phone over 127.0.0.1, and with the shared test vectors and device
+  rules' cases.
   The helper's tunnel server was checked against a hostile local network, and these hold in its
   tests: when a session is stuck because the relay is blocked writing to a phone that stopped
   reading, or blocked writing to a driver that stopped reading, unpairing, Stop sharing and
@@ -180,7 +192,7 @@ steps and the checksums for each version.
   seconds after it opened. Now it stays up until you change it, then hides 2 seconds after your
   last change. Until then, a touch on the stream closes it, and none of that touch reaches the
   game. From Moonlight X. Thank you to u/zolidz64 for reporting it. Checked by tests, not yet
-  tried in a stream.
+  tried in a stream, apart from the Brightness item (see Added).
 - **Multi-touch mode sent the PC mouse clicks instead of touches.** It worked just like direct
   touch, and had since 0.1.0. Now each finger goes to the PC as a touch of its own, two at a
   time. If the PC can't take touches, the mode still works like direct touch. The three-finger
