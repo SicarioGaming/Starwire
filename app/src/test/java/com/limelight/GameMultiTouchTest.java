@@ -553,8 +553,7 @@ public class GameMultiTouchTest {
         idle();
     }
 
-    // What the stream menu's Touch Mode picker does, and the Touch Sensitivity tile with the
-    // mode it's in
+    // What the stream menu's Touch Mode picker does
     private void pickTouchMode(int touchMode) {
         ReflectionHelpers.callInstanceMethod(game, "applyMouseMode", ClassParameter.from(int.class, touchMode));
         idle();
@@ -580,8 +579,8 @@ public class GameMultiTouchTest {
         assertEquals(list(), notTouches());
     }
 
-    // Each mode in the Touch Mode picker, and multi-touch itself, which the Touch Sensitivity tile
-    // picks
+    // Each mode in the Touch Mode picker, with multi-touch last: the stream is already in it, so
+    // it's picked again
     private static final int[] PICKED_MODES = {Game.MOUSE_MODE_DIRECT_TOUCH, Game.MOUSE_MODE_TRACKPAD_NATURAL,
             Game.MOUSE_MODE_TRACKPAD_GAMING, Game.MOUSE_MODE_DISABLED,
             Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED, Game.MOUSE_MODE_MULTI_TOUCH};
