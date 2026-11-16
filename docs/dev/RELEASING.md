@@ -210,8 +210,11 @@ dates are in UTC.
 
    ```
    git switch main
-   TZ=UTC git merge --no-ff <branch> -m "Starwire X.Y.Z"
+   TZ=UTC git merge --no-ff <branch> -m "chore(release): starwire X.Y.Z"
    ```
+
+   The commit-msg hook (check-commits.sh) refuses a message that isn't a Conventional Commit, so a
+   plain "Starwire X.Y.Z" is turned away.
 
 3. Tag it, annotated:
 
@@ -232,13 +235,16 @@ dates are in UTC.
    ```
 
 6. Push `main` first, wait for its tests, then push the tag, to the public repo one ref at a time.
-   The Release workflow runs no tests of its own, so the tag waits until the **Build** workflow has
-   passed on that commit of public `main`:
+   The Release workflow runs no tests of its own, so the tag waits until the **Build and test**
+   workflow (build.yml) has passed on that commit of public `main`. Look the run up by the commit,
+   not by the branch: until the new run shows up, the newest run on `main` is the last release's.
 
    ```
    git push origin main
    git push public main
-   gh run watch --repo SicarioGaming/Starwire --exit-status "$(gh run list --repo SicarioGaming/Starwire --workflow Build --branch main --limit 1 --json databaseId --jq '.[0].databaseId')"
+   sha=$(git rev-parse main)
+   until id=$(gh run list --repo SicarioGaming/Starwire --workflow build.yml --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId') && [ -n "$id" ]; do sleep 10; done
+   gh run watch --repo SicarioGaming/Starwire --exit-status "$id"
    git push origin vX.Y.Z
    git push public vX.Y.Z
    ```
