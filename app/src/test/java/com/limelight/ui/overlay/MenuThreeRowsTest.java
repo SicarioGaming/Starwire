@@ -48,7 +48,8 @@ import java.util.List;
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = 36)
 public class MenuThreeRowsTest {
-    // An 8.8-inch tablet held sideways, 2400 x 1504 px at 360 dpi (RedMagic Astra)
+    // RoboDevices.SMALL_TABLET_LANDSCAPE: an 8.8-inch tablet held sideways, 2400 x 1504 px at
+    // 360 dpi (RedMagic Astra)
     private static final String ASTRA = "w1067dp-h668dp-large-notlong-land-360dpi";
     // RoboDevices.TABLET_LANDSCAPE: 2560 x 1600 px at 320 dpi
     private static final String TABLET = "w1280dp-h800dp-xlarge-notlong-land-xhdpi";
