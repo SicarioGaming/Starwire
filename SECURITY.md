@@ -6,8 +6,9 @@ Please don't put the details in a public issue or discussion. Report it privatel
 
 1. Go to the repo's [Security tab](https://github.com/SicarioGaming/Starwire/security) and choose
    **Report a vulnerability** (or use [this link](https://github.com/SicarioGaming/Starwire/security/advisories/new)).
-2. Say which part of Starwire it's in (the Android app, the Windows microphone receiver or its
-   setup), what you found and how to reproduce it. Only you and I can see the report.
+2. Say which part of Starwire it's in (the Android app, the Windows microphone receiver, the
+   Windows USB helper, or their setup), what you found and how to reproduce it. Only you and I can
+   see the report.
 
 I'll reply there. If you can't use GitHub's form, open an issue that only says you've found a
 security problem, without the details, and I'll get in touch.
@@ -60,6 +61,33 @@ Starwire 0.2.0 sent the microphone as plain VBAN, with no encryption or authenti
 still use 0.2.0, update both the app and the PC setup, then pair once. The
 [microphone guide](windows/README.md#updating-from-starwire-020) has the steps.
 
+## USB devices
+
+This is about **Settings → Controllers → USB devices (Experimental)**, new in 0.3.0, and the USB
+helper that `setup-usb.cmd` installs on the PC. Both are off until you turn them on.
+
+A device can only be shared with a PC whose microphone receiver the phone is paired with, and only
+once you've turned on sharing in the helper's menu and ticked that phone under **Allow USB for**.
+The key for the connection is worked out from the microphone's pairing, never the microphone key
+itself, and the connection uses TLS 1.2 or 1.3. A phone that isn't allowed is only told so after
+it proves it holds the right key. Starwire's device rules decide what may be shared before Windows
+sees anything, one device at a time. The helper listens on TCP 6981, and its firewall rule covers
+Private and Domain networks only. The protocol, what it protects against and how it's tested are in
+[docs/dev/usb-protocol.md](docs/dev/usb-protocol.md).
+
+What it doesn't protect against:
+
+- The device rules go by what a device says about itself, so a device that misreports what it is
+  could reach a Windows driver meant for the device it claims to be.
+- A lost or stolen phone that's still paired and unlocked can share what the rules allow,
+  keyboards and mice included, since it can say yes itself. Unpair it in the microphone
+  receiver's menu (see above), or untick it under **Allow USB for** in the helper's menu.
+- Code that can read the phone's pairing key, such as root malware or a custom Vulkan driver,
+  doesn't need Starwire's checks or your yes. Only the helper's own checks stand between it and
+  Windows' USB drivers, which run in the kernel.
+- On the phone, the USB exporter trusts its own loopback connection (127.0.0.1).
+- Malware on the PC can reach USB devices directly.
+
 ## The custom Vulkan driver option
 
 **Settings → Advanced → Custom Vulkan driver** is off by default. It's experimental, and it
@@ -75,10 +103,10 @@ Vulkan driver inside Starwire's own process. Those libraries are in every 64-bit
 they're only loaded when the option is on and a driver has been picked.
 
 A driver is native code. It runs inside Starwire with all of Starwire's permissions, including
-the network, the microphone and the keys for your paired PCs. So only use a driver from a source
-you trust. Starwire refuses files that aren't 64-bit ARM libraries, and goes back to the system
-driver when a driver can't load or can't run PyroWave. A driver that loads and then crashes will
-end the stream.
+the network, the microphone, Nearby devices if you allowed it for the DualSense, and the keys
+for your paired PCs. So only use a driver from a source you trust. Starwire refuses files that
+aren't 64-bit ARM libraries, and goes back to the system driver when a driver can't load or
+can't run PyroWave. A driver that loads and then crashes will end the stream.
 
 ## Checking that a download is really Starwire
 

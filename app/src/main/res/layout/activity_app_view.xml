@@ -46,9 +46,12 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <FrameLayout
+            <!-- As tall as the PC name. The wordmark shrinks to stay clear of a long name, and its
+                 text box can be taller than the row: it's centred on it, and only blank space
+                 above and below the letters spills over, so the game stays put (WordmarkRow) -->
+            <com.limelight.ui.WordmarkRow
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
+                android:layout_height="44dp">
 
                 <TextView
                     android:id="@+id/appListText"
@@ -65,7 +68,7 @@
                     android:textStyle="bold" />
 
                 <!-- Centred, or at the end on narrow screens (cover_glow_dimens.xml) -->
-                <TextView
+                <com.limelight.ui.Wordmark
                     android:id="@+id/cgWordmark"
                     style="@style/CgWordmarkPlace"
                     android:layout_width="wrap_content"
@@ -76,7 +79,7 @@
                     android:text="@string/cg_wordmark"
                     android:textColor="#FFFFFFFF"
                     android:textSize="@dimen/cg_wordmark_size" />
-            </FrameLayout>
+            </com.limelight.ui.WordmarkRow>
 
             <LinearLayout
                 android:id="@+id/heroSection"

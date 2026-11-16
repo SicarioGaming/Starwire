@@ -184,6 +184,9 @@
     <string name="category_gamepad_settings">Gamepad Settings</string>
     <string name="title_checkbox_multi_controller">Automatic gamepad presence detection</string>
     <string name="summary_checkbox_multi_controller">Unchecking this option forces a gamepad to always be present</string>
+    <string name="title_seekbar_controller_vibration_strength">Controller vibration strength</string>
+    <string name="summary_seekbar_controller_vibration_strength">How strongly the game\'s rumble plays on every controller, and on this device when it vibrates in place of one. Audio haptics on the controller follows it too. 0% turns both off.</string>
+    <string name="suffix_seekbar_controller_vibration_strength">%</string>
     <string name="title_checkbox_vibrate_fallback">Emulate rumble support with vibration</string>
     <string name="summary_checkbox_vibrate_fallback">Vibrates your device to emulate rumble if your gamepad does not support it</string>
     <string name="title_seekbar_vibrate_fallback_strength">Adjust emulated rumble intensity</string>
@@ -196,6 +199,8 @@
     <string name="summary_checkbox_xb1_driver">Enables a built-in USB driver for devices without native Xbox controller support</string>
     <string name="title_checkbox_usb_bind_all">Override native Xbox gamepad support</string>
     <string name="summary_checkbox_usb_bind_all">Use Starwire\'s USB driver for all supported gamepads, even if native Xbox controller support is present</string>
+    <string name="title_checkbox_usb_share">USB devices (Experimental)</string>
+    <string name="summary_checkbox_usb_share">Share a wired device plugged into this phone with the PC, from the stream menu. The PC needs Starwire\'s USB helper, and this phone paired with its microphone receiver.</string>
     <string name="title_checkbox_mouse_emulation">Mouse emulation via gamepad</string>
     <string name="summary_checkbox_mouse_emulation">Long pressing the Start button will switch the gamepad into mouse mode</string>
     <string name="title_checkbox_flip_face_buttons">Flip face buttons</string>
@@ -207,11 +212,58 @@
     <string name="title_checkbox_gamepad_motion_fallback">Emulate gamepad motion sensor support</string>
     <string name="summary_checkbox_gamepad_motion_fallback">Uses your device\'s built-in motion sensors if gamepad sensors are not supported by your connected gamepad or your Android version.\nNote: Enabling this option may cause your gamepad to appear as a PlayStation controller on the host.</string>
 
+    <!-- DualSense trigger effects over Bluetooth (Experimental), under Controllers -->
+    <string name="category_dualsense">DualSense (Experimental)</string>
+    <string name="title_checkbox_dualsense_effects">Trigger effects</string>
+    <string name="summary_checkbox_dualsense_effects">Adaptive triggers on a DualSense paired over Bluetooth, on Android 12 and newer. It uses a hidden Android call, so an update can stop it.</string>
+    <string name="summary_checkbox_dualsense_effects_old_android">Needs Android 12 or newer.</string>
+    <string name="title_dualsense_status">Status</string>
+    <string name="title_dualsense_test">Test</string>
+    <string name="summary_dualsense_test">Sends a gun click to both triggers for 10 seconds.</string>
+    <string name="dualsense_test_sent">Sent a gun click to both triggers. Pull R2 or L2 now. It turns off in 10 seconds. If you feel nothing, the pad didn\'t get it.</string>
+    <string name="title_list_dualsense_trigger_preset">Trigger preset</string>
+    <string name="summary_list_dualsense_trigger_preset">%s. A preset plays until the game sends its own effect.</string>
+    <string name="dualsense_preset_none">None (the game\'s effects only)</string>
+    <string name="dualsense_preset_light_resistance">Light resistance</string>
+    <string name="dualsense_preset_gun_click">Gun click</string>
+    <string name="dualsense_preset_heavy_pedal">Heavy pedal</string>
+    <string name="dualsense_preset_buzz">Buzz while pulled</string>
+    <string name="dualsense_preset_off">Off (no effects, not even the game\'s)</string>
+    <string name="title_list_dualsense_trigger_strength">Trigger strength</string>
+    <string name="summary_list_dualsense_trigger_strength">%s. The pad\'s own power limit, for the game\'s effects and the presets. It may not weaken plain resistance.</string>
+    <string name="dualsense_strength_full">Full (8 of 8)</string>
+    <string name="dualsense_strength_7">7 of 8</string>
+    <string name="dualsense_strength_6">6 of 8</string>
+    <string name="dualsense_strength_5">5 of 8</string>
+    <string name="dualsense_strength_4">4 of 8</string>
+    <string name="dualsense_strength_3">3 of 8</string>
+    <string name="dualsense_strength_2">2 of 8</string>
+    <string name="dualsense_strength_lightest">Lightest (1 of 8)</string>
+    <string name="dualsense_permission_denied">Trigger effects need the Nearby devices permission.</string>
+    <string name="dualsense_status_off">Off. The DualSense works as it always has.</string>
+    <string name="dualsense_status_checking">Looking for the DualSense.</string>
+    <string name="dualsense_status_needs_android_12">Needs Android 12 or newer. The DualSense works as it always has.</string>
+    <string name="dualsense_status_no_permission">Starwire doesn\'t have the Nearby devices permission. Turn the switch off and on to ask again.</string>
+    <string name="dualsense_status_bluetooth_off">Bluetooth is off.</string>
+    <string name="dualsense_status_no_hid_service">Android\'s Bluetooth controller service didn\'t answer. The DualSense works as it always has.</string>
+    <string name="dualsense_status_no_call_form">This device doesn\'t have the hidden Android call Starwire uses. The DualSense works as it always has.</string>
+    <string name="dualsense_status_no_pad">No DualSense connected over Bluetooth. Pair it in Android\'s Bluetooth settings. A pad on a cable isn\'t supported yet.</string>
+    <string name="dualsense_status_two_pads">More than one DualSense is connected. Trigger effects work with one at a time for now.</string>
+    <string name="dualsense_status_send_failed">Android wouldn\'t send to the pad. The DualSense works as it always has.</string>
+    <string name="dualsense_status_ready">DualSense found. Tap Test to feel an effect.</string>
+    <string name="dualsense_status_working">Trigger effects on. Android took the last effect, which doesn\'t prove the pad got it.</string>
+    <string name="dualsense_status_last_stream">Last stream: %1$s</string>
+
     <string name="category_overlay_menu">Overlay Menu</string>
     <string name="title_overlay_trigger_button">Menu trigger button</string>
     <string name="summary_overlay_trigger_button">Choose which button opens the overlay menu when held</string>
     <string name="title_overlay_hold_duration">Trigger button hold duration</string>
     <string name="summary_overlay_hold_duration">How long to hold the button before the overlay menu opens</string>
+    <string name="title_left_edge_swipe_action">Left edge swipe action</string>
+    <string name="summary_left_edge_swipe_action">What a swipe in from the left edge of the screen does while streaming. A 3-finger tap always opens the overlay menu.</string>
+    <string name="left_edge_swipe_overlay_menu">Overlay menu</string>
+    <string name="left_edge_swipe_brightness">Brightness adjustment</string>
+    <string name="left_edge_swipe_off">Disabled</string>
 
     <string name="category_input_settings">Input Settings</string>
     <string name="title_checkbox_touchscreen_trackpad">Use the touchscreen as a trackpad</string>
@@ -408,6 +460,7 @@
     <!-- Overlay Menu strings -->
     <string name="overlay_menu_disconnect">Disconnect</string>
     <string name="overlay_menu_quit_session">Quit Session</string>
+    <string name="overlay_menu_brightness">Brightness</string>
     <string name="overlay_menu_toggle_stats">Stats (RB)</string>
     <string name="overlay_menu_mouse_emulation">Mouse (X)</string>
     <string name="overlay_menu_keyboard">Keyboard (Y)</string>
@@ -454,9 +507,19 @@
     <string name="overlay_menu_send_ctrl_alt_shift_f1">Ctrl+Alt+Shift+F1</string>
     <string name="overlay_menu_send_ctrl_alt_shift_f12">Ctrl+Alt+Shift+F12</string>
     <string name="overlay_menu_send_win_alt_b">Win+Alt+B</string>
+    <!-- Windows' Task View and its next and previous virtual desktop -->
+    <string name="overlay_menu_send_win_tab">Win+Tab</string>
+    <string name="overlay_menu_send_win_ctrl_right">Win+Ctrl+Right</string>
+    <string name="overlay_menu_send_win_ctrl_left">Win+Ctrl+Left</string>
+    <!-- What TalkBack says for those three: what each one does, then its keys -->
+    <string name="overlay_menu_a11y_win_tab">Task View, Win+Tab</string>
+    <string name="overlay_menu_a11y_win_ctrl_right">Next desktop, Win+Ctrl+Right</string>
+    <string name="overlay_menu_a11y_win_ctrl_left">Previous desktop, Win+Ctrl+Left</string>
     <string name="menu_button">Menu</string>
     <string name="title_floating_button">Floating menu button</string>
     <string name="summary_floating_button">Show a draggable button over the stream that opens the menu</string>
+    <string name="title_back_opens_menu">Back opens the menu</string>
+    <string name="summary_back_opens_menu">Back opens the stream menu instead of ending the stream. To leave, use Disconnect or Quit Session in the menu.</string>
 
     <!-- Starwire: pan/zoom, mouse modes, touch sensitivity, clipboard and server commands (from Artemide) -->
     <string name="overlay_menu_pan_zoom">Pan/Zoom</string>
@@ -499,11 +562,11 @@
     <string name="summary_checkbox_enable_perf_overlay_lite">One short line at the top: data rate, ping, decode time, dropped frames and FPS</string>
     <string name="title_checkbox_prevent_packet_loss">Prevent packet loss</string>
     <string name="summary_checkbox_prevent_packet_loss">Keeps the Wi-Fi connection busy with a tiny packet every 20 ms, so devices that drop packets in Wi-Fi power saving stay awake. Uses slightly more battery.</string>
-    <string name="title_virtual_display_mode">Display on the PC</string>
-    <string name="summary_virtual_display_mode">Where the host streams from. Host default leaves it to Vibepollo\'s own setting.</string>
+    <string name="title_virtual_display_mode">Virtual display</string>
+    <string name="summary_virtual_display_mode">Apollo and Vibepollo can make a screen just for this device, at the stream\'s resolution and frame rate. Host default leaves it to the PC\'s own setting.</string>
     <string name="virtual_display_mode_host">Host default</string>
-    <string name="virtual_display_mode_virtual">Virtual display</string>
-    <string name="virtual_display_mode_primary">Primary display</string>
+    <string name="virtual_display_mode_virtual">On: a screen made for this device</string>
+    <string name="virtual_display_mode_primary">Off: the PC\'s main monitor</string>
     <string name="applist_menu_start_vdisplay">Start in Virtual Display</string>
     <string name="applist_menu_start_primarydisplay">Start in Primary Display</string>
 
@@ -544,6 +607,43 @@
     <string name="bitrate_mbps">%1$d Mbps</string>
     <string name="bitrate_changed">Bitrate set to %1$d Mbps</string>
     <string name="bitrate_failed">Couldn\'t change bitrate: %1$s</string>
+
+    <!-- Starwire: sharing a wired USB device with the PC (Experimental) -->
+    <string name="overlay_menu_usb_devices">USB devices</string>
+    <string name="usb_share_none_plugged_in">No USB devices plugged in</string>
+    <string name="usb_share_unnamed">USB device %1$04x:%2$04x</string>
+    <string name="usb_share_verdict_allowed">Can be shared</string>
+    <string name="usb_share_verdict_unchecked">Checked when you share it</string>
+    <string name="usb_share_verdict_ask">Asks you first</string>
+    <string name="usb_share_verdict_refused">Can\'t be shared. %1$s</string>
+    <string name="usb_share_rule_hub">It\'s a USB hub.</string>
+    <string name="usb_share_rule_storage">It\'s storage, a camera or a phone.</string>
+    <string name="usb_share_rule_network">It\'s a network adapter, modem or radio.</string>
+    <string name="usb_share_rule_vendor">It needs its maker\'s own driver.</string>
+    <string name="usb_share_rule_unconfirmed">Keyboards and mice need your yes on this phone first.</string>
+    <string name="usb_share_rule_configurations">It has more than one configuration.</string>
+    <string name="usb_share_rule_unreadable">Its descriptors don\'t add up.</string>
+    <string name="usb_share_rule_other_class">Starwire doesn\'t share this kind of device.</string>
+    <string name="usb_share_rule_mismatch">It sent the PC something it hadn\'t described.</string>
+    <string name="usb_share_rule_too_fast">It\'s a USB 3 device.</string>
+    <string name="usb_share_rule_other">The device rules refused it.</string>
+    <string name="usb_share_state_permission">Waiting for Android\'s permission</string>
+    <string name="usb_share_state_confirm">Waiting for your answer</string>
+    <string name="usb_share_state_connecting">Connecting to the PC</string>
+    <string name="usb_share_state_shared">Shared with the PC. Select to stop.</string>
+    <string name="usb_share_state_stopping">Giving it back</string>
+    <string name="usb_share_state_lost">Connection lost. Share again?</string>
+    <string name="usb_share_one_at_a_time">Stop sharing %1$s first. One device is shared at a time.</string>
+    <string name="usb_share_confirm_title">Share this keyboard or mouse?</string>
+    <string name="usb_share_confirm_message">While \"%1$s\" (%2$04x:%3$04x) is shared, the PC gets everything you type or click on it.</string>
+    <string name="usb_share_confirm_share">Share</string>
+    <string name="usb_share_confirm_cancel">Don\'t share</string>
+    <string name="usb_share_shared_toast">%1$s is shared with the PC.</string>
+    <string name="usb_share_unplugged_toast">%1$s was unplugged, so it\'s no longer shared.</string>
+    <string name="usb_share_lost_toast">Lost the connection to the PC. %1$s is back on this phone.</string>
+    <string name="usb_share_connect_failed">Couldn\'t start sharing it. Try again in a moment.</string>
+    <string name="usb_share_ended">Sharing stopped.</string>
+    <string name="usb_share_permission_denied">Android didn\'t let Starwire use it.</string>
 
     <!-- Starwire: Warp Drive / Warp 2 pacing (from Artemide), cursor hiding, long-press right click -->
     <string name="pacing_warp">Warp Drive: 2x FPS from the PC, newest frame shown (Experimental)</string>
@@ -645,7 +745,7 @@
     <string name="title_checkbox_pinch_to_zoom">Pinch to zoom anytime</string>
     <string name="summary_checkbox_pinch_to_zoom">Pinch with two fingers to zoom and move around the stream, without turning on Pan/Zoom. Two-finger scrolls and taps still go to the PC. Not in Multi-touch mode.</string>
     <string name="title_checkbox_long_press_right_click">Long-press to right-click</string>
-    <string name="summary_checkbox_long_press_right_click">In the trackpad (gaming) touch mode, a long press holds the right mouse button instead of starting a left-button drag</string>
+    <string name="summary_checkbox_long_press_right_click">In the trackpad (gaming) touch mode, a long press is a right click when you lift your finger without moving it. Move your finger after the long press to drag with the left button. When off, a long press holds the left button straight away.</string>
 
     <!-- Custom Commands Activity -->
     <string name="title_custom_commands">Custom Commands</string>
@@ -738,6 +838,45 @@
     <string name="mic_pair_no_address">Starwire doesn\'t know a home-network or VPN address for %1$s. Stream from it once on your home network, then try again.</string>
     <string name="mic_pair_failed">Pairing didn\'t work. Choose Pair a device on the PC again and type the new code.</string>
     <string name="mic_pair_not_saved">Paired, but Starwire couldn\'t save the pairing. Try again.</string>
+    <!-- Sharing a USB device with the PC's USB helper, through the tunnel (docs/dev/usb-protocol.md) -->
+    <string name="usb_tunnel_no_pairing">Nothing was shared. USB sharing uses the microphone\'s pairing, so pair the microphone with this PC first (Settings, Sound and vibration, Send my microphone, Pair with the PC).</string>
+    <string name="usb_tunnel_not_home">Nothing was shared. Starwire only shares USB devices with a PC on your home network or a private VPN.</string>
+    <string name="usb_tunnel_cant_reach">Couldn\'t reach the USB helper on the PC. Check that it\'s running and that USB is on in its menu.</string>
+    <string name="usb_tunnel_no_answer">The USB helper on the PC didn\'t answer, so nothing was shared. Check that USB is on in its menu.</string>
+    <string name="usb_tunnel_not_verified">The PC\'s answer didn\'t check out, so nothing was shared.</string>
+    <string name="usb_tunnel_update_starwire">The USB helper on the PC is newer than this Starwire. Update Starwire to share devices with it.</string>
+    <string name="usb_tunnel_update_helper">The USB helper on the PC is too old for this Starwire. Update it on the PC.</string>
+    <string name="usb_tunnel_refused">The PC refused the connection, so nothing was shared.</string>
+    <string name="usb_tunnel_refused_not_paired">The PC says this phone isn\'t paired with it. Pair the microphone with this PC again.</string>
+    <string name="usb_tunnel_refused_version">The PC says it has no version in common with this Starwire. Update Starwire and the USB helper.</string>
+    <string name="usb_tunnel_refused_not_allowed">On the PC, tick Allow USB for this phone in the USB helper\'s menu.</string>
+    <string name="usb_tunnel_busy">Another device is already shared with this PC.</string>
+    <string name="usb_tunnel_device_refused">The PC refused this device: %1$s.</string>
+    <string name="usb_tunnel_no_driver">The PC\'s USB driver is missing, or the USB helper doesn\'t know its version. Run the USB setup on the PC again.</string>
+    <string name="usb_tunnel_not_shared">The PC didn\'t take the device.</string>
+    <string name="usb_tunnel_stopped_on_pc">Sharing was stopped on the PC.</string>
+    <string name="usb_tunnel_usb_off">USB was turned off in the USB helper on the PC.</string>
+    <string name="usb_tunnel_unpaired">Sharing stopped. The pairing changed on the PC, or Allow USB was unticked for this phone.</string>
+    <string name="usb_tunnel_rules">Sharing stopped because the device broke a rule: %1$s.</string>
+    <string name="usb_tunnel_attach_failed">Windows couldn\'t attach the device, or removed it.</string>
+    <string name="usb_tunnel_helper_closing">Sharing stopped because the USB helper on the PC is closing.</string>
+    <string name="usb_tunnel_ended_by_pc">The PC stopped sharing.</string>
+    <string name="usb_tunnel_stopped">Sharing stopped.</string>
+    <string name="usb_tunnel_lost">The connection to the PC dropped. You can share the device again.</string>
+    <string name="usb_tunnel_protocol">The PC sent something Starwire didn\'t expect, so sharing stopped.</string>
+    <string name="usb_tunnel_device_gone">The device was unplugged, or Starwire couldn\'t read it, so sharing stopped.</string>
+    <!-- Each one finishes "The PC refused this device: " or "the device broke a rule: " -->
+    <string name="usb_rule_hub">it\'s a USB hub</string>
+    <string name="usb_rule_storage">it\'s storage, like a drive, a camera or a phone</string>
+    <string name="usb_rule_network">it\'s a network adapter, a modem or a radio</string>
+    <string name="usb_rule_unlisted_vendor">it uses its maker\'s own protocol, and it isn\'t on the list of devices allowed</string>
+    <string name="usb_rule_unconfirmed_input">it\'s a keyboard or mouse, and you didn\'t say yes to sharing it</string>
+    <string name="usb_rule_configurations">it has more than one configuration</string>
+    <string name="usb_rule_unreadable">its descriptors don\'t read, or don\'t fit together</string>
+    <string name="usb_rule_other_class">it\'s a kind of device Starwire doesn\'t share</string>
+    <string name="usb_rule_mismatch">it sent Windows something it hadn\'t described</string>
+    <string name="usb_rule_too_fast">it\'s a USB 3 device, faster than Starwire can share</string>
+    <string name="usb_rule_unknown">a rule this Starwire doesn\'t know yet</string>
     <string name="title_microphone_host_info">Get the Apollo build for microphone</string>
     <string name="summary_microphone_host_info">Opens logabell\'s Apollo on GitHub. Install it on the PC in place of your current host.</string>
     <string name="title_microphone_device_list">Microphone</string>
@@ -821,22 +960,25 @@
     <string name="oss_licence_missing">This licence text is missing from the app. The project page has it.</string>
     <string name="credits_section_moonlight">Moonlight versions</string>
     <string name="credits_section_microphone">Microphone</string>
+    <string name="credits_section_usb">USB devices</string>
     <string name="credits_section_video">Video and drivers</string>
     <string name="credits_section_hosts">Hosts</string>
     <string name="credits_section_tools">Tools</string>
     <string name="credit_moonlight">The original client everything here is built on</string>
-    <string name="credit_moonlight_x">The base of Starwire: Vulkan renderer, PyroWave, overlay menu, per-app settings, Quick Launch, custom resolutions and frame rates</string>
-    <string name="credit_artemis">Pan/zoom, touch modes, clipboard, server commands, Virtual Display, Warp pacing, floating button, and more (via Artemide)</string>
-    <string name="credit_artemide">Nano Pacer / Fast V-Sync, Sync and Async LFR, async decode, MediaTek low-latency work, and the version of the Artemis features that Starwire ported</string>
+    <string name="credit_moonlight_x">The base of Starwire: Vulkan renderer, PyroWave, overlay menu, per-app settings, Quick Launch, custom resolutions and frame rates. From 0.3.0: the Brightness item, the left edge swipe, Quit Session\'s question, what Starwire asks of Google\'s decoders, the rounded stats box and the room for the gesture bar</string>
+    <string name="credit_artemis">Pan/zoom, touch modes, clipboard, server commands, Virtual Display, Warp pacing, floating button, the idea for Back opening the menu, and more (via Artemide)</string>
+    <string name="credit_artemide">Nano Pacer / Fast V-Sync, Sync and Async LFR, async decode, MediaTek low-latency work, and the version of all the Artemis features above that Starwire ported</string>
     <string name="credit_axixi">Full keyboard, shortcuts list, Lite overlay, shortcut file format (via Artemis)</string>
     <string name="credit_turnip">Custom Turnip Vulkan driver for PyroWave</string>
-    <string name="credit_vplus">Ideas: bitrate mid-stream, audio haptics, 1% lows</string>
+    <string name="credit_vplus">The USB exporter that USB sharing is built on (usbip-backend), by qiin2333 and CLF (CLF184). Ideas: bitrate mid-stream and one change at a time, audio haptics, 1% lows, and skipping a dialog whose screen has closed. Ported: how the DualSense trigger effects reach the pad over Bluetooth (the four send calls, finding the pad)</string>
     <string name="credit_moonlit">Ideas: monitor switcher, pinch to zoom anytime</string>
     <string name="credit_fold">Idea: letting the stream follow a foldable\'s inner screen</string>
+    <string name="credit_nightjar">Ported: passing the host\'s DualSense trigger effects from moonlight-common-c to Java</string>
     <string name="credit_apollo_microphone">The in-stream microphone: the Android capture, the moonlight-common-c changes, and the Apollo build that receives it</string>
     <string name="credit_vban">VBAN, the network audio format Starwire\'s microphone uses, and VB-Cable, the virtual microphone the receiver plays into (donationware)</string>
     <string name="credit_pyrowave">The PyroWave codec</string>
     <string name="credit_adrenotools">Loading a custom Adreno Vulkan driver</string>
+    <string name="credit_usbipdcpp">The USB/IP server inside the app that USB sharing uses. This product uses usbipdcpp (https://github.com/yunsmall/usbipdcpp), licensed under LGPLv3.</string>
     <string name="credit_vibepollo">The host Starwire is developed with (fork of Apollo)</string>
     <string name="credit_apollo_sunshine">The hosts Vibepollo is built on</string>
     <string name="credit_claude_code">Writing the Starwire code, ports, redesign and tests</string>

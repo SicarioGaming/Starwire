@@ -239,6 +239,7 @@ check_tag() {
   local tag=$1 first_release=$2 v pre="" t line d heading=0 link=0 bad_heading="" notes what need sug
   local n_feat=0 n_break=0 n_untyped=0 first_feat="" first_break="" untyped="" rec sha msg subject
   local code="" prev_text prev_commit text tag_list tags_ok=1 log shallow head_commit tag_commit rev at
+  local log_read=0
   local -a tags nv nb
   NPROB=0 NWARN=0 LEVEL=""
 
@@ -388,8 +389,12 @@ check_tag() {
       problem "can't list the commits since $BASE, so the bump isn't checked"
       log=""
     fi
+    # The loop has to reach the "end" record after the commits. Bash keeps a here-string over
+    # 64 KiB in a temp file (0.3.0's commits are 209 KB), and on a full disk the loop would read
+    # nothing and the bump would pass.
     while IFS= read -r -d $'\x1e' rec; do
       rec=${rec#$'\n'}
+      if [ "$rec" = end ]; then log_read=1; break; fi
       sha=${rec%%$'\n'*} msg=${rec#*$'\n'}
       commit_kind "$msg"
       subject=${msg%%$'\n'*} subject=${subject%$'\r'}
@@ -406,7 +411,10 @@ check_tag() {
             [ $n_untyped -gt 5 ] || untyped="$untyped"$'\n'"  ${sha:0:10} \"$subject\""
           fi ;;
       esac
-    done <<< "$log"
+    done <<< "$log"$'\n'"end"$'\x1e'
+    if [ $log_read = 0 ]; then
+      problem "couldn't read the commits since $BASE (is the disk full?), so the bump isn't checked"
+    fi
     if [ $n_break -gt 0 ]; then
       if [ "${nb[0]}" = 0 ]; then need=MINOR; else need=MAJOR; fi
       if [ "$(rank $LEVEL)" -lt "$(rank $need)" ]; then
@@ -452,7 +460,7 @@ check_tag() {
 forget_git_vars() { unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY; }
 
 self_test() {
-  local total=0 wrong=0 tmp root s when=1792800000 i want real_git
+  local total=0 wrong=0 tmp root s when=1792800000 i want real_git long_in_file
   local -a spec
 
   forget_git_vars
@@ -612,26 +620,28 @@ self_test() {
       *) at add -A && at commit -q --allow-empty -m "chore: set the version to $v" ;;
     esac
   }
-  # check [-C folder] [-a] [-f] [-g what] expected-exit tag label [text the output must have]
+  # check [-C folder] [-a] [-f] [-g what] [-d] expected-exit tag label [text the output must have]
   #       [text it mustn't have]
-  # -C runs it in another folder, -a as on GitHub Actions, -f with --first-release, and -g with a
-  # git that fails when its arguments have "what" in them.
+  # -C runs it in another folder, -a as on GitHub Actions, -f with --first-release, -g with a
+  # git that fails when its arguments have "what" in them, and -d with a bash that can't write
+  # the temp files it keeps long here-strings in, as on a full disk.
   check() {
-    local dir=$root gha="" opts="" path=$PATH fail="" out status
+    local dir=$root gha="" opts="" path=$PATH fail="" bash_env="" out status
     while :; do
       case $1 in
         -C) dir=$2; shift 2 ;;
         -a) gha=true; shift ;;
         -f) opts=--first-release; shift ;;
         -g) path=$tmp/bin:$PATH fail=$2; shift 2 ;;
+        -d) bash_env=$tmp/full-disk.sh; shift ;;
         *) break ;;
       esac
     done
     out=$(cd "$dir" && unset GIT_DIR GIT_WORK_TREE && GIT_CONFIG_NOSYSTEM=1 \
-      GIT_CONFIG_GLOBAL=/dev/null GITHUB_ACTIONS=$gha PATH=$path FAIL_GIT=$fail \
+      GIT_CONFIG_GLOBAL=/dev/null GITHUB_ACTIONS=$gha PATH=$path FAIL_GIT=$fail BASH_ENV=$bash_env \
       bash "$SELF" --tag "$2" $opts 2>&1)
     status=$?
-    result "$1" "$status" "--tag $2${opts:+ $opts}${fail:+ (git $fail fails)}: $3"
+    result "$1" "$status" "--tag $2${opts:+ $opts}${fail:+ (git $fail fails)}${bash_env:+ (on a full disk)}: $3"
     if [ -n "${4:-}" ]; then
       case $out in *"$4"*) s=says-so ;; *) s=doesnt; printf '%s\n' "$out" | sed 's/^/         | /' ;; esac
       result says-so "$s" "  and says: ${4//$'\n'/\\n}"
@@ -667,6 +677,18 @@ self_test() {
     'case " $* " in *" $FAIL_GIT "*) echo "fatal: planted failure" >&2; exit 128 ;; esac' \
     "exec '$real_git' \"\$@\"" > "$tmp/bin/git"
   chmod +x "$tmp/bin/git"
+  # Bash keeps a here-string over 64 KiB in a temp file. On a full disk it can't write it, and
+  # the loop reading it gets nothing. This BASH_ENV plays that: a read from a temp file gets
+  # nothing, a read from a pipe works.
+  printf '%s\n' 'read() { if [ -f /dev/stdin ]; then return 1; fi; builtin read "$@"; }' > "$tmp/full-disk.sh"
+  i=0
+  { printf '%s\n\n' "feat(mic): add a mute button"
+    while [ $i -lt 2000 ]; do echo "A long body, line $i, so the commits since the release are over 64 KiB."; i=$((i + 1)); done
+  } > "$tmp/long-message.txt"
+  long_in_file=0
+  if { [ -p /dev/stdin ]; } <<< "short" && { [ -f /dev/stdin ]; } <<< "$(cat "$tmp/long-message.txt")"; then
+    long_in_file=1
+  fi
 
   # The first release, with tags around it that aren't Starwire releases
   files 0.1.0 1 old-gradle
@@ -724,12 +746,18 @@ self_test() {
     result cloned failed "a shallow clone of the throwaway repo"
   fi
 
-  # A feat commit needs at least MINOR
-  commit "feat(mic): add a mute button"
+  # A feat commit needs at least MINOR. Its long body puts the commits in a temp file, which a
+  # full disk mustn't turn into a pass.
+  at commit -q --allow-empty -F "$tmp/long-message.txt"
   files 0.1.2 3
   check 1 v0.1.1 "the tag after more commits" "v0.1.1 points at " 'versionName in app/build.gradle is "0.1.2"'
   check 1 v0.1.1 "  is still checked at its own commit" "v0.1.1: PATCH release after v0.1.0, 1 problem(s) to fix"
   check 1 v0.1.2 "a feat commit in a PATCH release" "so it needs at least a MINOR bump: v0.2.0"
+  if [ $long_in_file = 1 ]; then
+    check -d 1 v0.1.2 "a feat commit in a PATCH release" "couldn't read the commits since v0.1.1" "fine"
+  else
+    echo "skipped: --tag on a full disk (this bash doesn't keep a long here-string in a temp file)"
+  fi
   files 0.1.2-beta.1 3 no-heading no-link
   check 1 v0.1.2-beta.1 "a feat commit in a pre-release of a PATCH release" "needs at least a MINOR bump"
   files 0.2.5 3;              check 1 v0.2.5 "MINOR raised but PATCH not back to 0" "so PATCH goes back to 0: v0.2.0"

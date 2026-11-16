@@ -45,6 +45,7 @@ import com.limelight.binding.audio.MicrophoneCaptureManager;
 import com.limelight.binding.audio.VbanSender;
 import com.limelight.binding.audio.securemic.MicPairing;
 import com.limelight.binding.audio.securemic.MicPairingStore;
+import com.limelight.binding.usb.share.UsbShareBackends;
 import com.limelight.ui.CoverGlowSettings;
 import com.limelight.ui.overlay.ImportedShortcuts;
 import com.limelight.binding.video.CustomVulkanDriver;
@@ -316,7 +317,17 @@ public class StreamSettings extends Activity {
         @Override
         public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
             View view = super.onCreateView(inflater, container, savedInstanceState);
-            UiHelper.applyStatusBarPadding(view);
+
+            // Pad the list itself so it scrolls behind the navigation bar
+            // but its last setting can still scroll clear of it
+            View list = view.findViewById(android.R.id.list);
+            if (list instanceof ViewGroup) {
+                ((ViewGroup) list).setClipToPadding(false);
+                UiHelper.applyStatusBarPadding(list);
+            }
+            else {
+                UiHelper.applyStatusBarPadding(view);
+            }
             return view;
         }
 
@@ -324,6 +335,25 @@ public class StreamSettings extends Activity {
         public void onViewCreated(View view, Bundle savedInstanceState) {
             super.onViewCreated(view, savedInstanceState);
             CoverGlowSettings.attach(this, view);
+        }
+
+        // The DualSense group looks for the pad only while Settings is showing
+        private DualSenseSettings dualSenseSettings;
+
+        @Override
+        public void onResume() {
+            super.onResume();
+            if (dualSenseSettings != null) {
+                dualSenseSettings.onResume();
+            }
+        }
+
+        @Override
+        public void onPause() {
+            if (dualSenseSettings != null) {
+                dualSenseSettings.onPause();
+            }
+            super.onPause();
         }
 
         @Override
@@ -341,6 +371,8 @@ public class StreamSettings extends Activity {
             PreferenceScreen screen = getPreferenceScreen();
             initializeMicrophonePreferences();
             initializeAboutPreferences();
+            dualSenseSettings = new DualSenseSettings(this);
+            dualSenseSettings.attach();
 
             // hide on-screen controls category on non touch screen devices
             if (!getActivity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)) {
@@ -380,6 +412,15 @@ public class StreamSettings extends Activity {
                         (PreferenceCategory) findPreference("category_gamepad_settings");
                 category.removePreference(findPreference("checkbox_usb_bind_all"));
                 category.removePreference(findPreference("checkbox_usb_driver"));
+            }
+
+            // Sharing USB devices with the PC needs USB host support, and a build and phone that
+            // have the exporter and the tunnel. Until then there's nothing for the setting to do.
+            if (!getActivity().getPackageManager().hasSystemFeature(PackageManager.FEATURE_USB_HOST)
+                    || !UsbShareBackends.available()) {
+                PreferenceCategory category =
+                        (PreferenceCategory) findPreference("category_gamepad_settings");
+                category.removePreference(findPreference(PreferenceConfiguration.USB_SHARE_PREF_STRING));
             }
 
             // Remove PiP mode on devices pre-Oreo, where the feature is not available (some low RAM devices),
@@ -1090,6 +1131,9 @@ public class StreamSettings extends Activity {
         @Override
         public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
             super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+            if (dualSenseSettings != null && dualSenseSettings.onPermissionResult(requestCode, grantResults)) {
+                return;
+            }
             if (requestCode != REQUEST_RECORD_AUDIO) {
                 return;
             }

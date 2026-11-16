@@ -1,8 +1,7 @@
 # Releasing Starwire
 
 **Status:** the one-time history switch below was done on 23 Oct 2026, so the public repo now
-carries the real history, shared with Moonlight X. The release steps are still a proposal until
-the next release uses them.
+carries the real history, shared with Moonlight X. The release steps were first used for 0.2.1.
 
 ## Why change
 
@@ -55,7 +54,11 @@ What was decided before running it (23 Oct):
 `.github/tools/check-publish.sh` looks at every commit a push would add to the public repo and stops
 if it finds:
 
-- a commit or tag by anyone other than `SicarioGaming <stayf8dop@gmail.com>`, or not dated in UTC
+- a commit or tag by anyone other than `SicarioGaming <stayf8dop@gmail.com>`, or not dated in UTC.
+  A commit brought in with `git cherry-pick -x` keeps its own author and date when the commit it
+  names is on one of the forks' remotes: `moonlightx`, `artemide`, `turnip`, `nightjar` or `vplus`
+  (Moonlight V+). Fetch each of them with `tagOpt --no-tags`, as in
+  [The forks' remotes](#the-forks-remotes)
 - a keystore or key file, `keystore.properties`, `local.properties`, `.env`, anything under
   `private/`, or a Reddit draft
 - an access token, a private key, a written-out password, a local user folder, or a private network
@@ -90,6 +93,25 @@ yet, pushes to the public repo stop and pushes anywhere else go through.
 Two things it can't see: the submodule (common-c commits are published from their own repo) and
 what's already public. If a secret ever does get out, removing it from history doesn't help: change
 the secret.
+
+### The forks' remotes
+
+The check only counts a cherry-pick as upstream when the commit it names is on a fork's remote in
+the clone it runs in. A pick from a fork that isn't fetched there fails, as a commit by someone
+else would. Add and fetch all five once per clone:
+
+```
+git remote add moonlightx https://github.com/MoreOrLessSoftware/moonlight-android.git
+git remote add artemide https://github.com/derflacco/moonlight-android.git
+git remote add turnip https://github.com/NoCrypt/moonlight-x-turnip.git
+git remote add nightjar https://github.com/RamazanKara/nightjar.git
+git remote add vplus https://github.com/qiin2333/moonlight-vplus.git
+for remote in moonlightx artemide turnip nightjar vplus; do git config remote.$remote.tagOpt --no-tags; git fetch $remote; done
+```
+
+`--no-tags` keeps the forks' tags out, since some have names Starwire uses, like v0.3.0 (see
+[Afterwards](#afterwards)). `check-tools.sh` checks this list matches the remotes
+`check-publish.sh` counts by default.
 
 ## Version numbers
 
@@ -179,14 +201,20 @@ dates are in UTC.
 1. On the release branch: pick the number by the rules in [Version numbers](#version-numbers), then
    the version and notes as in [UPDATING.md](UPDATING.md) (section 3, steps 1 and 2): raise
    `versionName` and `versionCode` in app/build.gradle together, and move CHANGELOG.md's
-   `[Unreleased]` lines under the new version. The release checklist done
-   and the on-device tests passing (`.github/tools/device-test.sh -s <serial> --allow-stream`).
+   `[Unreleased]` lines under the new version. Reword the README rows that say "Coming in the
+   next release" or "Coming in" this version to say "From" it, like "From 0.2.1"
+   (NextReleaseRowsTest fails until you do). Before merging, the on-device tests pass
+   (`.github/tools/device-test.sh -s <serial> --allow-stream`), and any sign-off AGENTS.md asks
+   for is given.
 2. Merge it into `main` as one merge commit:
 
    ```
    git switch main
-   TZ=UTC git merge --no-ff <branch> -m "Starwire X.Y.Z"
+   TZ=UTC git merge --no-ff <branch> -m "chore(release): starwire X.Y.Z"
    ```
+
+   The commit-msg hook (check-commits.sh) refuses a message that isn't a Conventional Commit, so a
+   plain "Starwire X.Y.Z" is turned away.
 
 3. Tag it, annotated:
 
@@ -207,25 +235,38 @@ dates are in UTC.
    ```
 
 6. Push `main` first, wait for its tests, then push the tag, to the public repo one ref at a time.
-   The Release workflow runs no tests of its own, so the tag waits until the **Build** workflow has
-   passed on that commit of public `main`:
+   The Release workflow runs no tests of its own, so the tag waits until the **Build and test**
+   workflow (build.yml) has passed on that commit of public `main`. Look the run up by the commit,
+   not by the branch: until the new run shows up, the newest run on `main` is the last release's.
 
    ```
-   git push origin main
-   git push public main
-   gh run watch --repo SicarioGaming/Starwire --exit-status "$(gh run list --repo SicarioGaming/Starwire --workflow Build --branch main --limit 1 --json databaseId --jq '.[0].databaseId')"
-   git push origin vX.Y.Z
-   git push public vX.Y.Z
+   (
+     set -e
+     git push origin main
+     git push public main
+     sha=$(git rev-parse main)
+     until id=$(gh run list --repo SicarioGaming/Starwire --workflow build.yml --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId') && [ -n "$id" ]; do sleep 10; done
+     gh run watch --repo SicarioGaming/Starwire --exit-status "$id"
+     git push origin vX.Y.Z
+     git push public vX.Y.Z
+   )
    ```
 
-   The tag push to the public repo runs the **Release** workflow, which builds and signs the APK and
-   publishes the release with the notes and checksums. (If Actions are on in the private repo, the
+   They run in a subshell with `set -e`, so a refused push, or a run that fails or is cancelled,
+   stops them before the tag goes out. Then fix it on a branch, merge that into `main`, move the
+   tag to the new merge (it isn't out yet, so that's allowed), check again (step 5) and run these
+   again.
+
+   The tag push to the public repo runs the **Release** workflow, which builds and signs the APK,
+   makes the Windows zip with `.github/tools/make-windows-zip.sh` (the Build workflow makes it on
+   every push too, so a missing file shows up there first), and publishes the release with the
+   notes and checksums. (If Actions are on in the private repo, the
    tag push there runs it too and stops at once, because the signing secrets are only on the public
    repo. That's expected.) The tag push to the public repo also runs the **Devices** workflow's
    release tier, all 17 emulator legs; it doesn't hold the release back, so check its summary
    afterwards. On the private repo it only runs by hand (Actions > Devices > Run workflow).
-7. `gh release view vX.Y.Z --repo SicarioGaming/Starwire` lists the APK (and the microphone zip)
-   with checksums.
+7. `gh release view vX.Y.Z --repo SicarioGaming/Starwire` lists the APK and the Windows zip
+   (the microphone's and the USB helper's files) with checksums.
 
 Never toward the public repo: `--force`, `--tags`, `--all` or `--mirror`, moving a tag that's
 already out, or rewriting a commit that's already out. Wording fixes are new commits.
@@ -239,15 +280,15 @@ already out, or rewriting a commit that's already out. Wording fixes are new com
   Turnip's is `turnip/v12.1-turnip`, in the private repo and the maintainer's clone, so the plain
   `vX.Y.Z` names are Starwire's alone. Artemide's tags (like `Experimental_7.1`) stay as they
   are, since none of them starts with `v`. Fetches from the forks no longer bring tags
-  (`git config remote.moonlightx.tagOpt --no-tags`, and the same for `artemide` and `turnip`);
-  set that in any new clone. The public repo only ever had Starwire's tags, and nothing changed
+  (`git config remote.moonlightx.tagOpt --no-tags`, and the same for `artemide` and `turnip`,
+  and later `nightjar` and `vplus`); set that in any new clone, as in
+  [The forks' remotes](#the-forks-remotes). The public repo only ever had Starwire's tags, and nothing changed
   there. In the private repo, v0.2.0 now matches the public one. Its v0.1.0 and v0.1.2 are the
   private tags made at those releases, on different commits from the public ones (which mark the
   per-folder commits published at the time), and `starwire-v0.2.0` is left from when v0.2.0 was
   taken.
-- In UPDATING.md, point section 3 at this page. Its step 3 (`git push origin v<version>`) only
-  reaches the private repo, and `set-release-secrets.ps1` gives the signing secrets to the public
-  repo only, so that push can't make a release.
-- Bring Moonlight X in with real merges (`git merge moonlightx/mlsoft-x`), which keeps its authors,
-  and port single commits from other forks with `git cherry-pick -x`, which records where each one
-  came from.
+- Done on 16 Nov 2026: UPDATING.md's section 3 points here now. Its old step 3 (`git push origin
+  v<version>`) only reached the private repo, and `set-release-secrets.ps1` gives the signing
+  secrets to the public repo only, so that push couldn't make a release.
+- Bring commits in from Moonlight X and the other forks with `git cherry-pick -x`, which keeps
+  each one's author and records where it came from, as UPDATING.md says.

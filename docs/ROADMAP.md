@@ -51,11 +51,11 @@ Source: Artemide Experimental Async 0.5.1 (`derflacco/moonlight-android`, tag
         Shortcuts page after the built-in ones; importing again replaces them, and a bad file
         says what's wrong and keeps the earlier import. Example: `docs/shortcuts-example.json`.
         (Moonlight X's custom commands still cover adding your own by hand)
-- [x] Virtual Display: a "Display on the PC" setting (host default, virtual, primary) and
+- [x] Virtual Display: a "Virtual display" setting (host default, on, off) and
       "Start in Virtual/Primary Display" when long-pressing a game. Host default sends nothing,
       because Vibepollo treats `virtualDisplay=0` as turning its virtual display off
-- [x] Prevent Packet Loss: a tiny ignored control packet every 20 ms keeps Wi-Fi awake
-      (new `LiSendKeepAlivePayload` in common-c)
+- [x] Prevent Packet Loss: a ping every 20 ms keeps Wi-Fi awake (`LiSendKeepAlivePayload` in
+      common-c; up to 0.2.1 it was a packet type the hosts didn't know)
 - [x] V-Sync and Fast V-Sync: one "V-Sync" setting (Off, V-Sync, Fast V-Sync), off by
       default and used only by the direct renderer. Fast V-Sync is Artemide's nano pacer
       (NanoPacer.java) in "Prefer lowest latency" pacing. Artemide's own V-Sync only drives
@@ -104,7 +104,7 @@ Done so far (2026-10-21):
 - [x] Better stats: 1% low FPS (average of the slowest 1% of frame gaps) in both overlays
 - [x] Pinch to zoom anytime (Input settings, on by default; not in Multi-touch mode)
 - [x] Per-game settings: App Settings (long-press a game) can also set the video codec, V-Sync,
-      Sync: LFR, Async decode, Async: LFR, Display on the PC, touch mode, Hide PC cursor and
+      Sync: LFR, Async decode, Async: LFR, Virtual display, touch mode, Hide PC cursor and
       Audio haptics for that game or Quick Launch item; each defaults to the global setting
 - [x] Audio haptics (Audio settings, off by default): bass below ~120 Hz drives this device's
       vibration and/or the first controller's heavy motor, with a strength setting. The tablet's

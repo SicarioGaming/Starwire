@@ -1,5 +1,6 @@
 package com.limelight.screenshots;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
@@ -7,6 +8,8 @@ import android.app.Activity;
 import android.content.res.Configuration;
 import android.text.Layout;
 import android.os.Looper;
+import android.preference.Preference;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,6 +17,7 @@ import android.widget.BaseAdapter;
 import android.widget.FrameLayout;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -24,6 +28,7 @@ import com.limelight.preferences.StreamSettings;
 import com.limelight.ui.AppIcons;
 import com.limelight.ui.CollapsingHeader;
 import com.limelight.ui.CoverImageView;
+import com.limelight.ui.overlay.OverlayMenuButton;
 import com.limelight.ui.overlay.OverlayMenuView;
 
 import org.junit.Before;
@@ -38,6 +43,8 @@ import org.robolectric.annotation.GraphicsMode;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Proxy;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -114,6 +121,39 @@ public class ActivityScreensTest {
         ActivityController<StreamSettings> controller =
                 Robolectric.buildActivity(StreamSettings.class).setup();
         capture(controller.get().getWindow().getDecorView(), "settings");
+    }
+
+    /**
+     * Settings scrolled to Controllers > DualSense (Experimental), as it is the first time: the
+     * switch off, so the status line says so and nothing looks for a pad.
+     */
+    @Test
+    public void dualSenseSettings() {
+        ActivityController<StreamSettings> controller =
+                Robolectric.buildActivity(StreamSettings.class).setup();
+        shadowOf(Looper.getMainLooper()).idle();
+        Activity activity = controller.get();
+        ListView list = activity.findViewById(android.R.id.list);
+        int group = -1;
+        for (int i = 0; i < list.getAdapter().getCount(); i++) {
+            Object item = list.getAdapter().getItem(i);
+            if (item instanceof Preference && "dualsense_heading".equals(((Preference) item).getKey())) {
+                group = i;
+                break;
+            }
+        }
+        assertTrue("no DualSense group in the settings list", group >= 0);
+        // Its rows, in order, right under its heading
+        String[] rows = {"checkbox_dualsense_effects", "dualsense_status", "dualsense_test",
+                "list_dualsense_trigger_preset", "list_dualsense_trigger_strength"};
+        for (int i = 0; i < rows.length; i++) {
+            assertEquals(rows[i], ((Preference) list.getAdapter().getItem(group + 1 + i)).getKey());
+        }
+        Preference status = (Preference) list.getAdapter().getItem(group + 2);
+        assertEquals(activity.getString(R.string.dualsense_status_off), String.valueOf(status.getSummary()));
+        list.setSelection(group);
+        shadowOf(Looper.getMainLooper()).idle();
+        capture(activity.getWindow().getDecorView(), "dualSenseSettings");
     }
 
     /**
@@ -207,6 +247,143 @@ public class ActivityScreensTest {
             }
         }
         capture(frame, "streamMenu");
+        for (int i = 0; i < menu.getChildCount(); i++) {
+            if (menu.getChildAt(i) instanceof ScrollView) {
+                assertScrollsToEveryRow((ScrollView) menu.getChildAt(i));
+            }
+        }
+    }
+
+    /** The menu's Shortcuts page, set up as in streamMenu, scrolled to its last row. */
+    @Test
+    public void streamMenuShortcuts() {
+        ActivityController<Activity> controller = Robolectric.buildActivity(Activity.class).create();
+        Activity activity = controller.get();
+        activity.setTheme(R.style.StreamTheme);
+        FrameLayout frame = new FrameLayout(activity);
+        frame.setBackgroundColor(0xFF203040); // stands in for the video
+        LayoutInflater.from(activity).inflate(R.layout.activity_game, frame, true);
+        activity.setContentView(frame);
+        controller.start().resume().visible();
+        OverlayMenuView menu = frame.findViewById(R.id.overlayMenuView);
+        menu.setGameInfo(GAMES[0], "1920 x 1080, 120 FPS", AppIcons.accentFor(GAMES[0]));
+        menu.setCover(AppIcons.tile(activity, GAMES[0]));
+        // The menu acts on a tap only with a listener. This one does nothing; a proxy, so a new
+        // menu action needs nothing here.
+        menu.setMenuActionListener((OverlayMenuView.MenuActionListener) Proxy.newProxyInstance(
+                OverlayMenuView.MenuActionListener.class.getClassLoader(),
+                new Class<?>[] {OverlayMenuView.MenuActionListener.class},
+                (proxy, method, args) -> method.getReturnType() == boolean.class ? false : null));
+        menu.buildMenu();
+        menu.setVisibility(View.VISIBLE);
+        shadowOf(Looper.getMainLooper()).idle();
+        View shortcuts = findTile(menu, activity.getString(R.string.overlay_menu_shortcuts));
+        assertTrue("no Shortcuts on the menu", shortcuts != null);
+        shortcuts.performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertTrue("the Shortcuts page didn't open",
+                findTile(menu, activity.getString(R.string.overlay_menu_back)) != null);
+        // The virtual desktop shortcuts show whole. Not every label does: at 130% font on a
+        // Fold's cover screen, Ctrl+Alt+Shift+F12 wraps inside the word, as it did before them.
+        for (int label : new int[] {R.string.overlay_menu_send_win_tab,
+                R.string.overlay_menu_send_win_ctrl_right, R.string.overlay_menu_send_win_ctrl_left}) {
+            View tile = findTile(menu, activity.getString(label));
+            assertTrue("no " + activity.getString(label) + " on the page", tile != null);
+            assertNoWordBroken(tile);
+        }
+        // Previous and next desktop sit side by side, previous on the left like its arrow
+        int[] left = new int[2];
+        int[] right = new int[2];
+        View previous = findTile(menu, activity.getString(R.string.overlay_menu_send_win_ctrl_left));
+        View next = findTile(menu, activity.getString(R.string.overlay_menu_send_win_ctrl_right));
+        previous.getLocationInWindow(left);
+        next.getLocationInWindow(right);
+        assertTrue("previous desktop at " + left[0] + "," + left[1] + " and next at " + right[0] + ","
+                + right[1] + " aren't side by side", left[1] == right[1] && left[0] + previous.getWidth() <= right[0]);
+        for (int i = 0; i < menu.getChildCount(); i++) {
+            if (menu.getChildAt(i) instanceof ScrollView) {
+                ScrollView grid = (ScrollView) menu.getChildAt(i);
+                // Opening the page stops any scroll still running over the old tiles with a fling
+                // of no speed, which the next frame's draw ends. End it here, as that frame would
+                // on a device, or the picture's own draw ends it after the scroll below and puts
+                // the grid back at the top.
+                grid.computeScroll();
+                assertScrollsToEveryRow(grid);
+                // The picture shows the end of the page, where those three are
+                grid.scrollTo(0, grid.getChildAt(0).getHeight());
+            }
+        }
+        capture(frame, "streamMenuShortcuts");
+    }
+
+    // The menu tile whose label is exactly this text
+    private static View findTile(View root, String label) {
+        if (root instanceof OverlayMenuButton) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View child = group.getChildAt(i);
+                if (child instanceof TextView && label.contentEquals(((TextView) child).getText())) {
+                    return root;
+                }
+            }
+            return null;
+        }
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = findTile(group.getChildAt(i), label);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The stream menu's USB devices page (Experimental), with a device in each kind of state:
+     * shared, asking first, refused with the reason, and allowed.
+     */
+    @Test
+    public void streamMenuUsbDevices() {
+        ActivityController<Activity> controller = Robolectric.buildActivity(Activity.class).create();
+        Activity activity = controller.get();
+        activity.setTheme(R.style.StreamTheme);
+        FrameLayout frame = new FrameLayout(activity);
+        frame.setBackgroundColor(0xFF203040); // stands in for the video
+        LayoutInflater.from(activity).inflate(R.layout.activity_game, frame, true);
+        activity.setContentView(frame);
+        controller.start().resume().visible();
+        OverlayMenuView menu = frame.findViewById(R.id.overlayMenuView);
+        menu.setGameInfo(GAMES[0], "1920 x 1080, 120 FPS", AppIcons.accentFor(GAMES[0]));
+        menu.setCover(AppIcons.tile(activity, GAMES[0]));
+        List<OverlayMenuView.UsbItem> devices = new ArrayList<>();
+        devices.add(new OverlayMenuView.UsbItem("1", "Wireless Controller", activity.getString(R.string.usb_share_state_shared)));
+        devices.add(new OverlayMenuView.UsbItem("2", "USB Keyboard", activity.getString(R.string.usb_share_verdict_ask)));
+        devices.add(new OverlayMenuView.UsbItem("3", "USB Flash Drive", activity.getString(R.string.usb_share_verdict_refused,
+                activity.getString(R.string.usb_share_rule_storage))));
+        devices.add(new OverlayMenuView.UsbItem("4", "USB Headset", activity.getString(R.string.usb_share_verdict_allowed)));
+        menu.setMenuActionListener((OverlayMenuView.MenuActionListener) Proxy.newProxyInstance(
+                OverlayMenuView.MenuActionListener.class.getClassLoader(),
+                new Class<?>[] {OverlayMenuView.MenuActionListener.class},
+                (proxy, method, args) -> method.getName().equals("usbDevices") ? devices
+                        : method.getReturnType() == boolean.class ? false : null));
+        menu.setUsbDevicesShown(true);
+        menu.show();
+        shadowOf(Looper.getMainLooper()).idle();
+        // Opened from its tile, the last on the main page, before the main grid's scroll down to it
+        // has finished. That scroll used to carry on over the new page on the screens where the
+        // grid scrolls, leaving its first device, the one selected, out of sight.
+        menu.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_UP));
+        menu.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BUTTON_A));
+        // Once the sheet has slid in and any scroll would have ended
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1));
+        for (int i = 0; i < menu.getChildCount(); i++) {
+            if (menu.getChildAt(i) instanceof ScrollView) {
+                assertNoWordBroken(menu.getChildAt(i));
+            }
+        }
+        capture(frame, "streamMenuUsbDevices");
         for (int i = 0; i < menu.getChildCount(); i++) {
             if (menu.getChildAt(i) instanceof ScrollView) {
                 assertScrollsToEveryRow((ScrollView) menu.getChildAt(i));

@@ -19,6 +19,8 @@ import com.limelight.binding.input.touch.RelativeTouchContext;
 import com.limelight.binding.input.touch.TrackpadContext;
 import com.limelight.binding.input.virtual_controller.keyboard.KeyBoardLayoutController;
 import com.limelight.binding.input.driver.UsbDriverService;
+import com.limelight.binding.usb.share.StreamUsbShare;
+import com.limelight.binding.usb.share.UsbShareTunnel;
 import com.limelight.binding.input.evdev.EvdevListener;
 import com.limelight.binding.input.touch.TouchContext;
 import com.limelight.binding.input.virtual_controller.VirtualController;
@@ -90,6 +92,7 @@ import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.text.Html;
 import android.util.Rational;
+import android.util.SparseIntArray;
 import android.util.TypedValue;
 import android.view.Display;
 import android.view.Gravity;
@@ -134,6 +137,19 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     // Only 2 touches are supported
     private final TouchContext[] touchContextMap = new TouchContext[2];
     private long threeFingerDownTime = 0;
+    // A single finger that went down at the left edge, which does the left edge swipe action if
+    // it swipes in far and fast enough
+    private boolean edgeSwipeTracking = false;
+    private float edgeSwipeStartX, edgeSwipeStartY;
+    private long edgeSwipeStartTime;
+    // The touch on the stream that closed the brightness slider, until its last finger lifts
+    private boolean closingTouch = false;
+    // In multi-touch mode, a touch the PC was told to forget, for an edge swipe or a third
+    // finger, until its last finger lifts
+    private boolean multiTouchCancelled = false;
+    // In multi-touch mode, true while the PC has a touch down: from the first finger it took
+    // until the last one lifts, or the touch is cancelled or taken back from it
+    private boolean multiTouchDown = false;
 
     private static final int REFERENCE_HORIZ_RES = 1280;
     private static final int REFERENCE_VERT_RES = 720;
@@ -145,6 +161,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private static final int STYLUS_UP_DEAD_ZONE_RADIUS = 50;
 
     private static final int THREE_FINGER_TAP_THRESHOLD = 300;
+    // How far in from the left edge the swipe goes, and how long it has to get there
+    private static final float EDGE_SWIPE_DISTANCE_DP = 60;
+    private static final int EDGE_SWIPE_TIME_LIMIT = 500;
 
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
@@ -175,6 +194,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     private InputCaptureProvider inputCaptureProvider;
     private int modifierFlags = 0;
+    // The keyboard keys the PC has been told are down, with the flags they went with, so opening
+    // the menu can let go of them
+    private final SparseIntArray keysDownOnPc = new SparseIntArray();
     private boolean grabbedInput = true;
     private boolean cursorVisible = false;
     private boolean waitingForAllModifiersUp = false;
@@ -245,6 +267,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private MicrophoneCaptureManager microphoneCaptureManager;
     // The encrypted microphone's problems already told this stream
     private final java.util.Set<Integer> micStatusesShown = new java.util.HashSet<>();
+    // Sharing a wired USB device with the PC (Experimental), while the stream runs
+    private StreamUsbShare usbShare;
     private boolean reportedCrash;
 
     private WifiManager.WifiLock highPerfWifiLock;
@@ -297,7 +321,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public static final String EXTRA_SERVER_CERT = "ServerCert";
     public static final String EXTRA_QUICK_LAUNCH_APP_KEY = "QuickLaunchAppKey";
     public static final String EXTRA_APPLY_PREFERENCE_OVERRIDES = "ApplyPreferenceOverrides";
-    // StreamConfiguration.VIRTUAL_DISPLAY_*; when absent the "Display on the PC" setting decides
+    // StreamConfiguration.VIRTUAL_DISPLAY_*; when absent the "Virtual display" setting decides
     public static final String EXTRA_VIRTUAL_DISPLAY = "VirtualDisplay";
     public static final String ACTION_QUIT_APP = "com.limelight.QUIT_STREAMING_APP";
 
@@ -443,6 +467,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // Initialize overlay menu view (setup will be done after controllerHandler is initialized)
         overlayMenuView = findViewById(R.id.overlayMenuView);
         overlayMenuView.setFlipFaceButtons(prefConfig.flipFaceButtons);
+        overlayMenuView.setShowBrightness(!isAndroidTV);
+        usbShare = new StreamUsbShare(this, overlayMenuView);
 
         floatingMenuButton = findViewById(R.id.floatingMenuButton);
         // Kept within the window, as the drag always was
@@ -1356,6 +1382,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     @Override
     protected void onDestroy() {
         stopMicrophoneCapture();
+        stopUsbSharing(UsbShareTunnel.END_CLOSING);
         super.onDestroy();
 
         // Unregister broadcast receiver
@@ -1703,6 +1730,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return overlayMenuView.dispatchKeyEvent(event);
         }
 
+        // Likewise the brightness slider shown from it, and the repeats of the key that closed it
+        if (brightnessSliderView != null && brightnessSliderView.handleKeyEvent(event)) {
+            return true;
+        }
+
         // Handle a synthetic back button event that some Android OS versions
         // create as a result of a right-click. This event WILL repeat if
         // the right mouse button is held down, so we ignore those.
@@ -1766,8 +1798,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 return true;
             }
 
-            conn.sendKeyboardInput(translated, KeyboardPacket.KEY_DOWN, getModifierState(event),
-                    keyboardTranslator.hasNormalizedMapping(event.getKeyCode(), event.getDeviceId()) ? 0 : MoonBridge.SS_KBE_FLAG_NON_NORMALIZED);
+            byte flags = keyboardTranslator.hasNormalizedMapping(event.getKeyCode(), event.getDeviceId()) ? 0 : MoonBridge.SS_KBE_FLAG_NON_NORMALIZED;
+            conn.sendKeyboardInput(translated, KeyboardPacket.KEY_DOWN, getModifierState(event), flags);
+            keysDownOnPc.put(translated, flags);
         }
 
         return true;
@@ -1803,6 +1836,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // If overlay menu is visible, route all key events to it
         if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
             return overlayMenuView.dispatchKeyEvent(event);
+        }
+
+        // Likewise the brightness slider shown from it, and the release of the key that closed it
+        if (brightnessSliderView != null && brightnessSliderView.handleKeyEvent(event)) {
+            return true;
         }
 
         // Handle a synthetic back button event that some Android OS versions
@@ -1852,6 +1890,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             conn.sendKeyboardInput(translated, KeyboardPacket.KEY_UP, getModifierState(event),
                     keyboardTranslator.hasNormalizedMapping(event.getKeyCode(), event.getDeviceId()) ? 0 : MoonBridge.SS_KBE_FLAG_NON_NORMALIZED);
+            keysDownOnPc.delete(translated);
         }
 
         return true;
@@ -2426,7 +2465,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 if (opensMenuBeforeTouchHandling(isPanZoomMode, mouseMode,
                         event.getActionMasked(), event.getPointerCount())) {
-                    overlayMenuView.show();
+                    openOverlayMenu();
                     return true;
                 }
 
@@ -2443,12 +2482,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 }
 
                 if (mouseMode == MOUSE_MODE_DISABLED) {
-                    return true;
-                }
-
-                if (mouseMode == MOUSE_MODE_MULTI_TOUCH && view == streamView && trySendTouchEvent(view, event)) {
-                    // Multi-touch mode sends touches straight to the host when it supports them
-                    // (Sunshine and Vibepollo do); otherwise fall through to direct touch
                     return true;
                 }
 
@@ -2469,6 +2502,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 int eventX = (int)(event.getX(actionIndex) + xOffset);
                 int eventY = (int)(event.getY(actionIndex) + yOffset);
 
+                if (!prefConfig.leftEdgeSwipeAction.equals("off") && trackEdgeSwipe(event)) {
+                    return true;
+                }
+
                 // Special handling for 3 finger gesture
                 if (event.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN &&
                         event.getPointerCount() == 3) {
@@ -2477,10 +2514,18 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                     // Cancel the first and second touches to avoid
                     // erroneous events
-                    for (TouchContext aTouchContext : touchContextMap) {
-                        aTouchContext.cancelTouch();
-                    }
+                    cancelTouches();
 
+                    return true;
+                }
+
+                // Fingers land on the view behind the stream, since the stream view lets touches
+                // through to it. So this takes touches from any view (it used to want the stream
+                // view's, and so never sent one). It comes after the 3 finger gesture, where
+                // upstream had native touch, and after the edge swipe, so both work here too.
+                if (mouseMode == MOUSE_MODE_MULTI_TOUCH && view != null && sendMultiTouch(view, event)) {
+                    // Multi-touch mode sends touches straight to the host when it supports them
+                    // (Sunshine and Vibepollo do); otherwise fall through to direct touch
                     return true;
                 }
 
@@ -2514,7 +2559,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         // All fingers up
                         if (event.getEventTime() - threeFingerDownTime < THREE_FINGER_TAP_THRESHOLD) {
                             // This is a 3 finger tap to bring up the overlay menu
-                            runOnUiThread(() -> overlayMenuView.show());
+                            runOnUiThread(() -> openOverlayMenu());
                             return true;
                         }
                     }
@@ -2589,6 +2634,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // If overlay menu is visible, route all motion events to it
         if (overlayMenuView != null && overlayMenuView.getVisibility() == View.VISIBLE) {
             return overlayMenuView.onGenericMotionEvent(event);
+        }
+        if (brightnessSliderView != null && brightnessSliderView.isControllerMode()) {
+            return brightnessSliderView.handleMotionEvent(event);
         }
 
         if (isImeVisible && isAndroidTV) {
@@ -2668,14 +2716,123 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             // NB: This is still needed even when we call the newer requestUnbufferedDispatch()!
             view.requestUnbufferedDispatch(event);
 
-            // Check if touch is on the left edge to show brightness slider
-            if (brightnessSliderView.isTouchInActivationZone(event.getX())) {
-                brightnessSliderView.show();
-                return true; // Consume the touch event to prevent game input
+            // A new touch, however the last one ended
+            closingTouch = false;
+
+            // A touch on the stream closes the brightness slider, which otherwise stays up until
+            // it's been changed. All of that touch is kept from the PC, not just its start.
+            if (brightnessSliderView.isShowing()) {
+                brightnessSliderView.hide();
+                closingTouch = true;
+                return true;
             }
+        }
+        else if (closingTouch) {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP ||
+                    event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                closingTouch = false;
+            }
+            return true;
         }
 
         return handleMotionEvent(view, event);
+    }
+
+    // Follows a single finger from the left edge of the screen, and does the left edge swipe
+    // action once it has swiped in far enough in time. Returns true when it did, having cancelled
+    // the touches the gesture made, which then ignore the rest of it.
+    private boolean trackEdgeSwipe(MotionEvent event) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                // On the screen's coordinates: the touch can land on the stream or around it
+                edgeSwipeTracking = brightnessSliderView.isTouchInActivationZone(event.getRawX());
+                edgeSwipeStartX = event.getRawX();
+                edgeSwipeStartY = event.getRawY();
+                edgeSwipeStartTime = event.getEventTime();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (!edgeSwipeTracking) {
+                    break;
+                }
+                if (event.getEventTime() - edgeSwipeStartTime > EDGE_SWIPE_TIME_LIMIT) {
+                    edgeSwipeTracking = false;
+                    break;
+                }
+                float in = event.getRawX() - edgeSwipeStartX;
+                float vertical = Math.abs(event.getRawY() - edgeSwipeStartY);
+                if (in >= EDGE_SWIPE_DISTANCE_DP * getResources().getDisplayMetrics().density && vertical < in) {
+                    edgeSwipeTracking = false;
+                    cancelTouches();
+                    if (prefConfig.leftEdgeSwipeAction.equals("overlay_menu")) {
+                        openOverlayMenu();
+                    }
+                    else {
+                        brightnessSliderView.show();
+                    }
+                    return true;
+                }
+                break;
+            default:
+                // A second finger, or the finger lifted, before it swiped far enough
+                edgeSwipeTracking = false;
+                break;
+        }
+        return false;
+    }
+
+    // Lets go of what the fingers were doing on the PC, for an edge swipe, a third finger or a
+    // switch to Pan/Zoom. The touch contexts then ignore the rest of the touch, and so does
+    // multi-touch mode.
+    private void cancelTouches() {
+        for (TouchContext aTouchContext : touchContextMap) {
+            aTouchContext.cancelTouch();
+        }
+        cancelMultiTouch();
+    }
+
+    // If the PC has a touch down from multi-touch mode, tells it to forget its touches, and
+    // sendMultiTouch keeps the rest of the touch from it. Only multi-touch mode puts a touch
+    // down, and applyMouseMode calls this before it changes the mode.
+    private void cancelMultiTouch() {
+        if (multiTouchDown) {
+            multiTouchDown = false;
+            multiTouchCancelled = true;
+            conn.sendTouchEvent(MoonBridge.LI_TOUCH_EVENT_CANCEL_ALL, 0, 0, 0, 0, 0, 0,
+                    MoonBridge.LI_ROT_UNKNOWN);
+        }
+    }
+
+    // Multi-touch mode: sends the touch to the PC as a touch, and returns false if the PC can't
+    // take touches. Once cancelMultiTouch has taken a touch back from the PC, the rest of it goes
+    // no further, and its last finger lifting may end a 3 finger tap, as in the other modes.
+    private boolean sendMultiTouch(View view, MotionEvent event) {
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            // A new touch, however the last one ended
+            multiTouchCancelled = false;
+        }
+        else if (multiTouchCancelled) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                multiTouchCancelled = false;
+                if (action == MotionEvent.ACTION_UP &&
+                        (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || (event.getFlags() & MotionEvent.FLAG_CANCELED) == 0) &&
+                        event.getEventTime() - threeFingerDownTime < THREE_FINGER_TAP_THRESHOLD) {
+                    // This is a 3 finger tap to bring up the overlay menu
+                    runOnUiThread(() -> openOverlayMenu());
+                }
+            }
+            return true;
+        }
+        if (!trySendTouchEvent(view, event)) {
+            return false;
+        }
+        if (action == MotionEvent.ACTION_DOWN) {
+            multiTouchDown = true;
+        }
+        else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            multiTouchDown = false;
+        }
+        return true;
     }
 
     @Override
@@ -2697,6 +2854,19 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private void stopMicrophoneCapture() {
         if (microphoneCaptureManager != null) {
             microphoneCaptureManager.stop();
+        }
+    }
+
+    // The stream menu's USB devices, when the setting is on and this build and phone can share
+    private void startUsbSharing() {
+        usbShare.start(prefConfig.usbShare, new UsbShareTunnel.Target(getIntent().getStringExtra(EXTRA_HOST),
+                getIntent().getStringExtra(EXTRA_PC_UUID)), this);
+    }
+
+    // Gives a shared USB device back to the phone; the stream is ending or the screen closing
+    private void stopUsbSharing(int endReason) {
+        if (usbShare != null) {
+            usbShare.stop(endReason);
         }
     }
 
@@ -2814,6 +2984,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     private void stopConnection() {
         stopMicrophoneCapture();
+        // A shared USB device goes back to the phone when the stream ends, however it ends
+        stopUsbSharing(UsbShareTunnel.END_STREAM_ENDED);
         // Give the PC its cursor back before the connection goes away
         final boolean flushHostCursor = hostCursor.onStopping();
 
@@ -3043,6 +3215,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 hideSystemUi(1000);
                 startMicrophoneCapture();
+                startUsbSharing();
 
                 // Show overlay menu hint toast
                 showOverlayMenuHint();
@@ -3171,6 +3344,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     @Override
     public void setControllerLED(short controllerNumber, byte r, byte g, byte b) {
         controllerHandler.handleSetControllerLED(controllerNumber, r, g, b);
+    }
+
+    @Override
+    public void setAdaptiveTriggers(short controllerNumber, byte eventFlags, byte typeLeft,
+                                    byte typeRight, byte[] left, byte[] right) {
+        controllerHandler.handleSetAdaptiveTriggers(controllerNumber, eventFlags, typeLeft, typeRight, left, right);
     }
 
     @Override
@@ -3425,7 +3604,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         controllerHandler.setOverlayMenuListener(new ControllerHandler.OverlayMenuListener() {
             @Override
             public void onOverlayMenuOpen() {
-                runOnUiThread(() -> overlayMenuView.show());
+                // ControllerHandler let go of the controllers' buttons already
+                runOnUiThread(() -> {
+                    releaseKeysDownOnPc();
+                    overlayMenuView.show();
+                });
             }
 
             @Override
@@ -3447,12 +3630,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             @Override
             public void onQuitSession() {
-                leaveStream(() -> {
+                // Quitting closes the game on the host, losing anything unsaved, so ask first
+                UiHelper.displayQuitConfirmationDialog(Game.this, () -> leaveStream(() -> {
                     userInitiatedDisconnect = true;
                     controllerHandler.pendingApplicationQuit = true;
                     stopConnection();
                     finish();
-                });
+                }), null);
             }
 
             @Override
@@ -3483,6 +3667,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             public void onSendGuideButton() {
                 // Send Guide button press to the host
                 sendGuideButton();
+            }
+
+            @Override
+            public void onShowBrightness() {
+                brightnessSliderView.showForController(() -> streamView.requestFocus());
             }
 
             @Override
@@ -3568,6 +3757,16 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
 
             @Override
+            public List<OverlayMenuView.UsbItem> usbDevices() {
+                return usbShare.items();
+            }
+
+            @Override
+            public void onUsbDevice(String key) {
+                usbShare.choose(key);
+            }
+
+            @Override
             public boolean isToggleOn(int toggle) {
                 switch (toggle) {
                     case OverlayMenuView.TOGGLE_STATS:
@@ -3594,17 +3793,31 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     // Bitrate picker choices, in Mbps
     private static final int[] BITRATE_CHOICES_MBPS = {5, 10, 20, 30, 50, 80, 100, 150, 200, 300, 500};
 
-    // The stream's bitrate now, in kbps; changed mid-stream through the menu
-    private int currentBitrateKbps;
+    // Changes the bitrate mid-stream through the menu; made the first time the picker opens
+    private BitrateChanger bitrateChanger;
 
     /**
      * Change the bitrate without reconnecting (Moonlight V+ feature, Vibepollo's /bitrate). The
      * host may clamp the choice to its own maximum, so the applied value is shown.
      */
     private void showBitratePicker() {
-        if (currentBitrateKbps == 0) {
-            currentBitrateKbps = prefConfig.bitrate;
+        if (bitrateChanger == null) {
+            bitrateChanger = new BitrateChanger(prefConfig.bitrate,
+                    kbps -> createHostHttp().setStreamBitrate(kbps),
+                    task -> new Thread(task).start(),
+                    new BitrateChanger.Listener() {
+                        @Override
+                        public void onChanged(int appliedKbps) {
+                            showToastOnUiThread(getString(R.string.bitrate_changed, appliedKbps / 1000));
+                        }
+
+                        @Override
+                        public void onFailed(Exception e) {
+                            showToastOnUiThread(getString(R.string.bitrate_failed, e.getMessage()));
+                        }
+                    });
         }
+        int currentBitrateKbps = bitrateChanger.getCurrentKbps();
 
         String[] labels = new String[BITRATE_CHOICES_MBPS.length];
         int checked = -1;
@@ -3619,16 +3832,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 .setTitle(getString(R.string.bitrate_dialog_title, currentBitrateKbps / 1000))
                 .setSingleChoiceItems(labels, checked, (dialog, which) -> {
                     dialog.dismiss();
-                    int requestedKbps = BITRATE_CHOICES_MBPS[which] * 1000;
-                    new Thread(() -> {
-                        try {
-                            int applied = createHostHttp().setStreamBitrate(requestedKbps);
-                            currentBitrateKbps = applied;
-                            showToastOnUiThread(getString(R.string.bitrate_changed, applied / 1000));
-                        } catch (Exception e) {
-                            showToastOnUiThread(getString(R.string.bitrate_failed, e.getMessage()));
-                        }
-                    }).start();
+                    bitrateChanger.request(BITRATE_CHOICES_MBPS[which] * 1000);
                 })
                 .show();
     }
@@ -3795,10 +3999,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private void togglePanZoomMode() {
         isPanZoomMode = !isPanZoomMode;
 
-        // Release anything held down by the touch that started this
-        for (TouchContext touchContext : touchContextMap) {
-            touchContext.cancelTouch();
-        }
+        // Release anything a finger on the stream holds down, a touch on the PC included
+        cancelTouches();
 
         Toast.makeText(this, isPanZoomMode ? R.string.pan_zoom_mode_enabled : R.string.pan_zoom_mode_disabled,
                 Toast.LENGTH_SHORT).show();
@@ -3808,6 +4010,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
      * Rebuild the touch contexts for one of Artemide's touch modes (MOUSE_MODE_*).
      */
     private void applyMouseMode(int mode) {
+        // A finger held on the stream lets go of its touch on the PC. The touch contexts below
+        // let go of what they hold down.
+        cancelMultiTouch();
         mouseMode = mode;
 
         // The trackpad modes move the cursor relative to the finger; the others place it under it
@@ -3981,6 +4186,14 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }).start();
     }
 
+    // How leaveStream() copies the PC's clipboard, running the Runnable on the UI thread after
+    interface HostClipboardCopy {
+        void copyThen(Runnable then);
+    }
+
+    // For tests: a copy that doesn't use the network
+    HostClipboardCopy hostClipboardCopy = then -> syncClipboardFromHost(true, then);
+
     /**
      * Leaving from the menu ends the stream at once, and the host only answers clipboard requests
      * during a stream, so with automatic sync on, copy the PC's clipboard first.
@@ -3995,7 +4208,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 }
             };
             streamView.postDelayed(stopOnce, 2000);
-            syncClipboardFromHost(true, stopOnce);
+            hostClipboardCopy.copyThen(stopOnce);
         }
         else {
             stop.run();
@@ -4074,7 +4287,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
 
             runOnUiThread(() -> {
-                if (isFinishing()) {
+                // The host can answer after Game is gone, destroyed or finishing
+                if (isFinishing() || isDestroyed()) {
                     return;
                 }
 
@@ -4131,13 +4345,59 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         return com.limelight.ui.AppIcons.tile(this, appName);
     }
 
+    // The floating button's tap and "Back opens the menu"
     private void toggleOverlayMenu() {
         if (overlayMenuView.getVisibility() == View.VISIBLE) {
             overlayMenuView.closeMenu();
         }
         else {
-            overlayMenuView.show();
+            openOverlayMenu();
         }
+    }
+
+    // The open menu takes every key and controller event, so a button or key let go of while it's
+    // open would stay held on the PC until it's pressed again. Let go of them all first, as
+    // holding the controller's menu button does for controllers. Every touch and button that
+    // opens the menu comes here, except that hold and a TV remote's Back, which ControllerHandler
+    // runs: their onOverlayMenuOpen lets go of the keys.
+    private void openOverlayMenu() {
+        if (controllerHandler != null) {
+            controllerHandler.releaseAllControllerInput();
+        }
+        releaseKeysDownOnPc();
+        overlayMenuView.show();
+    }
+
+    private void releaseKeysDownOnPc() {
+        for (int i = 0; i < keysDownOnPc.size(); i++) {
+            conn.sendKeyboardInput((short) keysDownOnPc.keyAt(i), KeyboardPacket.KEY_UP, (byte) 0,
+                    (byte) keysDownOnPc.valueAt(i));
+        }
+        keysDownOnPc.clear();
+
+        // Their key ups go to the menu too, so forget the modifiers, as when the window loses focus
+        modifierFlags = 0;
+    }
+
+    // The system's Back (the navigation bar's button or the back gesture) when nothing else took
+    // it. "Back opens the menu" makes it open the stream menu, as the floating button does,
+    // instead of leaving the stream (idea from Artemis by Yukino Song, via Artemide). The open
+    // menu takes Back itself to close. A mouse's Back is a right-click and a controller's buttons
+    // go to the game, so neither gets here; a TV remote's Back is ControllerHandler's. Android
+    // only calls this while Game opts out of predictive Back in the manifest.
+    @Override
+    public void onBackPressed() {
+        if (prefConfig != null && prefConfig.backOpensMenu && overlayMenuView != null) {
+            // The brightness slider the left edge swipe opened closes first, as a touch on the
+            // stream closes it. Opened from the menu, the slider takes Back itself.
+            if (brightnessSliderView != null && brightnessSliderView.isShowing()) {
+                brightnessSliderView.hide();
+                return;
+            }
+            toggleOverlayMenu();
+            return;
+        }
+        super.onBackPressed();
     }
 
     private void setFloatingButtonShown(boolean shown) {

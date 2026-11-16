@@ -88,11 +88,15 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
     // Cover Glow home: the hero shows the selected game, and the screen takes its cover's colour
     private static final String COVER_GLOW_PREF_FILENAME = "CoverGlow";
     private View appRoot, coverGlow, heroDetails;
-    // The game screen has three sets of sizes (cover_glow_dimens.xml): narrow below 480 dp wide,
-    // a smaller header on wide screens under 520 dp tall (a phone held sideways), and the full one
+    // The game screen has four sets of sizes (cover_glow_dimens.xml): narrow below 480 dp wide,
+    // the same with a smaller wordmark below 360 dp wide, a smaller header on wide screens under
+    // 520 dp tall (a phone held sideways), and the full one
+    private static final int SMALL_WIDTH_DP = 360;
     private static final int NARROW_WIDTH_DP = 480;
     private static final int SHORT_HEIGHT_DP = 520;
     private int builtSizes;
+    // Text sizes are read from the font size the screen was built with
+    private float builtFontScale;
 
     private CoverImageView heroCover;
     private TextView heroLoaderText, heroLabel, heroTitle, miniTitle;
@@ -210,11 +214,12 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
         super.onConfigurationChanged(newConfig);
 
         // Folding, unfolding, split screen or turning the phone into another set of sizes needs
-        // the layout built again. It's built again on this same screen, not with recreate(): on
+        // the layout built again, and so does a new font size, which views already on screen
+        // don't pick up. It's built again on this same screen, not with recreate(): on
         // the RedMagic tablet recreating crashed the app in 3 of 4 tries, inside the phone
         // maker's game mode (com.zte.gameassist GameActivityStub stops an observer it has already
         // cleared when a screen is paused and destroyed back to back).
-        boolean newSizes = sizesFor(newConfig) != builtSizes;
+        boolean newSizes = sizesFor(newConfig) != builtSizes || newConfig.fontScale != builtFontScale;
         if (newSizes) {
             buildScreen(newConfig);
         }
@@ -831,6 +836,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
         setContentView(R.layout.activity_app_view);
         builtSizes = sizesFor(config);
+        builtFontScale = config.fontScale;
         UiHelper.notifyNewRootView(this);
 
         String computerName = getIntent().getStringExtra(NAME_EXTRA);
@@ -933,7 +939,7 @@ public class AppView extends Activity implements AdapterFragmentCallbacks {
 
     private static int sizesFor(Configuration config) {
         if (config.screenWidthDp < NARROW_WIDTH_DP) {
-            return 0;
+            return config.screenWidthDp < SMALL_WIDTH_DP ? 3 : 0;
         }
         return config.screenHeightDp < SHORT_HEIGHT_DP ? 1 : 2;
     }

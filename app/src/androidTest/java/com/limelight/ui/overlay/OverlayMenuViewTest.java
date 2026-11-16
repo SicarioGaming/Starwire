@@ -13,8 +13,11 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
+
+import com.limelight.preferences.StreamSettings;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -49,6 +52,7 @@ public class OverlayMenuViewTest {
         @Override public void onToggleMouseEmulation() { events.add("mouseEmulation"); flip(OverlayMenuView.TOGGLE_MOUSE_EMULATION); }
         @Override public void onShowKeyboard() { events.add("keyboard"); }
         @Override public void onSendGuideButton() { events.add("guide"); }
+        @Override public void onShowBrightness() { events.add("brightness"); }
         @Override public void onCustomCommand(CustomCommand command) { events.add("custom"); }
         @Override public void onMenuClosed() { events.add("closed"); }
         @Override public void onSendKeys(short[] keys) { events.add("keys"); lastKeys = keys; }
@@ -202,14 +206,28 @@ public class OverlayMenuViewTest {
         OverlayMenuButton stats = (OverlayMenuButton) findButton(menu, str(com.limelight.R.string.overlay_menu_toggle_stats));
         OverlayMenuButton floating = (OverlayMenuButton) findButton(menu, str(com.limelight.R.string.overlay_menu_floating_button));
         OverlayMenuButton guide = (OverlayMenuButton) findButton(menu, str(com.limelight.R.string.overlay_menu_guide));
-        onMain(() -> {
+        Runnable check = () -> {
             android.view.accessibility.AccessibilityNodeInfo off = stats.createAccessibilityNodeInfo();
             assertTrue(off.isCheckable());
             assertFalse(off.isChecked());
             assertTrue(off.getClassName().toString().endsWith("Switch"));
             assertTrue(floating.createAccessibilityNodeInfo().isChecked());
             assertFalse("one-shot buttons aren't switches", guide.createAccessibilityNodeInfo().isCheckable());
-        });
+        };
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            onMain(check);
+            return;
+        }
+        // Android 5 can only describe a view that's in a window (5.0 read the window's details
+        // without checking: a NullPointerException there), so there the menu goes in one first,
+        // a settings screen's. Only there, so the test needs no screen to open anywhere else.
+        try (ActivityScenario<StreamSettings> scenario = ActivityScenario.launch(StreamSettings.class)) {
+            scenario.onActivity(activity -> {
+                activity.addContentView(menu, new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                check.run();
+            });
+        }
     }
 
     @Test
@@ -278,6 +296,13 @@ public class OverlayMenuViewTest {
         assertEquals(List.of("closed", "bitrate"), listener.events);
     }
 
+    @Test
+    public void brightnessOpensTheSliderAfterClosingTheMenu() {
+        // Closed first, so the slider gets the controller's input instead of the menu
+        click(str(com.limelight.R.string.overlay_menu_brightness));
+        assertEquals(List.of("closed", "brightness"), listener.events);
+    }
+
     private void press(int keyCode) {
         onMain(() -> menu.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode)));
     }
@@ -293,11 +318,11 @@ public class OverlayMenuViewTest {
 
         // Up from Close goes into the grid's last tile, and back down returns to Close
         press(KeyEvent.KEYCODE_DPAD_UP);
-        assertTrue(selected(com.limelight.R.string.overlay_menu_floating_button));
+        assertTrue(selected(com.limelight.R.string.overlay_menu_brightness));
         press(KeyEvent.KEYCODE_DPAD_DOWN);
         assertTrue(selected(com.limelight.R.string.overlay_menu_close));
 
-        // Up from the last tile lands one row higher. The grid has two to five columns,
+        // Up from the last tile lands one row higher. The grid has two to seven columns,
         // depending on the screen's width and font size (the tiles in the first row say how many)
         int[] tiles = {
                 com.limelight.R.string.overlay_menu_keyboard, com.limelight.R.string.overlay_menu_full_keyboard,
@@ -309,22 +334,38 @@ public class OverlayMenuViewTest {
                 com.limelight.R.string.overlay_menu_fetch_clipboard, com.limelight.R.string.overlay_menu_server_commands,
                 com.limelight.R.string.overlay_menu_task_manager, com.limelight.R.string.overlay_menu_rotate_screen,
                 com.limelight.R.string.overlay_menu_onscreen_controller, com.limelight.R.string.overlay_menu_floating_button,
+                com.limelight.R.string.overlay_menu_brightness,
         };
         int columns = ((ViewGroup) findButton(menu, str(tiles[0])).getParent()).getChildCount();
-        assertTrue(columns + " columns", columns >= 2 && columns <= 5);
+        assertTrue(columns + " columns", columns >= 2 && columns <= 7);
         int last = tiles.length - 1;
+        int above = last - columns;
         press(KeyEvent.KEYCODE_DPAD_UP);
         press(KeyEvent.KEYCODE_DPAD_UP);
-        assertTrue(selected(tiles[last - columns]));
-        press(KeyEvent.KEYCODE_DPAD_LEFT);
-        assertTrue(selected(tiles[last - columns - 1]));
+        assertTrue(selected(tiles[above]));
+        // Then along that row: left, or right from the row's first tile (with two or three
+        // columns the last tile starts a row)
+        boolean first = above % columns == 0;
+        int side = first ? above + 1 : above - 1;
+        press(first ? KeyEvent.KEYCODE_DPAD_RIGHT : KeyEvent.KEYCODE_DPAD_LEFT);
+        assertTrue(selected(tiles[side]));
 
-        // Down twice: the bottom row, then Close, which sits above Quit and Disconnect
+        // Down twice: the bottom row, then Close
         press(KeyEvent.KEYCODE_DPAD_DOWN);
-        assertTrue(selected(tiles[last - 1]));
+        assertTrue(selected(tiles[Math.min(side + columns, last)]));
         press(KeyEvent.KEYCODE_DPAD_DOWN);
         assertTrue(selected(com.limelight.R.string.overlay_menu_close));
-        press(KeyEvent.KEYCODE_DPAD_DOWN);
+        // Close sits above Quit and Disconnect, except on screens under 480 dp tall (a phone or a
+        // 1080p handheld held sideways), where all three share one row. This used to press down
+        // there too, and failed on the 1080p handheld legs (432 dp tall).
+        if (context.getResources().getConfiguration().screenHeightDp < OverlayMenuView.COMPACT_HEIGHT_DP) {
+            press(KeyEvent.KEYCODE_DPAD_DOWN);
+            assertTrue("down from Close left the one-row bar", selected(com.limelight.R.string.overlay_menu_close));
+            press(KeyEvent.KEYCODE_DPAD_RIGHT);
+        }
+        else {
+            press(KeyEvent.KEYCODE_DPAD_DOWN);
+        }
         assertTrue(selected(com.limelight.R.string.overlay_menu_quit_session));
         press(KeyEvent.KEYCODE_DPAD_RIGHT);
         assertTrue(selected(com.limelight.R.string.overlay_menu_disconnect));
@@ -368,6 +409,9 @@ public class OverlayMenuViewTest {
             str(com.limelight.R.string.overlay_menu_send_ctrl_alt_shift_f1),
             str(com.limelight.R.string.overlay_menu_send_ctrl_alt_shift_f12),
             str(com.limelight.R.string.overlay_menu_send_win_alt_b),
+            str(com.limelight.R.string.overlay_menu_send_win_ctrl_left),
+            str(com.limelight.R.string.overlay_menu_send_win_ctrl_right),
+            str(com.limelight.R.string.overlay_menu_send_win_tab),
         };
         for (String shortcut : shortcuts) {
             listener.lastKeys = null;

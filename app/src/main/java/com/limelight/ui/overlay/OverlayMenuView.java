@@ -37,8 +37,15 @@ import java.util.List;
 public class OverlayMenuView extends LinearLayout {
     private static final int BUTTON_SPACING_DP = 8;
     private static final int SHEET_WIDTH_DP = 440;
-    // At most five across, so the built-in tools fit on a tablet without scrolling
+    // At most five across on that sheet
     private static final int MAIN_COLUMNS = 5;
+    // Seven across where the screen is wide enough, like a tablet held sideways: three rows of
+    // seven hold every built-in tool, so the main page doesn't scroll. The sheet grows by two
+    // tiles of the same size.
+    private static final int WIDE_COLUMNS = 7;
+    // The most of the screen's width that wider sheet may take, so the game still shows beside it.
+    // Screens under about 1000 dp wide, like phones and most handhelds, keep the usual sheet.
+    private static final float WIDE_SHEET_SHARE = 0.6f;
     // Fewer, wider tiles where five would break a label mid-word (a narrow screen, large text),
     // down to this many
     private static final int MIN_COLUMNS = 2;
@@ -57,6 +64,7 @@ public class OverlayMenuView extends LinearLayout {
         void onToggleMouseEmulation();
         void onShowKeyboard();
         void onSendGuideButton();
+        void onShowBrightness();
         void onCustomCommand(CustomCommand command);
         void onMenuClosed();
 
@@ -78,6 +86,28 @@ public class OverlayMenuView extends LinearLayout {
 
         // Whether a toggle tile (TOGGLE_*) is on, for its switch
         boolean isToggleOn(int toggle);
+
+        // The USB devices page (Experimental): the devices plugged into the phone, and one of
+        // them chosen. Only asked for when setUsbDevicesShown(true).
+        default List<UsbItem> usbDevices() {
+            return new ArrayList<>();
+        }
+
+        default void onUsbDevice(String key) {
+        }
+    }
+
+    /** A device on the USB devices page: its name, and what it's doing or would do */
+    public static final class UsbItem {
+        public final String key;
+        public final String name;
+        public final String detail;
+
+        public UsbItem(String key, String name, String detail) {
+            this.key = key;
+            this.name = name;
+            this.detail = detail;
+        }
     }
 
     // The tiles that switch something on and off; they show a small switch and keep the menu open
@@ -95,6 +125,7 @@ public class OverlayMenuView extends LinearLayout {
     public static final short VK_RETURN = 0x0D;
     public static final short VK_ESCAPE = 0x1B;
     public static final short VK_LEFT = 0x25;
+    public static final short VK_RIGHT = 0x27;
     public static final short VK_B = 0x42;
     public static final short VK_D = 0x44;
     public static final short VK_G = 0x47;
@@ -111,14 +142,22 @@ public class OverlayMenuView extends LinearLayout {
     private static class Shortcut {
         final int labelResId;
         final short[] keys;
+        // What TalkBack reads instead of the label, or 0 for the label
+        int spokenResId;
 
         Shortcut(int labelResId, short... keys) {
             this.labelResId = labelResId;
             this.keys = keys;
         }
+
+        Shortcut spoken(int resId) {
+            spokenResId = resId;
+            return this;
+        }
     }
 
-    // Same set and order as Artemide's "Send keys" menu
+    // Artemide's "Send keys" menu in the same order, then Windows' previous and next virtual
+    // desktop, which share a row like the arrow keys, then Task View
     private static final Shortcut[] SHORTCUTS = {
         new Shortcut(R.string.overlay_menu_send_esc, VK_ESCAPE),
         new Shortcut(R.string.overlay_menu_send_f11, VK_F11),
@@ -134,6 +173,12 @@ public class OverlayMenuView extends LinearLayout {
         new Shortcut(R.string.overlay_menu_send_ctrl_alt_shift_f1, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_F1),
         new Shortcut(R.string.overlay_menu_send_ctrl_alt_shift_f12, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_F12),
         new Shortcut(R.string.overlay_menu_send_win_alt_b, VK_LWIN, VK_LMENU, VK_B),
+        new Shortcut(R.string.overlay_menu_send_win_ctrl_left, VK_LWIN, VK_LCONTROL, VK_LEFT)
+            .spoken(R.string.overlay_menu_a11y_win_ctrl_left),
+        new Shortcut(R.string.overlay_menu_send_win_ctrl_right, VK_LWIN, VK_LCONTROL, VK_RIGHT)
+            .spoken(R.string.overlay_menu_a11y_win_ctrl_right),
+        new Shortcut(R.string.overlay_menu_send_win_tab, VK_LWIN, VK_TAB)
+            .spoken(R.string.overlay_menu_a11y_win_tab),
     };
 
     private static final short[] TASK_MANAGER_KEYS = {VK_LCONTROL, VK_LSHIFT, VK_ESCAPE};
@@ -142,7 +187,10 @@ public class OverlayMenuView extends LinearLayout {
     private static final int PAGE_MAIN = 0;
     private static final int PAGE_SHORTCUTS = 1;
     private static final int PAGE_MONITORS = 2;
+    private static final int PAGE_USB = 3;
     private int page = PAGE_MAIN;
+    // A device's name and state take the sheet's whole width
+    private static final int USB_COLUMNS = 1;
 
     // Vibepollo (like Sunshine) switches the streamed display on Ctrl+Alt+Shift+F1..F13
     private static final int MONITOR_COUNT = 6;
@@ -155,10 +203,13 @@ public class OverlayMenuView extends LinearLayout {
     private LinearLayout gridContainer;
     private LinearLayout barContainer;
     private int columns = MAIN_COLUMNS;
+    // The sheet's widest, in pixels: SHEET_WIDTH_DP, or wider for seven across. The main page
+    // sets it, and the other pages keep it, so the sheet doesn't change size between pages.
+    private int sheetWidth;
 
     // The bar: Close (index 0) on its own row, then Quit and Disconnect side by side; or all
-    // three in one row on short screens
-    private static final int COMPACT_HEIGHT_DP = 480;
+    // three in one row on short screens (the tests read the height too)
+    static final int COMPACT_HEIGHT_DP = 480;
     private boolean compactBar;
     private List<OverlayMenuButton> barButtons;
     private List<Integer> barActions;
@@ -175,6 +226,8 @@ public class OverlayMenuView extends LinearLayout {
     private MenuActionListener actionListener;
     private CustomCommandsManager commandsManager;
     private boolean fixHostCursorShown;
+    private boolean usbDevicesShown;
+    private List<UsbItem> usbItems = new ArrayList<>();
     private List<ImportedShortcuts.Shortcut> importedShortcuts = new ArrayList<>();
 
     private static final int ACTION_DISCONNECT = 0;
@@ -200,6 +253,10 @@ public class OverlayMenuView extends LinearLayout {
     private static final int ACTION_MONITORS = 20;
     private static final int ACTION_BITRATE = 21;
     private static final int ACTION_FIX_HOST_CURSOR = 22;
+    private static final int ACTION_BRIGHTNESS = 23;
+    private static final int ACTION_USB_DEVICES = 24;
+    private static final int ACTION_NONE = 25;
+    private static final int ACTION_USB_BASE = 1000;
     private static final int ACTION_IMPORTED_BASE = 400;
     private static final int ACTION_MONITOR_BASE = 300;
     private static final int ACTION_CUSTOM_BASE = 100;
@@ -207,6 +264,8 @@ public class OverlayMenuView extends LinearLayout {
 
     private long lastAnalogNavTime = 0;
     private boolean flipFaceButtons = false;
+    // Not on TVs, whose screen brightness the app can't change
+    private boolean showBrightness = true;
 
     public OverlayMenuView(Context context) {
         super(context);
@@ -235,6 +294,7 @@ public class OverlayMenuView extends LinearLayout {
         setClickable(true);
         int padding = dp(20);
         setPadding(padding, padding, padding, padding);
+        sheetWidth = dp(SHEET_WIDTH_DP);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             setDefaultFocusHighlightEnabled(false);
@@ -342,10 +402,50 @@ public class OverlayMenuView extends LinearLayout {
         fixHostCursorShown = shown;
     }
 
+    /** Whether the main page offers USB devices; it shows from the next time the menu opens. */
+    public void setUsbDevicesShown(boolean shown) {
+        usbDevicesShown = shown;
+    }
+
+    /**
+     * The USB devices changed: shows them again if their page is open, keeping the selection on
+     * the same device (or on Back), so the next A acts on what was selected. If that device has
+     * gone, the selection stays where it was in the list.
+     */
+    public void refreshUsbDevices() {
+        if (page != PAGE_USB || getVisibility() != VISIBLE) {
+            return;
+        }
+        Region region = activeRegion;
+        int bar = barIndex;
+        int grid = gridIndex;
+        int action = grid >= 0 && grid < gridActions.size() ? gridActions.get(grid) : ACTION_NONE;
+        String key = action >= ACTION_USB_BASE && action - ACTION_USB_BASE < usbItems.size()
+                ? usbItems.get(action - ACTION_USB_BASE).key : null;
+        buildMenu();
+        if (region == Region.GRID && !gridButtons.isEmpty()) {
+            int index = Math.min(grid, gridButtons.size() - 1);
+            for (int i = 0; i < usbItems.size(); i++) {
+                if (usbItems.get(i).key.equals(key)) {
+                    index = gridActions.indexOf(ACTION_USB_BASE + i);
+                }
+            }
+            if (action == ACTION_BACK) {
+                index = gridActions.indexOf(ACTION_BACK);
+            }
+            activeRegion = Region.GRID;
+            setGridIndex(index);
+        }
+        else {
+            activeRegion = Region.BAR;
+            setBarIndex(bar);
+        }
+    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        // A sheet, not the whole screen: at most SHEET_WIDTH_DP wide
-        int max = dp(SHEET_WIDTH_DP);
+        // A sheet, not the whole screen: at most sheetWidth wide
+        int max = sheetWidth;
         if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED
                 || MeasureSpec.getSize(widthMeasureSpec) > max) {
             widthMeasureSpec = MeasureSpec.makeMeasureSpec(max, MeasureSpec.EXACTLY);
@@ -353,11 +453,35 @@ public class OverlayMenuView extends LinearLayout {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
+    // Over the stream, Android shows the stream instead of the window wherever nothing is drawn.
+    // It works out where that is only when the screen is laid out, from where each view is then,
+    // and the sheet is laid out as it starts to slide in from the right. The slide doesn't lay it
+    // out again, so its left part stayed see-through and the stream showed there. The floating
+    // button hid this, as the room Android leaves for its shadow covers the screen. So the sheet
+    // keeps the stream out of where it slides to as well, with the same room for its shadow.
+    @Override
+    public boolean gatherTransparentRegion(android.graphics.Region region) {
+        boolean opaque = super.gatherTransparentRegion(region);
+        if (region != null && isAttachedToWindow()) {
+            int[] location = new int[2];
+            getLocationInWindow(location);
+            int left = location[0] - Math.round(getTranslationX());
+            int top = location[1] - Math.round(getTranslationY());
+            int shadow = getZ() > 0 ? (int) getZ() : 0;
+            region.op(left - shadow, top - shadow, left + getWidth() + shadow,
+                top + getHeight() + shadow * 3, android.graphics.Region.Op.DIFFERENCE);
+        }
+        return opaque;
+    }
+
     public void buildMenu() {
         activeRegion = Region.BAR;
         barIndex = 0;
         gridIndex = 0;
         clearFocus();
+        // A fling with no speed ends a scroll still running over the old tiles (one to the last
+        // tile, say), which would otherwise carry on over the new ones
+        gridScroll.fling(0);
 
         gridContainer.removeAllViews();
         barContainer.removeAllViews();
@@ -369,10 +493,15 @@ public class OverlayMenuView extends LinearLayout {
         gridToggles.clear();
 
         if (page == PAGE_SHORTCUTS) {
-            // Artemide's built-in key shortcuts then Back
+            // The built-in key shortcuts then Back
             columns = PAGE_COLUMNS;
             for (int i = 0; i < SHORTCUTS.length; i++) {
                 addTile(0, getContext().getString(SHORTCUTS[i].labelResId), ACTION_SHORTCUT_BASE + i);
+                // Where the keys alone don't say what a shortcut does, TalkBack says that too
+                if (SHORTCUTS[i].spokenResId != 0) {
+                    gridButtons.get(gridButtons.size() - 1)
+                        .setContentDescription(getContext().getString(SHORTCUTS[i].spokenResId));
+                }
             }
             // Then any shortcuts imported from a file (Settings > In-stream menu)
             importedShortcuts = ImportedShortcuts.load(getContext());
@@ -386,6 +515,19 @@ public class OverlayMenuView extends LinearLayout {
             for (int i = 0; i < MONITOR_COUNT; i++) {
                 addTile(R.drawable.ic_overlay_monitor,
                     getContext().getString(R.string.overlay_menu_monitor_n, i + 1), ACTION_MONITOR_BASE + i);
+            }
+            addTile(0, getContext().getString(R.string.overlay_menu_back), ACTION_BACK);
+        } else if (page == PAGE_USB) {
+            // One tile per device plugged into the phone, with what it's doing, then Back
+            columns = USB_COLUMNS;
+            List<UsbItem> items = actionListener != null ? actionListener.usbDevices() : null;
+            usbItems = items != null ? items : new ArrayList<>();
+            for (int i = 0; i < usbItems.size(); i++) {
+                addTile(R.drawable.ic_overlay_usb, usbItems.get(i).name, ACTION_USB_BASE + i);
+                gridButtons.get(gridButtons.size() - 1).setDetail(usbItems.get(i).detail);
+            }
+            if (usbItems.isEmpty()) {
+                addTile(R.drawable.ic_overlay_usb, getContext().getString(R.string.usb_share_none_plugged_in), ACTION_NONE);
             }
             addTile(0, getContext().getString(R.string.overlay_menu_back), ACTION_BACK);
         } else {
@@ -431,13 +573,23 @@ public class OverlayMenuView extends LinearLayout {
                 getContext().getString(R.string.overlay_menu_onscreen_controller), ACTION_ONSCREEN_CONTROLLER, TOGGLE_ONSCREEN_CONTROLLER);
             addTile(R.drawable.ic_overlay_window_menu,
                 getContext().getString(R.string.overlay_menu_floating_button), ACTION_FLOATING_BUTTON, TOGGLE_FLOATING_BUTTON);
+            // Moonlight X's brightness slider, which a swipe in from the left edge also opens
+            // unless Left edge swipe action says otherwise
+            if (showBrightness) {
+                addTile(R.drawable.ic_overlay_settings_brightness,
+                    getContext().getString(R.string.overlay_menu_brightness), ACTION_BRIGHTNESS);
+            }
+            if (usbDevicesShown) {
+                addTile(R.drawable.ic_overlay_usb,
+                    getContext().getString(R.string.overlay_menu_usb_devices), ACTION_USB_DEVICES);
+            }
 
             List<CustomCommand> customCommands = commandsManager.getCommands();
             for (int i = 0; i < customCommands.size(); i++) {
                 CustomCommand command = customCommands.get(i);
                 addTile(command.getIconResId(), command.getName(), ACTION_CUSTOM_BASE + i);
             }
-            columns = mainColumns();
+            fitMainPage();
         }
         arrangeGrid();
 
@@ -505,9 +657,12 @@ public class OverlayMenuView extends LinearLayout {
         });
     }
 
-    // Five across where every label fits whole, else fewer. The sheet's width comes from the
-    // screen, as in onMeasure, so it's known before the sheet is first laid out.
-    private int mainColumns() {
+    // The main page's columns and the sheet's width. Seven across on a sheet grown to hold them,
+    // where it takes at most WIDE_SHEET_SHARE of the screen and every label still fits whole.
+    // Otherwise the usual sheet, five across where every label fits whole, else fewer. The
+    // sheet's width comes from the screen, as in onMeasure, so it's known before the sheet is
+    // first laid out.
+    private void fitMainPage() {
         int margins = 0;
         if (getLayoutParams() instanceof MarginLayoutParams) {
             MarginLayoutParams params = (MarginLayoutParams) getLayoutParams();
@@ -515,10 +670,25 @@ public class OverlayMenuView extends LinearLayout {
         }
         float density = getResources().getDisplayMetrics().density;
         int screen = (int) (getResources().getConfiguration().screenWidthDp * density);
-        int sheet = Math.min(dp(SHEET_WIDTH_DP), screen - margins);
+        int padding = getPaddingLeft() + getPaddingRight();
+        int gap = dp(BUTTON_SPACING_DP);
+        int sidePadding = dp(OverlayMenuButton.TILE_SIDE_PADDING_DP);
         Paint paint = OverlayMenuButton.tileLabelPaint(getContext());
-        return TileColumns.fit(gridLabels, paint::measureText, sheet - getPaddingLeft() - getPaddingRight(),
-            dp(BUTTON_SPACING_DP), dp(OverlayMenuButton.TILE_SIDE_PADDING_DP),
+
+        // Seven tiles as wide as five make on the usual sheet
+        int tile = (dp(SHEET_WIDTH_DP) - padding - gap * (MAIN_COLUMNS - 1)) / MAIN_COLUMNS;
+        int wide = tile * WIDE_COLUMNS + gap * (WIDE_COLUMNS - 1) + padding;
+        if (wide <= screen * WIDE_SHEET_SHARE && wide <= screen - margins
+                && TileColumns.fits(gridLabels, paint::measureText, wide - padding, gap, sidePadding,
+                    OverlayMenuButton.TILE_LABEL_LINES, WIDE_COLUMNS)) {
+            sheetWidth = wide;
+            columns = WIDE_COLUMNS;
+            return;
+        }
+
+        sheetWidth = dp(SHEET_WIDTH_DP);
+        int sheet = Math.min(sheetWidth, screen - margins);
+        columns = TileColumns.fit(gridLabels, paint::measureText, sheet - padding, gap, sidePadding,
             OverlayMenuButton.TILE_LABEL_LINES, MAIN_COLUMNS, MIN_COLUMNS);
     }
 
@@ -583,6 +753,10 @@ public class OverlayMenuView extends LinearLayout {
 
     public void setFlipFaceButtons(boolean flip) {
         this.flipFaceButtons = flip;
+    }
+
+    public void setShowBrightness(boolean show) {
+        this.showBrightness = show;
     }
 
     @Override
@@ -879,12 +1053,26 @@ public class OverlayMenuView extends LinearLayout {
         boolean shouldCloseMenu = false;
 
         if (actionListener != null) {
-            if (action == ACTION_DISCONNECT) {
+            if (action >= ACTION_USB_BASE) {
+                // The share flow answers by refreshing the page; the menu stays open
+                int index = action - ACTION_USB_BASE;
+                if (index < usbItems.size()) {
+                    actionListener.onUsbDevice(usbItems.get(index).key);
+                }
+                return;
+            } else if (action == ACTION_USB_DEVICES) {
+                switchPage(PAGE_USB);
+                return;
+            } else if (action == ACTION_NONE) {
+                return;
+            } else if (action == ACTION_DISCONNECT) {
                 actionListener.onDisconnect();
                 shouldCloseMenu = true;
             } else if (action == ACTION_QUIT) {
+                // Closed first, so the confirmation gets the controller and keyboard input
+                closeMenu();
                 actionListener.onQuitSession();
-                shouldCloseMenu = true;
+                return;
             } else if (action == ACTION_TOGGLE_STATS) {
                 actionListener.onToggleStats();
             } else if (action == ACTION_TOGGLE_MOUSE_EMULATION) {
@@ -895,6 +1083,11 @@ public class OverlayMenuView extends LinearLayout {
             } else if (action == ACTION_SEND_GUIDE) {
                 actionListener.onSendGuideButton();
                 shouldCloseMenu = true;
+            } else if (action == ACTION_BRIGHTNESS) {
+                // Closed first, so the slider gets the controller and remote input
+                closeMenu();
+                actionListener.onShowBrightness();
+                return;
             } else if (action == ACTION_CLOSE) {
                 closeMenu();
                 return;

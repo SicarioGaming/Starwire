@@ -101,6 +101,7 @@ public class ImportedShortcutsMenuTest {
         @Override public void onToggleMouseEmulation() {}
         @Override public void onShowKeyboard() {}
         @Override public void onSendGuideButton() {}
+        @Override public void onShowBrightness() {}
         @Override public void onCustomCommand(CustomCommand command) {}
         @Override public void onMenuClosed() {}
         @Override public void onRotateScreen() {}

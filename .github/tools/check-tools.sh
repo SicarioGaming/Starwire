@@ -173,7 +173,12 @@ verdict instrument-mixed.txt 1 "SKIP com.limelight.devicecheck.MonkeyPreconditio
 verdict instrument-mixed.txt 1 "1 passed, 1 failed, 1 skipped"
 verdict instrument-crash.txt 2 "RUN PROBLEM: Process crashed."
 verdict instrument-none.txt 2 "RUN PROBLEM: no tests ran"
-ok "parse-instrument.sh reads passes, skips, failures, a crash and an empty run"
+# A test the watchdog (StuckTestWatchdog) caught hanging fails, even when it passes after that
+verdict instrument-stuck.txt 2 "FAIL com.limelight.AppViewTest#tileMenuOpensOnIconTiles: stuck for 120 s; its activities were finished so the run could go on"
+verdict instrument-stuck.txt 2 "PASS com.limelight.AppViewTest#offscreenDrawingShowsGpuBitmaps"
+verdict instrument-stuck.txt 2 "FAIL com.limelight.AppViewTest#appListOpensWithoutClosing: the run stopped during this test (still stuck 30 s after its activities were finished: the main thread is blocked, so the process was ended)"
+verdict instrument-stuck.txt 2 "1 passed, 2 failed, 0 skipped, run problem"
+ok "parse-instrument.sh reads passes, skips, failures, a crash, an empty run and stuck tests"
 
 # 8. device-test.sh, against a stand-in for adb (fixtures/fake-adb.sh): it refuses listed
 # devices without sending them anything, stops for a locked screen or an open stream, never
@@ -260,6 +265,12 @@ if called "notAnnotation"; then fail "device-test.sh left out @HardwareOnly test
 if ! called "-e notPackage com.limelight.smoke,com.limelight.devicecheck"; then
     fail "device-test.sh didn't run the whole instrumented suite"
 fi
+# Under the watchdog that fails a hanging test instead of letting it stop the run
+watch="-e listener com.limelight.testing.StuckTestWatchdog"
+if ! called "-e notPackage com.limelight.smoke,com.limelight.devicecheck $watch" ||
+   ! called "-e starwire.allowStream false $watch -e starwire.stuckSeconds 300"; then
+    fail "device-test.sh didn't run the suite and the smoke tests under StuckTestWatchdog"
+fi
 fake_run 0 FAKE_ADB_EMULATOR=1 -s FAKE-1 --only com.limelight.ScreenWidthTest,com.limelight.StringsTest
 hw="-e notAnnotation com.limelight.testing.HardwareOnly"
 if ! called "-e class com.limelight.ScreenWidthTest,com.limelight.StringsTest $hw" || called "notPackage" ||
@@ -272,6 +283,20 @@ fake_run 0 FAKE_ADB_SDK=23 -s FAKE-1
 if grep -q 'Unable to open log device' "$work/out/FAKE-1/logcat.txt" || ! grep -q 'ActivityManager: fake' "$work/out/FAKE-1/logcat.txt"; then
     fail "device-test.sh didn't read the main, system and events logs the way Android 6 takes them"
 fi
+# The app's Java crash in the crash log, as logcat prints it, fails the run
+: > "$work/crash"
+fake_run 2 -s FAKE-1
+grep -qx 'Crashes/ANRs:    1 (crashes.txt)' "$work/out/FAKE-1/summary.txt" ||
+    fail "device-test.sh missed the app's crash in logcat's crash log"
+# So does a crash check that couldn't keep the crash log: that isn't a run with no crash
+rm -f "$work/out/FAKE-1/logcat-crash.txt"
+mkdir "$work/out/FAKE-1/logcat-crash.txt"
+fake_run 2 -s FAKE-1
+if grep -q '^Crashes/ANRs:    none' "$work/out/FAKE-1/summary.txt"; then
+    fail "device-test.sh said there was no crash, but it couldn't keep the crash log"
+fi
+rmdir "$work/out/FAKE-1/logcat-crash.txt"
+rm -f "$work/crash"
 if grep -q uninstall "$work/all-calls"; then fail "device-test.sh uninstalled something"; fi
 ok "device-test.sh refuses listed devices, checks before it installs, guards monkey, and filters tests"
 
@@ -613,7 +638,8 @@ ok "device-run.sh runs a leg's passes on emulators only, and reports them"
 # 13. check-publish.sh, in a made-up repo: an upstream commit brought in with git cherry-pick -x keeps
 # its author, which passes only when the commit its last line names is on an upstream ref and has the
 # same author and date, and the committer is still the publishing identity in UTC. What it adds is
-# still checked, and the output never shows what matched.
+# still checked, and the output never shows what matched. Its default list of upstream remotes has
+# every fork Starwire takes commits from.
 begin
 work="$(mktemp -d)"
 repo="$work/repo"
@@ -693,8 +719,30 @@ publish 1 "personal: COMMIT notes.txt:1 [private pattern on line 1]" "$up" "$pub
 $picked"
 if grep -q 'planted-private-word' <<< "$published"; then fail "check-publish.sh showed the private word it found"; fi
 if grep -q 'identity\|timezone' <<< "$published"; then fail "check-publish.sh failed a real cherry-pick's identity"; fi
+# With UPSTREAM_REMOTES unset, a pick from any fork Starwire takes commits from counts as upstream:
+# Moonlight X, Artemide, Turnip, Nightjar and Moonlight V+ (vplus). A fork not on that list doesn't.
+for remote in moonlightx artemide turnip nightjar vplus elsewhere; do
+    fork=$(mk "" "$up" "$up" "a change in $remote" "Change something in $remote")
+    git -C "$repo" update-ref "refs/remotes/$remote/fork-main" "$fork"
+    tip=$(mk "$base" "$up" "$pub" "the change from $remote" "Change something in $remote
+
+(cherry picked from commit $fork)")
+    expected=0 want="clean"
+    if [ "$remote" = elsewhere ]; then
+        expected=1 want="identity: ${tip:0:10} author is not $me, and its cherry-pick line names no upstream commit"
+    fi
+    set +e
+    published=$(cd "$repo" && unset UPSTREAM_REMOTES && PUBLISH_IDENTITY="$me" \
+        bash "$HERE/check-publish.sh" main "$tip" "$work/patterns.txt" 2>&1)
+    status=$?
+    set -e
+    if [ $status -ne $expected ] || ! grep -qxF -- "$want" <<< "$published"; then
+        printf '%s\n' "$published" >&2
+        fail "check-publish.sh's default upstream remotes, on a pick from $remote: exit $status (expected $expected), or no line \"$want\""
+    fi
+done
 rm -rf "$work"
-ok "check-publish.sh accepts real upstream cherry-picks and nothing that only looks like one"
+ok "check-publish.sh accepts real upstream cherry-picks, from every fork on its default list, and nothing that only looks like one"
 
 # 14. check-commits.sh sorts its planted commit messages, branch names and commits (in a throwaway
 # repo of its own) the way CONTRIBUTING.md's rules say
@@ -707,6 +755,7 @@ if [ $status -ne 0 ]; then
     printf '%s\n' "$commits_out" | grep -v '^ok ' >&2 || true
     fail "check-commits.sh --self-test exited $status"
 fi
+grep '^skipped: ' <<< "$commits_out" || true
 ok "check-commits.sh tells good commit messages and branch names from bad ones"
 
 # 15. check-version.sh sorts its planted tag names, versions and releases (in a throwaway repo of
@@ -720,7 +769,409 @@ if [ $status -ne 0 ]; then
     printf '%s\n' "$version_out" | grep -v '^ok ' >&2 || true
     fail "check-version.sh --self-test exited $status"
 fi
+grep '^skipped: ' <<< "$version_out" || true
 ok "check-version.sh tells good release tags and version bumps from bad ones"
+
+# 16. RELEASING.md says how to add and fetch, without tags, every fork remote check-publish.sh
+# counts as upstream by default. A clone without one fails the check on that fork's picks, and
+# RELEASING.md once named only three of the five.
+begin
+default_remotes=$(sed -n 's/^UPSTREAM=\${UPSTREAM_REMOTES:-\(.*\)}$/\1/p' "$HERE/check-publish.sh")
+releasing=$(tr -d '\r' < "$ROOT/docs/dev/RELEASING.md")
+fetch_loop=$(grep -E '^for remote in .*tagOpt --no-tags.*git fetch' <<< "$releasing" || true)
+if [ -z "$default_remotes" ]; then
+    fail "couldn't find check-publish.sh's default UPSTREAM_REMOTES"
+fi
+for remote in $default_remotes; do
+    if ! grep -qE "^git remote add $remote https://github\.com/[^ ]+\.git$" <<< "$releasing"; then
+        fail "RELEASING.md doesn't say how to add the $remote remote (git remote add $remote https://github.com/...)"
+    fi
+    if ! sed 's/;.*//' <<< "$fetch_loop" | grep -qw -- "$remote"; then
+        fail "RELEASING.md's fetch loop doesn't fetch $remote without tags"
+    fi
+done
+ok "RELEASING.md adds and fetches every fork remote check-publish.sh counts as upstream"
+
+# 17. The USB tunnel's shared files are what their scripts in vectors/ write
+# (docs/dev/usb-protocol.md, "Test vectors"), so the PC helper's side and later reviewers can make
+# them again. The vectors need OpenSSL 3.2 or later (deterministic ECDSA), which not every runner
+# has, so without it that half is skipped with a note.
+begin
+vectors_tmp=$(mktemp -d)
+bash "$HERE/vectors/make-swut-v1-policy.sh" "$vectors_tmp/policy.txt"
+for copy in windows/tests/vectors/swut-v1-policy.txt app/src/test/resources/swut-v1-policy.txt; do
+    cmp -s "$vectors_tmp/policy.txt" "$copy" || fail "make-swut-v1-policy.sh doesn't write $copy"
+done
+openssl_version=$(openssl version 2>/dev/null || true)
+if [[ "$openssl_version" =~ ^OpenSSL\ ([0-9]+)\.([0-9]+) ]] &&
+        { [ "${BASH_REMATCH[1]}" -gt 3 ] || { [ "${BASH_REMATCH[1]}" -eq 3 ] && [ "${BASH_REMATCH[2]}" -ge 2 ]; }; }; then
+    bash "$HERE/vectors/make-swut-v1-vectors.sh" "$vectors_tmp/swut.txt" "$vectors_tmp/work"
+    for copy in windows/tests/vectors/swut-v1-vectors.txt app/src/test/resources/swut-v1-vectors.txt; do
+        cmp -s "$vectors_tmp/swut.txt" "$copy" || fail "make-swut-v1-vectors.sh doesn't write $copy"
+    done
+else
+    echo "skipped: remaking swut-v1-vectors.txt (needs OpenSSL 3.2 or later, found: ${openssl_version:-none})"
+fi
+rm -rf "$vectors_tmp"
+ok "the USB tunnel's vectors and device rules' cases are what their scripts write"
+
+# 18. check-publish.sh fails closed: when a step can't run, it says so, exits 2 and never says
+# "clean". With C: full, its awk couldn't write a temporary file and it said "clean". Here: a
+# temporary folder it can't write in, an awk that fails, a git that fails at the last step, and
+# no patterns file. The commit it checks is clean, so only the failure can stop it.
+begin
+work="$(mktemp -d)"
+repo="$work/repo"
+git init -q "$repo"
+base=$(mk "" "$pub" "$pub" "the public tip" "Start")
+git -C "$repo" update-ref refs/heads/main "$base"
+tip=$(mk "$base" "$pub" "$pub" "a new line" "Add a line")
+echo 'planted-private-word' > "$work/patterns.txt"
+: > "$work/a-file"
+mkdir "$work/mktemp" "$work/awk" "$work/git"
+# A mktemp that names a folder nothing can be written in, as on a full disk
+printf '%s\n' '#!/usr/bin/env bash' "echo '$work/a-file/tmp.made-up'" > "$work/mktemp/mktemp"
+printf '%s\n' '#!/usr/bin/env bash' 'echo "awk: fatal: made up for the test" >&2' 'exit 2' > "$work/awk/awk"
+printf '%s\n' '#!/usr/bin/env bash' \
+    'if [ "$1" = grep ]; then echo "fatal: made up for the test" >&2; exit 128; fi' \
+    "exec '$(command -v git)' \"\$@\"" > "$work/git/git"
+chmod +x "$work/mktemp/mktemp" "$work/awk/awk" "$work/git/git"
+publish_with() {  # expected exit code, what's wrong, the patterns file, then NAME=value settings
+    local expected=$1 what=$2 patterns=$3 status
+    shift 3
+    set +e
+    published=$(cd "$repo" && env "$@" PUBLISH_IDENTITY="$me" UPSTREAM_REMOTES=moonlightx \
+        bash "$HERE/check-publish.sh" main "$tip" "$patterns" 2>&1)
+    status=$?
+    set -e
+    if [ "$expected" = 0 ] && { [ $status -ne 0 ] || ! grep -qx 'clean' <<< "$published"; }; then
+        printf '%s\n' "$published" >&2
+        fail "check-publish.sh on a clean commit: exit $status (expected 0 and \"clean\")"
+    elif [ "$expected" = 2 ] && { [ $status -ne 2 ] || grep -qx 'clean' <<< "$published" ||
+                                  ! grep -q '^error: ' <<< "$published"; }; then
+        printf '%s\n' "$published" >&2
+        fail "check-publish.sh with $what: exit $status (expected 2, an error and no \"clean\")"
+    fi
+}
+publish_with 0 "nothing wrong" "$work/patterns.txt"
+publish_with 2 "TMPDIR naming a file" "$work/patterns.txt" TMPDIR="$work/a-file"
+publish_with 2 "a temporary folder it can't write in" "$work/patterns.txt" PATH="$work/mktemp:$PATH"
+publish_with 2 "an awk that fails" "$work/patterns.txt" PATH="$work/awk:$PATH"
+publish_with 2 "a git that fails at the placeholder search" "$work/patterns.txt" PATH="$work/git:$PATH"
+publish_with 2 "no patterns file" "$work/no-such-patterns.txt"
+rm -rf "$work"
+ok "check-publish.sh stops with an error, never \"clean\", when a step fails or the patterns file is missing"
+
+# 19. make-windows-zip.sh makes the Windows zip, for the Release workflow and, on every push, the
+# Build workflow. The release once zipped a fixed list of the microphone's files, which left out
+# the USB helper's, although its setup says to run it from the unzipped folder. The list has
+# both; a missing file, or a file a setup script takes from its folder that isn't on the list,
+# stops it; and the Release workflow makes its zip only this way.
+begin
+mic="setup-microphone.cmd setup-microphone.ps1 StarwireMicReceiver.cs SecureMic.cs starwire-mic.ico README.md"
+usb="setup-usb.cmd setup-usb.ps1 StarwireUsbHelper.cs UsbTunnel.cs UsbRelay.cs UsbTunnelCodec.cs UsbDeviceRules.cs starwire-usb.ico USB-HELPER.md"
+want=$(printf '%s\n' $mic $usb | LC_ALL=C sort)
+set +e
+listed=$(bash "$HERE/make-windows-zip.sh" --list 2>&1)
+status=$?
+set -e
+if [ $status -ne 0 ] || [ "$(printf '%s\n' "$listed" | LC_ALL=C sort)" != "$want" ]; then
+    printf '%s\n' "$listed" >&2
+    fail "make-windows-zip.sh --list (exit $status) isn't the microphone's files and the USB helper's"
+fi
+set +e
+out=$(bash "$HERE/make-windows-zip.sh" --check 2>&1)
+status=$?
+set -e
+if [ $status -ne 0 ]; then
+    printf '%s\n' "$out" >&2
+    fail "make-windows-zip.sh --check fails on windows/ (exit $status)"
+fi
+work="$(mktemp -d)"
+copy_windows() {  # folder: the zip's files, copied from windows/
+    local f
+    mkdir -p "$1"
+    for f in $want; do cp "windows/$f" "$1/"; done
+}
+zip_fails() {  # what's wrong, a file the error must name, the folder to take the files from
+    local status out
+    set +e
+    out=$(WINDOWS_DIR=$3 bash "$HERE/make-windows-zip.sh" --check 2>&1)
+    status=$?
+    set -e
+    if [ $status -ne 1 ] || ! grep -qF -- "$2" <<< "$out"; then
+        printf '%s\n' "$out" >&2
+        fail "make-windows-zip.sh --check with $1: exit $status (expected 1, naming $2)"
+    fi
+}
+copy_windows "$work/missing"
+rm "$work/missing/UsbRelay.cs"
+zip_fails "UsbRelay.cs missing" UsbRelay.cs "$work/missing"
+copy_windows "$work/new-source"
+sed -i "s/'UsbDeviceRules.cs')/'UsbDeviceRules.cs', 'UsbExtra.cs')/" "$work/new-source/setup-usb.ps1"
+echo "// made up for the test" > "$work/new-source/UsbExtra.cs"
+zip_fails "a source setup-usb.ps1 builds from that isn't on the list" UsbExtra.cs "$work/new-source"
+copy_windows "$work/new-icon"
+sed -i "s/Join-Path \$here 'starwire-mic.ico'/Join-Path \$here 'starwire-mic-2.ico'/" "$work/new-icon/setup-microphone.ps1"
+cp windows/starwire-mic.ico "$work/new-icon/starwire-mic-2.ico"
+zip_fails "a file setup-microphone.ps1 takes that isn't on the list" starwire-mic-2.ico "$work/new-icon"
+copy_windows "$work/no-sources"
+sed -i 's/^\$sourceNames = /$helperSources = /' "$work/no-sources/setup-usb.ps1"
+zip_fails "no list of sources it can find in setup-usb.ps1" setup-usb.ps1 "$work/no-sources"
+if command -v zip >/dev/null 2>&1 && command -v unzip >/dev/null 2>&1; then
+    # Over an old file of the same name, which zip would otherwise add to
+    mkdir "$work/out"
+    echo "an old zip" > "$work/out/Starwire-Microphone-for-Windows.zip"
+    if bash "$HERE/make-windows-zip.sh" "$work/out" > /dev/null; then
+        got=$(unzip -Z1 "$work/out/Starwire-Microphone-for-Windows.zip" | LC_ALL=C sort)
+        [ "$got" = "$want" ] || fail "the Windows zip holds $(echo $got), not the list"
+    else
+        fail "make-windows-zip.sh couldn't make the zip from windows/"
+    fi
+    set +e
+    WINDOWS_DIR=$work/missing bash "$HERE/make-windows-zip.sh" "$work/out-missing" > /dev/null 2>&1
+    status=$?
+    set -e
+    if [ $status -eq 0 ] || [ -e "$work/out-missing/Starwire-Microphone-for-Windows.zip" ]; then
+        fail "make-windows-zip.sh made a zip without UsbRelay.cs (exit $status)"
+    fi
+else
+    echo "skipped: making the Windows zip (needs zip and unzip)"
+fi
+for workflow in release build; do
+    grep -q 'bash .github/tools/make-windows-zip.sh ' ".github/workflows/$workflow.yml" ||
+        fail "$workflow.yml doesn't make the Windows zip with make-windows-zip.sh"
+done
+if grep -nE '(^|[^A-Za-z0-9_.-])zip +-' .github/workflows/release.yml; then
+    fail "release.yml runs zip itself; its Windows zip comes from make-windows-zip.sh"
+fi
+grep -q 'ZIP=Starwire-Microphone-for-Windows.zip' .github/workflows/release.yml ||
+    fail "release.yml doesn't publish Starwire-Microphone-for-Windows.zip"
+rm -rf "$work"
+ok "make-windows-zip.sh ships the microphone's and the USB helper's files, and the workflows make the zip with it"
+
+# 20. verify.sh sums, in a made-up repo: every binary file in git must be in SHA256SUMS, and text
+# isn't binary whatever its line endings. The scan took git's word, and git calls text with a
+# lone CR binary, so sdkmanager's output in fixtures/ (CR, CRLF and LF line endings) failed the
+# Prebuilt files check as an unlisted binary. A file with a NUL byte, one that isn't UTF-8 and
+# one that's mostly control characters are still binary.
+begin
+py=""
+for candidate in python3 python py; do
+    if "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 6))' > /dev/null 2>&1; then py=$candidate; break; fi
+done
+if [ -z "$py" ]; then
+    if [ -n "${CI:-}" ]; then fail "no Python 3 for verify.sh sums"; else echo "skipped: verify.sh sums in a made-up repo (no Python 3)"; fi
+else
+    work="$(mktemp -d)"
+    repo="$work/repo"
+    mkdir -p "$repo/.github/tools/prebuilts"
+    cp "$HERE/prebuilts/verify.sh" "$repo/.github/tools/prebuilts/verify.sh"
+    git init -q "$repo"
+    cp "$HERE/fixtures/sdkmanager-list-22.txt" "$repo/sdkmanager-list.txt"
+    # Like a progress bar: CRLF, then a lone CR before each update, then LF
+    printf 'Loading package information...\r\n[=====     ] 50%%\r[==========] 100%%\nInstalled packages:\r\n' > "$repo/progress.txt"
+    printf '\177ELF\2\1\1\0\0\0' > "$repo/listed.so"
+    printf '%s  listed.so\n' "$(sha256sum < "$repo/listed.so" | cut -c1-64)" > "$repo/.github/tools/prebuilts/SHA256SUMS"
+    sums() {  # runs verify.sh sums on the made-up repo, and sets status and out
+        git -C "$repo" -c core.autocrlf=false add -A
+        set +e
+        out=$(PYTHON=$py sh "$repo/.github/tools/prebuilts/verify.sh" --work "$work/verify" sums 2>&1)
+        status=$?
+        set -e
+    }
+    sums
+    if [ $status -ne 0 ] || ! grep -qE '^MATCH +SHA256SUMS +1 files$' <<< "$out"; then
+        printf '%s\n' "$out" >&2
+        fail "verify.sh sums on text with CR, CRLF and LF line endings: exit $status (expected 0, and SHA256SUMS a MATCH)"
+    fi
+    # (Not nul.txt: Windows keeps that name for its NUL device)
+    for planted in 'zero-byte.txt|a NUL byte|one\0two\n' 'latin1.txt|text that is not UTF-8|caf\351\n' \
+            'control.txt|mostly control characters|ab\1\2\3\4\5\6\n'; do
+        IFS='|' read -r name what content <<< "$planted"
+        # shellcheck disable=SC2059
+        printf "$content" > "$repo/$name"
+        sums
+        if [ $status -ne 1 ] || ! grep -qE "^DIFFERENT +${name//./\\.} +binary file not listed in SHA256SUMS\$" <<< "$out"; then
+            printf '%s\n' "$out" >&2
+            fail "verify.sh sums on $name ($what): exit $status (expected 1, and $name an unlisted binary)"
+        fi
+        git -C "$repo" rm -q --cached "$name"
+        rm "$repo/$name"
+    done
+    rm -rf "$work"
+fi
+ok "verify.sh sums counts text with any line endings as text, and still finds unlisted binary files"
+
+# 21. The Upstream changes workflow runs only on the public repo, where its weekly issue belongs.
+# On the private copy every scheduled run failed at the checkout ("repository not found").
+begin
+public_only() {  # prints each job in a workflow, then "public" if a job-level if keeps it to the public repo
+    tr -d '\r' < "$1" | awk -v guard="    if: github.repository == 'SicarioGaming/Starwire'" '
+        /^jobs:/ { injobs = 1; next }
+        injobs && /^[^[:space:]#]/ { injobs = 0 }
+        !injobs { next }
+        /^  [A-Za-z0-9_-]+:[[:space:]]*$/ {
+            if (job != "") print job, where
+            job = $1; sub(/:$/, "", job); where = "everywhere"; next
+        }
+        job != "" { sub(/[[:space:]]+$/, ""); if ($0 == guard) where = "public" }
+        END { if (job != "") print job, where }'
+}
+upstream_jobs=$(public_only .github/workflows/upstream.yml)
+if [ -z "$upstream_jobs" ]; then
+    fail "found no jobs in upstream.yml"
+else
+    while read -r job where; do
+        [ "$where" = public ] ||
+            fail "upstream.yml: the $job job runs on every copy of the repo, not only with if: github.repository == 'SicarioGaming/Starwire'"
+    done <<< "$upstream_jobs"
+fi
+work="$(mktemp -d)"
+printf '%s\n' 'on: push' 'jobs:' '  guarded:' "    if: github.repository == 'SicarioGaming/Starwire'" \
+    '    runs-on: x' '  step-only:' '    runs-on: x' '    steps:' \
+    "      - if: github.repository == 'SicarioGaming/Starwire'" '        run: true' > "$work/guards.yml"
+planted_jobs=$(public_only "$work/guards.yml" | tr '\n' ' ')
+[ "$planted_jobs" = "guarded public step-only everywhere " ] ||
+    fail "the public repo check misread a planted workflow: $planted_jobs"
+rm -rf "$work"
+ok "the Upstream changes workflow runs only on the public repo"
+
+# 22. upstream/check.sh, against made-up upstream repos on disk: it lists what's new, and no git it
+# runs is still going after it ends. git fetch ends by starting "git maintenance run --auto",
+# which on Linux goes on in the background writing commit-graph files. On 9 Nov 2026 that was
+# still writing in the temporary folder when check.sh's EXIT trap removed it, so rm failed ("cannot
+# remove .../repo/objects: Directory not empty") and the weekly run failed with it. Maintenance and
+# gc are what git leaves running, so this checks, from git's trace2 log, that check.sh starts
+# neither. Waiting for the race wouldn't be deterministic, and on Windows maintenance can't go into
+# the background, so the race never shows there.
+begin
+work="$(mktemp -d)"
+host_path() {  # Git Bash's /c/x as C:/x, for the paths git reads from its config and environment
+    if command -v cygpath > /dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi
+}
+mkdir -p "$work/tool" "$work/tmp"
+cp "$HERE/upstream/check.sh" "$work/tool/check.sh"
+git init -q --bare "$work/up/test/one.git"
+# 120 commits, a day apart: over the 100 new commits that make maintenance write a commit-graph
+for i in $(seq 1 120); do
+    printf 'commit refs/heads/main\ncommitter Up Stream <upstream@example.org> %d +0000\ndata <<EOF\nChange %d\nEOF\n\n' \
+        $((1700000000 + i * 86400)) "$i"
+done | git -C "$work/up/test/one.git" fast-import --quiet
+reviewed=$(git -C "$work/up/test/one.git" rev-parse main~2)
+# One source with two new commits, one whose reviewed commit isn't there, and one that can't be fetched
+printf '%s\n' "one   test/one   main  $reviewed  port" \
+    "gone  test/one   main  0123456789abcdef0123456789abcdef01234567  ideas" \
+    "none  test/none  main  $reviewed  port" > "$work/tool/sources.txt"
+# Only this config, which sends https://github.com/ to the made-up repos (with filters allowed, as
+# GitHub does), so a maintenance.auto in the user's own config can't hide the problem. Git may
+# only read local paths, so a URL the config misses fails here instead of going to the network.
+git config --file "$work/gitconfig" "url.$(host_path "$work/up")/.insteadOf" https://github.com/
+git config --file "$work/gitconfig" uploadpack.allowFilter true
+set +e
+upstream_report=$(TMPDIR="$work/tmp" GIT_ALLOW_PROTOCOL=file GIT_CONFIG_NOSYSTEM=1 \
+    GIT_CONFIG_GLOBAL="$(host_path "$work/gitconfig")" GIT_TRACE2_EVENT="$(host_path "$work/trace.json")" \
+    bash "$work/tool/check.sh" 2> "$work/stderr")
+status=$?
+set -e
+if [ $status -ne 0 ] || [ -s "$work/stderr" ]; then
+    cat "$work/stderr" >&2
+    fail "upstream/check.sh exited $status (expected 0, and nothing on stderr)"
+fi
+for want in "## one: 2 new commit(s) (port)" "- Change 120 (Up Stream, 2024-03-13, \`$(git -C "$work/up/test/one.git" rev-parse --short=7 main)\`)" \
+            "- Change 119 (Up Stream, 2024-03-12, \`$(git -C "$work/up/test/one.git" rev-parse --short=7 main~1)\`)" \
+            "The reviewed commit \`01234567\` is no longer on \`main\` (history was rewritten)." \
+            "## none (test/none)" "Couldn't fetch \`main\`."; do
+    grep -qxF -- "$want" <<< "$upstream_report" || { printf '%s\n' "$upstream_report" >&2; fail "upstream/check.sh's report has no line \"$want\""; }
+done
+started=$(grep '"event":"start"' "$work/trace.json" 2> /dev/null || true)
+if ! grep -qE '"argv":\[[^]]*"fetch"' <<< "$started"; then
+    fail "git's trace2 log of upstream/check.sh has no fetch in it"
+elif grep -E '"argv":\[[^]]*"(maintenance|gc)"' <<< "$started" >&2; then
+    fail "upstream/check.sh started git maintenance or gc, which can still be writing in its temporary folder when it removes it"
+fi
+if [ -n "$(ls -A "$work/tmp")" ]; then fail "upstream/check.sh left its temporary folder behind: $(ls -A "$work/tmp")"; fi
+rm -rf "$work"
+ok "upstream/check.sh lists new upstream commits and leaves nothing running in its temporary folder"
+
+# 23. The PC's USB helper has an icon of its own. It had none, so the clock showed Windows' plain
+# program icon, and among the hidden icons there was no telling which one to right-click. The
+# icon, windows/starwire-usb.ico (icons/make-usb-icon.mjs makes it), must be a Windows icon with
+# the sizes the clock and Explorer use, and not the microphone receiver's. setup-usb.ps1 must
+# build it into the helper (/win32icon), put it next to the helper, where the helper looks first,
+# and remove it on -Uninstall. The Windows zip must carry it.
+begin
+ico=windows/starwire-usb.ico
+ico_sizes() {  # an .ico file: prints each image's size, like 16x16, or "bad: why" for one that's wrong
+    od -An -v -tu1 "$1" | awk '
+        { for (i = 1; i <= NF; i++) b[n++] = $i }
+        function le(at, len,   v, i) { v = 0; for (i = len - 1; i >= 0; i--) v = v * 256 + b[at + i]; return v }
+        function be(at, len,   v, i) { v = 0; for (i = 0; i < len; i++) v = v * 256 + b[at + i]; return v }
+        END {
+            if (n < 6 || le(0, 2) != 0 || le(2, 2) != 1 || le(4, 2) < 1) { print "bad: it has no icon header"; exit }
+            count = le(4, 2)
+            if (6 + 16 * count > n) { print "bad: its list of images is cut short"; exit }
+            for (i = 0; i < count; i++) {
+                at = 6 + 16 * i; w = b[at] ? b[at] : 256; h = b[at + 1] ? b[at + 1] : 256
+                len = le(at + 8, 4); off = le(at + 12, 4)
+                if (len < 26 || off < 6 + 16 * count || off + len > n) {
+                    print "bad: image " i + 1 " is outside the file"
+                } else if (be(off, 4) == 2303741511 && be(off + 4, 4) == 218765834) {
+                    # A PNG, whose IHDR has its width and height
+                    if (be(off + 16, 4) != w || be(off + 20, 4) != h) print "bad: image " i + 1 " is a PNG of another size than " w "x" h
+                    else print w "x" h
+                } else if (le(off, 4) == 40) {
+                    # A bitmap, whose height counts its mask too
+                    if (le(off + 4, 4) != w || le(off + 8, 4) != 2 * h) print "bad: image " i + 1 " is a bitmap of another size than " w "x" h
+                    else print w "x" h
+                } else {
+                    print "bad: image " i + 1 " is neither a PNG nor a bitmap"
+                }
+            }
+        }'
+}
+if [ ! -s "$ico" ]; then
+    fail "$ico is missing or empty, so the USB helper has no icon of its own"
+else
+    sizes=$(ico_sizes "$ico")
+    bad=$(sed -n 's/^bad: //p' <<< "$sizes")
+    good=$(echo $(grep -v '^bad: ' <<< "$sizes" || true))
+    [ -z "$bad" ] || fail "$ico isn't a good Windows icon: $(echo $bad)"
+    missing=""
+    for size in 16 20 24 32 48 64 256; do
+        grep -qx "${size}x$size" <<< "$sizes" || missing="$missing ${size}x$size"
+    done
+    [ -z "$missing" ] || fail "$ico has no image of these sizes:$missing (it has: ${good:-none})"
+    if cmp -s "$ico" windows/starwire-mic.ico; then fail "$ico is the microphone receiver's icon, not one of its own"; fi
+fi
+setup=$(tr -d '\r' < windows/setup-usb.ps1)
+icon_var=$(sed -n "s/^\(\$[A-Za-z0-9_]*\) = Join-Path \$here 'starwire-usb.ico'\$/\1/p" <<< "$setup" | head -n 1)
+installed_var=$(sed -n "s/^\(\$[A-Za-z0-9_]*\) = Join-Path \$InstallDir 'starwire-usb.ico'\$/\1/p" <<< "$setup" | head -n 1)
+if [ -z "$icon_var" ]; then
+    fail "setup-usb.ps1 doesn't take starwire-usb.ico from its folder (\$icon = Join-Path \$here 'starwire-usb.ico')"
+else
+    grep -E '^[[:space:]]*& \$csc ' <<< "$setup" | grep -qF "/win32icon:$icon_var" ||
+        fail "setup-usb.ps1 doesn't build the helper with its icon (/win32icon:$icon_var in the csc command)"
+    grep -qE "^[[:space:]]*Copy-Item \\$icon_var " <<< "$setup" ||
+        fail "setup-usb.ps1 doesn't copy $icon_var next to the helper, where the helper looks for it"
+fi
+if [ -z "$installed_var" ]; then
+    fail "setup-usb.ps1 doesn't name the icon it installs (\$installedIcon = Join-Path \$InstallDir 'starwire-usb.ico')"
+else
+    grep -E '^[[:space:]]*Remove-Item ' <<< "$setup" | grep -qF "$installed_var" ||
+        fail "setup-usb.ps1 -Uninstall doesn't remove the icon it installed ($installed_var)"
+fi
+grep -qx 'starwire-usb.ico' <<< "$(bash "$HERE/make-windows-zip.sh" --list 2>&1 || true)" ||
+    fail "make-windows-zip.sh doesn't put starwire-usb.ico in the Windows zip"
+ok "the USB helper has an icon of its own, with every size the clock uses, built in and installed by setup-usb.ps1, and in the Windows zip"
+
+# 24. The docs give device-test.sh its device with -s. AGENTS.md said "device-test.sh <serial>",
+# which the script refuses as an unknown option before it does anything.
+begin
+while IFS= read -r hit; do
+    fail "a doc runs device-test.sh with a bare argument, which it refuses (it takes -s <serial>): $hit"
+done < <(git -C "$ROOT" grep -nE 'device-test\.sh +[^-[:space:]`]' -- '*.md' || true)
+ok "the docs give device-test.sh its device with -s"
 
 if [ $failures -ne 0 ]; then
     echo "$failures problem(s)" >&2

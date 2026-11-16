@@ -39,6 +39,7 @@ public class ClaimsTest {
             {"(?i)rebuilds libadrenotools from source", "the libraries are prebuilt"},
             {"(?i)if the driver doesn.{1,2}t work, the system one is used", "a driver that crashes closes Starwire"},
             {"(?i)local network only", "the 0.2.0 microphone isn't protected by being on the local network"},
+            {"(?i)(closed|destroyed)[^.\\n]*\\bcould crash", "no test has shown a late dialog crashing Starwire"},
     };
 
     private static List<String> textFiles() {
@@ -78,6 +79,8 @@ public class ClaimsTest {
         assertEquals(1, claimsIn("The custom Turnip driver is listed with the speed features.").size());
         assertEquals(1, claimsIn("A custom Turnip driver for more speed.").size());
         assertEquals(1, claimsIn("Load a Turnip driver for faster PyroWave.").size());
+        // The late-dialog fix is tested on the JVM only, so nothing has shown the crash it'd stop
+        assertEquals(1, claimsIn("  already closed, which could crash the app.").size());
 
         List<String> found = new ArrayList<>();
         for (String path : textFiles()) {
@@ -116,6 +119,31 @@ public class ClaimsTest {
         assertTrue(warning, warning.contains("goes back to the normal driver"));
         assertTrue(warning, warning.contains("A driver that crashes closes Starwire"));
         assertTrue(warning, warning.contains("hasn\\'t been tried with a real Turnip driver"));
+    }
+
+    // The desktop shortcuts on the Shortcuts page (Win+Tab, Win+Ctrl+Left and Win+Ctrl+Right) are
+    // checked by tests but haven't been tried in a stream. The README and the changelog both say
+    // so, and while the changelog has them under [Unreleased] the README row says they're coming.
+    @Test
+    public void theDesktopShortcutsAreDescribedAsUntried() throws Exception {
+        String untried = "checked by tests, not yet tried in a stream";
+        Matcher row = Pattern.compile("(?m)^\\|.*Win\\+Tab \\(Task View\\).*$").matcher(RepoFiles.read("README.md"));
+        assertTrue("the README's desktop shortcuts row", row.find());
+        assertTrue(row.group(), row.group().toLowerCase(Locale.ROOT).contains(untried));
+
+        String changelog = RepoFiles.read("CHANGELOG.md").replace("\r", "");
+        int entry = changelog.indexOf("**Shortcuts for Windows' virtual desktops in the stream menu:**");
+        assertTrue("the changelog's desktop shortcuts entry", entry >= 0);
+        int end = changelog.indexOf("\n\n", entry);
+        String item = flat(changelog.substring(entry, end < 0 ? changelog.length() : end));
+        assertTrue(item, item.toLowerCase(Locale.ROOT).contains(untried));
+
+        int unreleased = changelog.indexOf("## [Unreleased]");
+        int released = changelog.indexOf("\n## [", unreleased + 1);
+        if (unreleased >= 0 && entry > unreleased && (released < 0 || entry < released)) {
+            assertTrue("the changelog has them as unreleased, so the README row says they're coming: "
+                    + row.group(), row.group().startsWith("| Coming in the next release: "));
+        }
     }
 
     // Phrases that only made sense while the 0.2.0 microphone, with no encryption, was the current

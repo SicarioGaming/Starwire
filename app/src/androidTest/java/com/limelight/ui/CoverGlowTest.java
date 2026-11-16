@@ -25,6 +25,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.limelight.R;
 import com.limelight.preferences.StreamSettings;
+import com.limelight.testing.TestFiles;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -211,7 +212,40 @@ public class CoverGlowTest {
                     android.view.KeyEvent.KEYCODE_DPAD_DOWN));
 
             save(root, target, "cover_glow_menu.png");
-            assertTrue("sheet " + menu.getWidth() + " px wide", menu.getWidth() <= 440 * d + 1);
+
+            // A sheet beside the game, sized as OverlayMenuView.fitMainPage sizes it for this
+            // device's screen: the usual 440 dp, five tiles across or fewer; or, where seven tiles
+            // of the usual size fit in 60% of the screen's width (a tablet held sideways), just
+            // wide enough for those seven, unless a label doesn't fit a tile of that size (large
+            // text)
+            ViewGroup row = (ViewGroup) ((ViewGroup) findFirst(menu, android.widget.ScrollView.class)
+                    .getChildAt(0)).getChildAt(0);
+            int across = 0;
+            for (int i = 0; i < row.getChildCount(); i++) {
+                if (row.getChildAt(i) instanceof com.limelight.ui.overlay.OverlayMenuButton) {
+                    across++;
+                }
+            }
+            assertTrue(across + " tiles across", across == 7 || (across >= 2 && across <= 5));
+            int usual = (int) (440 * d);
+            int padding = menu.getPaddingLeft() + menu.getPaddingRight();
+            int gap = ((ViewGroup.MarginLayoutParams) row.getChildAt(1).getLayoutParams()).getMarginStart();
+            int tile = (usual - padding - gap * 4) / 5;
+            int seven = tile * 7 + gap * 6 + padding;
+            int screen = (int) (context.getResources().getConfiguration().screenWidthDp * d);
+            if (across == 7) {
+                assertEquals("sheet seven tiles across", seven, menu.getWidth());
+                assertTrue("sheet " + menu.getWidth() + " px wide on a " + screen + " px screen",
+                        menu.getWidth() <= screen * 0.6f);
+            }
+            else {
+                assertEquals("sheet " + across + " tiles across", usual, menu.getWidth());
+                // Five across means every label fits a tile of the usual size. Seven across use
+                // tiles of that size, so where seven fit in 60% of the screen, the sheet should
+                // have grown to hold them.
+                assertTrue("the usual sheet, five across, on a " + screen + " px screen with room for seven ("
+                        + seven + " px)", across < 5 || seven > screen * 0.6f);
+            }
         });
     }
 
@@ -395,7 +429,7 @@ public class CoverGlowTest {
         // Not blank: the void in the middle is dark and the ring around it is bright
         int middle = bitmap.getPixel(size / 2, size / 2);
         assertTrue("middle " + Integer.toHexString(middle), Color.alpha(middle) > 200 && luminanceOf(middle) < 0.05);
-        File out = new File(target.getExternalFilesDir(null), "starwire_icon.png");
+        File out = TestFiles.file(target, "starwire_icon.png");
         try (FileOutputStream stream = new FileOutputStream(out)) {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
         }
@@ -487,7 +521,7 @@ public class CoverGlowTest {
         root.layout(0, 0, width, height);
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         root.draw(new Canvas(bitmap));
-        File out = new File(target.getExternalFilesDir(null), name);
+        File out = TestFiles.file(target, name);
         try (FileOutputStream stream = new FileOutputStream(out)) {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
         }
@@ -543,7 +577,11 @@ public class CoverGlowTest {
                 label.setText(names[i]);
                 label.setGravity(android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL);
                 if (i == 0) {
-                    item.setForeground(new Rainbow.Ring(26 * d, 3 * d));
+                    // The selected game's ring, as AppGridAdapter draws it: a view's foreground is
+                    // Android 6 and later (this stopped the test on Android 5 with NoSuchMethodError)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        item.setForeground(new Rainbow.Ring(26 * d, 3 * d));
+                    }
                 }
                 else {
                     item.setAlpha(0.82f);
@@ -565,7 +603,7 @@ public class CoverGlowTest {
             rainbow.cancel();
             Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             root.draw(new Canvas(bitmap));
-            File out = new File(target.getExternalFilesDir(null), "cover_glow_home.png");
+            File out = TestFiles.file(target, "cover_glow_home.png");
             try (FileOutputStream stream = new FileOutputStream(out)) {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
             }

@@ -275,9 +275,10 @@ public final class CoverGlowSettings {
             CREDITS.put(key, artemis);
         }
         CREDITS.put("checkbox_prevent_packet_loss", "From Artemis by Yukino Song, via Artemide");
+        CREDITS.put("checkbox_back_opens_menu", "Idea from Artemis by Yukino Song, via Artemide");
         CREDITS.put("seekbar_touch_sensitivity", "From Artemis by Yukino Song and Axixi2233");
         for (String key : new String[] {"overlay_custom_commands", "overlay_trigger_button", "overlay_hold_duration",
-                "video_format", "video_renderer", "pyrowave_late_frames"}) {
+                "left_edge_swipe_action", "video_format", "video_renderer", "pyrowave_late_frames"}) {
             CREDITS.put(key, moonlightX);
         }
         // The settings are Moonlight's own; entering any value is from Moonlight X
@@ -294,6 +295,12 @@ public final class CoverGlowSettings {
             CREDITS.put(key, turnip);
         }
         CREDITS.put("checkbox_enable_perf_overlay_lite", "From Axixi2233, via Artemis and Artemide");
+        CREDITS.put("checkbox_dualsense_effects", "Bluetooth route ported from Moonlight V+ by qiin2333; "
+                + "the host's effects reach Java through code from Nightjar by Ramazan Kara");
+        // The share flow, the tunnel and the device rules are new in Starwire; the exporter isn't.
+        // CLF wrote most of the exporter's code that Starwire keeps (Moonlight V+ PR #648).
+        CREDITS.put("checkbox_usb_share", "USB exporter from Moonlight V+, by qiin2333 and CLF (CLF184), "
+                + "built on usbipdcpp by yunsmall (LGPL-3.0)");
     }
 
     /** Where a setting came from, or null for Moonlight's own and Starwire's new settings. */

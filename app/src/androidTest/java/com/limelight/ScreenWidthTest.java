@@ -17,9 +17,12 @@ import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.limelight.computers.ComputerDatabaseManager;
 import com.limelight.nvstream.http.ComputerDetails;
+import com.limelight.testing.IgnorePcUpdates;
+import com.limelight.testing.TestFiles;
 import com.limelight.utils.CacheHelper;
 
 import org.junit.After;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -43,6 +46,14 @@ public class ScreenWidthTest {
             + "</root>";
 
     private final Context target = InstrumentationRegistry.getInstrumentation().getTargetContext();
+
+    // The test PC never answers, so the game screen would close itself with "lost connection"
+    // after three failed polls, or at once if the network dropped, part way through a test. On
+    // fold-z-36 (2026-10-27) both happened: one test found its screen gone, and in the next the
+    // screen closed with the test still running, its main thread didn't take the focus change for
+    // 5 s, and Android called it not responding.
+    @Rule
+    public final IgnorePcUpdates ignorePcUpdates = new IgnorePcUpdates();
 
     @After
     public void removeTestPc() {
@@ -79,7 +90,7 @@ public class ScreenWidthTest {
         ComputerDetails details = new ComputerDetails();
         details.uuid = UUID;
         details.name = "TEST-PC";
-        // Unroutable, so the PC stays "checking" while the screen is up
+        // Unroutable, so the PC never answers; the game screen ignores that (IgnorePcUpdates)
         details.manualAddress = new ComputerDetails.AddressTuple("10.255.255.1", 47989);
         ComputerDatabaseManager db = new ComputerDatabaseManager(target);
         db.updateComputer(details);
@@ -210,6 +221,7 @@ public class ScreenWidthTest {
 
     // Lays the screen out by hand at the display's size (works with the screen off) and saves it
     private static String layOutAndSave(Activity activity, String what) {
+        long start = SystemClock.uptimeMillis();
         DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
         int width = metrics.widthPixels, height = metrics.heightPixels;
         View root = activity.getWindow().getDecorView();
@@ -221,12 +233,18 @@ public class ScreenWidthTest {
                 android.graphics.Bitmap.Config.ARGB_8888);
         root.draw(new android.graphics.Canvas(bitmap));
         try (java.io.FileOutputStream out = new java.io.FileOutputStream(
-                new java.io.File(activity.getExternalFilesDir(null), name + ".png"))) {
+                TestFiles.file(activity, name + ".png"))) {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
         }
         catch (java.io.IOException e) {
             throw new RuntimeException(e);
         }
+        // This runs on the main thread, which takes nothing else meanwhile. On fold-z-36
+        // (2026-10-27) a game screen closed itself during this test and didn't take its focus
+        // change for 5 s, and the run kept no stack. The log says how long a picture holds the
+        // main thread on each device.
+        android.util.Log.i("ScreenWidthTest", name + ": laid out, drawn and saved in "
+                + (SystemClock.uptimeMillis() - start) + " ms");
         return name;
     }
 

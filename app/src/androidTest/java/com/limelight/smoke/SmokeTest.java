@@ -24,7 +24,6 @@ import android.widget.TextView;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.By;
-import androidx.test.uiautomator.Configurator;
 import androidx.test.uiautomator.Direction;
 import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
@@ -36,6 +35,8 @@ import com.limelight.SizeChange;
 import com.limelight.computers.ComputerDatabaseManager;
 import com.limelight.nvstream.http.ComputerDetails;
 import com.limelight.preferences.StreamSettings;
+import com.limelight.testing.Automation;
+import com.limelight.testing.ZteGameMode;
 
 import org.junit.After;
 import org.junit.Assume;
@@ -243,13 +244,10 @@ public class SmokeTest {
 
     // Android itself still recreates a screen for a change the app doesn't take on, such as a new
     // display size or language. That's skipped where the phone maker's game mode runs inside the
-    // app, as on the RedMagic tablet: when a screen is paused and destroyed back to back, its
-    // com.zte.gameassist GameActivityStub stops an observer it has already cleared, which crashed
-    // the app in 3 of 4 runs there. That code is the phone's, not Starwire's.
+    // app, as on the RedMagic tablet: it crashes recreated screens there (ZteGameMode).
     @Test
     public void screensSurviveBeingRecreated() {
-        Assume.assumeFalse("the phone maker's game mode crashes recreated screens on this device (com.zte.gameassist)",
-                zteGameMode());
+        ZteGameMode.assumeScreensCanBeRecreated();
         smoke.launchApp();
         checkRecreated(PcView.class, R.id.pcFragmentContainer, "04-recreated-pc-list");
 
@@ -280,8 +278,7 @@ public class SmokeTest {
     // Taps the view and waits for the app to report the click (every view's click sends one to
     // accessibility, which UI Automator turns on). False when something else took the tap.
     private boolean tapReachesApp(UiObject2 view) {
-        UiAutomation automation = InstrumentationRegistry.getInstrumentation()
-                .getUiAutomation(Configurator.getInstance().getUiAutomationFlags());
+        UiAutomation automation = Automation.uiAutomation();
         try {
             automation.executeAndWaitForEvent(view::click,
                     event -> event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED
@@ -290,16 +287,6 @@ public class SmokeTest {
             return true;
         }
         catch (TimeoutException e) {
-            return false;
-        }
-    }
-
-    private static boolean zteGameMode() {
-        try {
-            Class.forName("com.zte.gameassist.app.GameActivityStub");
-            return true;
-        }
-        catch (ClassNotFoundException e) {
             return false;
         }
     }

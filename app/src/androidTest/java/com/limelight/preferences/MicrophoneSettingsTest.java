@@ -24,6 +24,8 @@ import com.limelight.binding.audio.MicrophoneCaptureManager;
 import com.limelight.binding.audio.securemic.MicPairing;
 import com.limelight.binding.audio.securemic.MicPairingStore;
 import com.limelight.nvstream.StreamConfiguration;
+import com.limelight.testing.Automation;
+import com.limelight.testing.TestFiles;
 
 import org.junit.After;
 import org.junit.Before;
@@ -163,8 +165,7 @@ public class MicrophoneSettingsTest {
                 .putString(PreferenceConfiguration.MICROPHONE_TARGET_PREF_STRING, "starwire").commit();
         MicPairingStore store = new MicPairingStore(context);
         store.remove(TEST_PC);
-        InstrumentationRegistry.getInstrumentation().getUiAutomation().grantRuntimePermission(
-                context.getPackageName(), android.Manifest.permission.RECORD_AUDIO);
+        Automation.grantRuntimePermission(context.getPackageName(), android.Manifest.permission.RECORD_AUDIO);
         boolean pairedBefore = !store.all().isEmpty();
 
         try (ActivityScenario<StreamSettings> scenario =
@@ -248,7 +249,7 @@ public class MicrophoneSettingsTest {
                         Math.max(1, root.getHeight()), android.graphics.Bitmap.Config.ARGB_8888);
                 root.draw(new android.graphics.Canvas(bitmap));
                 try (java.io.FileOutputStream out = new java.io.FileOutputStream(
-                        new java.io.File(activity.getExternalFilesDir(null), "mic_pairing_dialog.png"))) {
+                        TestFiles.file(activity, "mic_pairing_dialog.png"))) {
                     bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
                 }
                 catch (java.io.IOException e) {
@@ -286,8 +287,7 @@ public class MicrophoneSettingsTest {
                 .putString(PreferenceConfiguration.MICROPHONE_TARGET_PREF_STRING, "vban")
                 .putString(PreferenceConfiguration.VBAN_STREAM_NAME_PREF_STRING, "Phone")
                 .putString(PreferenceConfiguration.VBAN_PORT_PREF_STRING, "6990").commit();
-        InstrumentationRegistry.getInstrumentation().getUiAutomation().grantRuntimePermission(
-                context.getPackageName(), android.Manifest.permission.RECORD_AUDIO);
+        Automation.grantRuntimePermission(context.getPackageName(), android.Manifest.permission.RECORD_AUDIO);
 
         try (ActivityScenario<StreamSettings> scenario =
                      ActivityScenario.launch(new Intent(context, StreamSettings.class))) {
@@ -342,7 +342,7 @@ public class MicrophoneSettingsTest {
                         metrics.heightPixels, android.graphics.Bitmap.Config.ARGB_8888);
                 root.draw(new android.graphics.Canvas(bitmap));
                 try (java.io.FileOutputStream out = new java.io.FileOutputStream(
-                        new java.io.File(activity.getExternalFilesDir(null), "settings_microphone_vban.png"))) {
+                        TestFiles.file(activity, "settings_microphone_vban.png"))) {
                     bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
                 }
                 catch (java.io.IOException e) {

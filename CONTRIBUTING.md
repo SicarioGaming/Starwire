@@ -44,7 +44,7 @@ you ask for it.
   Lint runs the same way (`./gradlew lintNonRootDebug`). The warnings it already had are listed
   in `app/lint-baseline.xml`, so only a new one fails it.
 - **Screenshot tests** draw the settings, game, in-stream menu and PC list screens on the
-  computer (Robolectric and Roborazzi) at 8 sizes, from a Fold5 cover screen to a tablet, and
+  computer (Robolectric and Roborazzi) at 9 sizes, from a Fold5 cover screen to a tablet, and
   compare them pixel for pixel with the pictures in `app/src/test/screenshots`:
 
   ```bash
@@ -57,9 +57,11 @@ you ask for it.
   them with the change. The pictures were recorded on Windows; whether Linux draws exactly the
   same pixels hasn't been checked yet.
 - **Native tests:** a few C++ simulations of the frame pacer under
-  `app/src/main/jni/vulkan/tests`, inherited from Moonlight X, and `partial_frame_test.sh` under
-  `app/src/main/jni/moonlight-core/tests`, which checks moonlight-common-c's partial frames. The
-  **Native host tests** step in `.github/workflows/build.yml` shows how to build and run them.
+  `app/src/main/jni/vulkan/tests`, inherited from Moonlight X, and two under
+  `app/src/main/jni/moonlight-core/tests`: `partial_frame_test.sh` checks moonlight-common-c's
+  partial frames, and `host_packets_test.sh` checks a few of the packets it sends a host against
+  what the host understands. The **Native host tests** step in `.github/workflows/build.yml`
+  shows how to build and run them.
 - **On-device tests** (JUnit 4, instrumented) in `app/src/androidTest`, written for and run on my
   RedMagic Astra tablet. The smoke tests among them use the app the way a person would, with UI
   Automator. The ones that need a PC skip, and say why, when the device has no paired PC or it
@@ -79,9 +81,12 @@ the serial that `adb devices -l` shows:
 
 It installs with `adb install -r` and never uninstalls, so the debug app keeps its pairing with
 your PC. After the instrumented suite it runs the smoke tests, saves their screenshots and looks
-for crashes. `--allow-stream` adds a short Desktop stream to the paired PC; without it nothing is
-streamed. `./gradlew connectedNonRootDebugAndroidTest` runs the suite too, but it may not keep the
-pairing.
+for crashes. A test that hangs for 90 seconds fails with what the app's main thread was doing
+(`StuckTestWatchdog` in `com.limelight.testing`). The watchdog then closes the test's screens so
+the run can go on to the next test. If the test is still stuck 30 seconds later, it ends the run
+there. `--allow-stream` adds a short Desktop stream to the paired PC; without it nothing is
+streamed. `./gradlew connectedNonRootDebugAndroidTest` runs the suite too, but it may not keep
+the pairing.
 
 Or by hand with `am instrument`, which is also how to run one class:
 
@@ -113,8 +118,10 @@ decoder, Adreno GPU, real controller or microphone, so tests that need one skip 
 the public repo, and on the private repo only when started by hand.
 
 What the tests don't cover yet, to be honest about it: the custom Turnip driver option with a
-real Turnip driver, hosts other than Vibepollo, and the encrypted microphone from a real device to
-a real PC, which so far has only been checked by hand (from my tablet over Wi-Fi).
+real Turnip driver, hosts other than Vibepollo, the encrypted microphone from a real device to a
+real PC, which so far has only been checked by hand (from my tablet over Wi-Fi), and a real
+DualSense or a real USB device, which have also only been tried by hand. The usbip-backend
+module's own device tests from Moonlight V+ are built but not run by any script.
 
 ## Pull requests
 
@@ -182,7 +189,8 @@ chmod +x .git/hooks/commit-msg
 
 The hook lets git's own "Merge ...", "Revert ..." and `fixup!` messages through, so those commands
 keep working. Before opening a pull request, squash the fixups and reword a revert as
-`revert: <what it undoes>`.
+`revert: <what it undoes>`. It also lets an upstream commit through when `git cherry-pick -x`
+brings it in, as the check above skips those.
 
 To fix a message that's already committed, use `git commit --amend` for the latest commit, or
 `git rebase -i origin/main` and "reword" for older ones, then push with

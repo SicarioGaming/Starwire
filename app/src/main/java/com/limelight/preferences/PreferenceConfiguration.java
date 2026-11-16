@@ -8,6 +8,8 @@ import android.preference.PreferenceManager;
 import android.view.Display;
 
 import com.limelight.binding.audio.VbanSender;
+import com.limelight.binding.input.dualsense.TriggerPreset;
+import com.limelight.binding.input.dualsense.TriggerStrength;
 import com.limelight.nvstream.jni.MoonBridge;
 
 public class PreferenceConfiguration {
@@ -70,9 +72,12 @@ public class PreferenceConfiguration {
     private static final String ENABLE_PIP_PREF_STRING = "checkbox_enable_pip";
     private static final String ENABLE_PERF_OVERLAY_STRING = "checkbox_enable_perf_overlay";
     private static final String BIND_ALL_USB_STRING = "checkbox_usb_bind_all";
+    // Sharing a wired USB device with the PC from the stream menu (Experimental)
+    static final String USB_SHARE_PREF_STRING = "checkbox_usb_share";
     private static final String MOUSE_EMULATION_STRING = "checkbox_mouse_emulation";
     private static final String ANALOG_SCROLLING_PREF_STRING = "analog_scrolling";
     private static final String MOUSE_NAV_BUTTONS_STRING = "checkbox_mouse_nav_buttons";
+    private static final String CONTROLLER_VIBRATION_STRENGTH_PREF_STRING = "seekbar_controller_vibration_strength";
     private static final String VIBRATE_OSC_PREF_STRING = "checkbox_vibrate_osc";
     private static final String VIBRATE_FALLBACK_PREF_STRING = "checkbox_vibrate_fallback";
     private static final String VIBRATE_FALLBACK_STRENGTH_PREF_STRING = "seekbar_vibrate_fallback_strength";
@@ -88,9 +93,17 @@ public class PreferenceConfiguration {
     private static final String GAMEPAD_TOUCHPAD_AS_MOUSE_PREF_STRING = "checkbox_gamepad_touchpad_as_mouse";
     private static final String GAMEPAD_MOTION_SENSORS_PREF_STRING = "checkbox_gamepad_motion_sensors";
     private static final String GAMEPAD_MOTION_FALLBACK_PREF_STRING = "checkbox_gamepad_motion_fallback";
+    // DualSense trigger effects over Bluetooth (Experimental), Settings > Controllers
+    public static final String DUALSENSE_EFFECTS_PREF_STRING = "checkbox_dualsense_effects";
+    public static final String DUALSENSE_TRIGGER_PRESET_PREF_STRING = "list_dualsense_trigger_preset";
+    public static final String DUALSENSE_TRIGGER_STRENGTH_PREF_STRING = "list_dualsense_trigger_strength";
+    // How the last stream's DualSense check ended (DualSenseStatus), for the status line
+    public static final String DUALSENSE_LAST_STATUS_PREF_STRING = "dualsense_last_status";
     private static final String OVERLAY_TRIGGER_BUTTON_PREF_STRING = "overlay_trigger_button";
     private static final String OVERLAY_HOLD_DURATION_PREF_STRING = "overlay_hold_duration";
+    private static final String LEFT_EDGE_SWIPE_ACTION_PREF_STRING = "left_edge_swipe_action";
     private static final String ENABLE_FLOATING_BUTTON_PREF_STRING = "checkbox_enable_floating_button";
+    private static final String BACK_OPENS_MENU_PREF_STRING = "checkbox_back_opens_menu";
     // Where the floating button was dragged to, one spot for landscape screens and one for
     // portrait (FloatingButton). Saved by the drag; they aren't on the settings screen.
     private static final String FLOATING_BUTTON_LANDSCAPE_X_PREF_STRING = "floating_button_landscape_x";
@@ -158,9 +171,11 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_ENABLE_PIP = false;
     private static final boolean DEFAULT_ENABLE_PERF_OVERLAY = false;
     private static final boolean DEFAULT_BIND_ALL_USB = false;
+    static final boolean DEFAULT_USB_SHARE = false;
     private static final boolean DEFAULT_MOUSE_EMULATION = true;
     private static final String DEFAULT_ANALOG_STICK_FOR_SCROLLING = "right";
     private static final boolean DEFAULT_MOUSE_NAV_BUTTONS = false;
+    private static final int DEFAULT_CONTROLLER_VIBRATION_STRENGTH = 100;
     private static final boolean DEFAULT_VIBRATE_OSC = true;
     private static final boolean DEFAULT_VIBRATE_FALLBACK = false;
     private static final int DEFAULT_VIBRATE_FALLBACK_STRENGTH = 100;
@@ -187,9 +202,14 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_GAMEPAD_TOUCHPAD_AS_MOUSE = false;
     private static final boolean DEFAULT_GAMEPAD_MOTION_SENSORS = true;
     private static final boolean DEFAULT_GAMEPAD_MOTION_FALLBACK = false;
+    private static final boolean DEFAULT_DUALSENSE_EFFECTS = false;
     private static final String DEFAULT_OVERLAY_TRIGGER_BUTTON = "select";
     private static final String DEFAULT_OVERLAY_HOLD_DURATION = "1500";
+    // Off, unlike Moonlight X: a slow drag from near the edge opened the brightness slider, and
+    // the stream menu has a Brightness tile
+    private static final String DEFAULT_LEFT_EDGE_SWIPE_ACTION = "off";
     private static final boolean DEFAULT_ENABLE_FLOATING_BUTTON = true;
+    private static final boolean DEFAULT_BACK_OPENS_MENU = true;
     private static final int DEFAULT_TOUCH_SENSITIVITY = 100;
     private static final boolean DEFAULT_AUTO_RESUME_STREAM = false;
 
@@ -241,9 +261,12 @@ public class PreferenceConfiguration {
     public boolean enablePerfOverlay;
     public boolean enableLatencyToast;
     public boolean bindAllUsb;
+    public boolean usbShare;
     public boolean mouseEmulation;
     public AnalogStickForScrolling analogStickForScrolling;
     public boolean mouseNavButtons;
+    // 0 to 100 percent of the game's rumble, on every controller
+    public int controllerVibrationStrength;
     public boolean vibrateOsc;
     public boolean vibrateFallbackToDevice;
     public int vibrateFallbackToDeviceStrength;
@@ -270,9 +293,16 @@ public class PreferenceConfiguration {
     public boolean gamepadMotionSensors;
     public boolean gamepadTouchpadAsMouse;
     public boolean gamepadMotionSensorsFallbackToDevice;
+    public boolean dualSenseEffects;
+    public TriggerPreset dualSenseTriggerPreset;
+    public int dualSenseTriggerStrength;
     public String overlayTriggerButton;
     public int overlayHoldDurationMs;
+    // What a swipe in from the left edge does: overlay_menu, brightness or off
+    public String leftEdgeSwipeAction;
     public boolean enableFloatingButton;
+    // Back opens the stream menu instead of leaving the stream (idea from Artemis, via Artemide)
+    public boolean backOpensMenu;
     public int touchSensitivity; // percent, applies to the trackpad touch modes
     public boolean enablePerfOverlayLite;
     public boolean preventPacketLoss;
@@ -280,7 +310,7 @@ public class PreferenceConfiguration {
     public String virtualDisplayMode;
     public int vsyncMode; // VSYNC_*
     public int warpFactor = 1; // Warp Drive 2, Warp 2 4, otherwise 1 (see warpFactorFor())
-    public boolean longPressRightClick; // gaming trackpad: long press holds the right button
+    public boolean longPressRightClick; // gaming trackpad: a long press lifted in place right-clicks
     public boolean pinchToZoom; // pinch-to-zoom anytime (Moonlit Artemis)
     // PC cursor in the video: HIDE_CURSOR_* (Vibepollo's Ctrl+Alt+Shift+N toggle)
     public int hideCursorMode;
@@ -943,6 +973,8 @@ public class PreferenceConfiguration {
 
         config.deadzonePercentage = prefs.getInt(DEADZONE_PREF_STRING, DEFAULT_DEADZONE);
 
+        config.controllerVibrationStrength = prefs.getInt(CONTROLLER_VIBRATION_STRENGTH_PREF_STRING, DEFAULT_CONTROLLER_VIBRATION_STRENGTH);
+
         config.oscOpacity = prefs.getInt(OSC_OPACITY_PREF_STRING, DEFAULT_OPACITY);
 
         config.language = prefs.getString(LANGUAGE_PREF_STRING, DEFAULT_LANGUAGE);
@@ -963,6 +995,7 @@ public class PreferenceConfiguration {
         config.enablePip = prefs.getBoolean(ENABLE_PIP_PREF_STRING, DEFAULT_ENABLE_PIP);
         config.enablePerfOverlay = prefs.getBoolean(ENABLE_PERF_OVERLAY_STRING, DEFAULT_ENABLE_PERF_OVERLAY);
         config.bindAllUsb = prefs.getBoolean(BIND_ALL_USB_STRING, DEFAULT_BIND_ALL_USB);
+        config.usbShare = prefs.getBoolean(USB_SHARE_PREF_STRING, DEFAULT_USB_SHARE);
         config.mouseEmulation = prefs.getBoolean(MOUSE_EMULATION_STRING, DEFAULT_MOUSE_EMULATION);
         config.mouseNavButtons = prefs.getBoolean(MOUSE_NAV_BUTTONS_STRING, DEFAULT_MOUSE_NAV_BUTTONS);
         config.vibrateOsc = prefs.getBoolean(VIBRATE_OSC_PREF_STRING, DEFAULT_VIBRATE_OSC);
@@ -979,9 +1012,16 @@ public class PreferenceConfiguration {
         config.gamepadTouchpadAsMouse = prefs.getBoolean(GAMEPAD_TOUCHPAD_AS_MOUSE_PREF_STRING, DEFAULT_GAMEPAD_TOUCHPAD_AS_MOUSE);
         config.gamepadMotionSensors = prefs.getBoolean(GAMEPAD_MOTION_SENSORS_PREF_STRING, DEFAULT_GAMEPAD_MOTION_SENSORS);
         config.gamepadMotionSensorsFallbackToDevice = prefs.getBoolean(GAMEPAD_MOTION_FALLBACK_PREF_STRING, DEFAULT_GAMEPAD_MOTION_FALLBACK);
+        config.dualSenseEffects = prefs.getBoolean(DUALSENSE_EFFECTS_PREF_STRING, DEFAULT_DUALSENSE_EFFECTS);
+        config.dualSenseTriggerPreset = TriggerPreset.fromPref(
+                prefs.getString(DUALSENSE_TRIGGER_PRESET_PREF_STRING, TriggerPreset.NONE.prefValue));
+        config.dualSenseTriggerStrength = TriggerStrength.fromPref(
+                prefs.getString(DUALSENSE_TRIGGER_STRENGTH_PREF_STRING, Integer.toString(TriggerStrength.FULL)));
         config.overlayTriggerButton = prefs.getString(OVERLAY_TRIGGER_BUTTON_PREF_STRING, DEFAULT_OVERLAY_TRIGGER_BUTTON);
         config.overlayHoldDurationMs = Integer.parseInt(prefs.getString(OVERLAY_HOLD_DURATION_PREF_STRING, DEFAULT_OVERLAY_HOLD_DURATION));
+        config.leftEdgeSwipeAction = prefs.getString(LEFT_EDGE_SWIPE_ACTION_PREF_STRING, DEFAULT_LEFT_EDGE_SWIPE_ACTION);
         config.enableFloatingButton = prefs.getBoolean(ENABLE_FLOATING_BUTTON_PREF_STRING, DEFAULT_ENABLE_FLOATING_BUTTON);
+        config.backOpensMenu = prefs.getBoolean(BACK_OPENS_MENU_PREF_STRING, DEFAULT_BACK_OPENS_MENU);
         config.touchSensitivity = prefs.getInt(TOUCH_SENSITIVITY_PREF_STRING, DEFAULT_TOUCH_SENSITIVITY);
         config.enablePerfOverlayLite = prefs.getBoolean(PERF_OVERLAY_LITE_PREF_STRING, false);
         config.preventPacketLoss = prefs.getBoolean(PREVENT_PACKET_LOSS_PREF_STRING, false);

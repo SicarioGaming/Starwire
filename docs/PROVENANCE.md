@@ -168,6 +168,24 @@ The official wrapper jar of Gradle 7.4 to 7.4.2 (Apache-2.0), added to Moonlight
 `verify.sh` and Gradle's own wrapper check in `prebuilts.yml` compare against it. All it does is
 download Gradle 9.7.1, the version in `gradle-wrapper.properties`.
 
+### HiddenApiBypass, a library Gradle checks
+
+[HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass) 6.1 by LSPosed
+(Apache-2.0) isn't in the repo. Gradle downloads it from Maven Central like the other libraries,
+but this one is checked: [`gradle/verification-metadata.xml`](../gradle/verification-metadata.xml)
+holds the SHA-256 of each of its files, and Gradle stops the build if a download doesn't match.
+It's checked because it reaches calls Android hides from apps, which the DualSense trigger
+effects use (off by default, Experimental). The other libraries aren't checked yet.
+
+| File | SHA-256 |
+| --- | --- |
+| `hiddenapibypass-6.1.aar` | `e3161dd21c97a4540b1698a33f7062aeaa1450008e1e2176070e5380f7a6324c` |
+| `hiddenapibypass-6.1.module` | `0a9110b0713c3f7aff9f65de0bebd2de8c2ebe14f421dd4b7e851e7f0df9be3e` |
+| `hiddenapibypass-6.1.pom` | `55109914ea9c6ef31c903198e9af0b671be208412a1539bfab025ff47d9f9597` |
+
+The AAR's hash is also the one the release's own `.module` file lists. Nobody has rebuilt it from
+its source for Starwire.
+
 ### Generated: shaders_spv.h
 
 `app/src/main/jni/vulkan/shaders_spv.h` is compiled SPIR-V for the Vulkan renderer, made from
@@ -178,8 +196,14 @@ It's a text file, so its hash depends on line endings and it isn't in `SHA256SUM
 ### Pictures
 
 The PNG, JPG and ICO files (the app icons and TV banner, the screenshots in `docs/images`, and
-the Windows microphone receiver's icon) are pictures, not code, and aren't listed. `verify.sh`
-fails if any other binary file is added to git without a line in `SHA256SUMS`.
+the icons of the Windows microphone receiver and USB helper) are pictures, not code, and aren't
+listed. The USB helper's icon is drawn from `.github/tools/icons/starwire-usb.svg` by
+`make-usb-icon.mjs` next to it, with headless Microsoft Edge. `verify.sh` fails if any other
+binary file is added to git without a line in `SHA256SUMS`. It counts a file
+as binary when it has a NUL byte, isn't UTF-8, or more than 1 byte in 128 is a control character
+other than a tab, a line ending, a form feed, a backspace or an escape. Text is text whatever its
+line endings, so the recorded `sdkmanager` output in `.github/tools/fixtures`, with CR, CRLF and
+LF line endings, isn't listed.
 
 ## What the custom driver hooks do, and when they run
 
@@ -230,6 +254,26 @@ A driver you load is native code that runs inside Starwire with all of Starwire'
 the network, the microphone, and the key Starwire uses to talk to your paired PCs. Only use a
 driver from a source you trust. If the driver fails to load or can't run PyroWave, Starwire
 uses the system driver. If it crashes, the stream closes.
+
+## Built from source with the app: the USB exporter
+
+The USB exporter (`libmoonlight_usbip.so`, from Moonlight V+'s usbip-backend) isn't a prebuilt
+file: the build compiles it every time. Its first build downloads four source archives from
+GitHub at fixed revisions, and CMake refuses any whose SHA-256 differs from the one in
+`usbip-backend/src/main/cpp/CMakeLists.txt`. `UsbBuildTest` checks that each one is pinned that
+way.
+
+| Source | Revision | Licence |
+| --- | --- | --- |
+| [usbipdcpp](https://github.com/yunsmall/usbipdcpp) | commit `1355113f030c4c13404030e6e7426bceb6085276` | LGPL-3.0 |
+| [libusb](https://github.com/libusb/libusb) | tag `v1.0.29` | LGPL-2.1-or-later |
+| [Asio](https://github.com/chriskohlhoff/asio) | tag `asio-1-30-2` | BSL-1.0 |
+| [spdlog](https://github.com/gabime/spdlog) | tag `v1.15.3`, with fmt inside it | MIT |
+
+The build changes one file of usbipdcpp before compiling it, V+'s connection filter
+(`patch_usbipdcpp.cmake`), and stops if the pinned file no longer matches the patch. V+'s own
+test certificates and keys for its tunnel to Sunshine weren't brought in, since Starwire doesn't
+use that tunnel.
 
 ## Changing one of these files
 

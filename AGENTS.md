@@ -15,7 +15,7 @@ proves it, and which docs change. If you can't write them, the task isn't clear 
 - Fast JVM unit tests, no device needed: `./gradlew testNonRootDebugUnitTest`
 - Lint: `./gradlew lintNonRootDebug`. Old warnings are listed in `app/lint-baseline.xml`; a new
   one fails.
-- On a device: `.github/tools/device-test.sh <serial>` installs both APKs with `adb install -r`,
+- On a device: `.github/tools/device-test.sh -s <serial>` installs both APKs with `adb install -r`,
   runs the instrumented suite and the smoke tests, and saves screenshots. Never uninstall the
   debug app on a device that's paired with a PC: pairing again needs the PC's PIN.
 - Prebuilt libraries: `.github/tools/prebuilts/verify.sh` rebuilds them from pinned upstream

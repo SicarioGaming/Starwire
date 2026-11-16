@@ -1,29 +1,42 @@
 package com.limelight.binding.audio.securemic;
 
-import javax.crypto.AEADBadTagException;
+import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import java.security.GeneralSecurityException;
+import java.security.Provider;
+import java.util.Arrays;
 
 /**
- * AES-256-GCM with a 12-byte nonce and a 16-byte tag, from the platform's own provider (Conscrypt
- * on Android). One instance per key, used by one thread at a time.
+ * AES-256-GCM with a 12-byte nonce and a 16-byte tag, from the platform's own provider. That's
+ * Conscrypt on Android 6.0 and later. Conscrypt has no GCM on Android 5.0 and 5.1, so there it's
+ * the platform's copy of BouncyCastle. Both give the same bytes; they differ only in how they say
+ * a tag doesn't match (see open). One instance per key, used by one thread at a time.
  */
 public final class Aead {
     public static final int TAG_LENGTH = 16;
     public static final int NONCE_LENGTH = 12;
+    private static final String TRANSFORMATION = "AES/GCM/NoPadding";
 
     private final SecretKeySpec key;
     private final Cipher cipher;
 
     public Aead(byte[] key) throws GeneralSecurityException {
+        this(key, null);
+    }
+
+    /**
+     * With this provider's AES-GCM instead of the platform's choice (null means the platform's).
+     * The JVM tests use it to run what Android 5.0 and 5.1 run.
+     */
+    Aead(byte[] key, Provider provider) throws GeneralSecurityException {
         if (key.length != 32) {
             throw new GeneralSecurityException("AES-256 needs a 32-byte key");
         }
         this.key = new SecretKeySpec(key, "AES");
-        cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher = provider == null ? Cipher.getInstance(TRANSFORMATION) : Cipher.getInstance(TRANSFORMATION, provider);
     }
 
     /** The provider doing the work, for the log. */
@@ -44,7 +57,8 @@ public final class Aead {
 
     /**
      * Decrypts ciphertext and tag into out at outAt. Returns the plaintext's length, or -1 if it
-     * isn't authentic (out may then hold anything).
+     * isn't authentic, and then out holds none of it: when the tag doesn't match,
+     * out[outAt..outAt + inLength - 16) is zeroed.
      */
     public int open(byte[] nonce, int nonceAt, byte[] aad, int aadAt, int aadLength,
                     byte[] in, int inAt, int inLength, byte[] out, int outAt) throws GeneralSecurityException {
@@ -56,7 +70,12 @@ public final class Aead {
         try {
             return cipher.doFinal(in, inAt, inLength, out, outAt);
         }
-        catch (AEADBadTagException e) {
+        // The tag doesn't match. Conscrypt says so with AEADBadTagException. Android 5.0 and 5.1's
+        // BouncyCastle throws its parent, a plain BadPaddingException ("mac check in GCM failed").
+        // With no padding, a tag that doesn't match is all a BadPaddingException can mean here.
+        catch (BadPaddingException e) {
+            // BouncyCastle writes the plaintext out before it checks the tag, so clear it
+            Arrays.fill(out, outAt, outAt + inLength - TAG_LENGTH, (byte) 0);
             return -1;
         }
     }

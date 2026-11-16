@@ -39,10 +39,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * The encrypted microphone with the device's own crypto (Conscrypt's AES-GCM, the platform's
- * ECDH): every line of the vectors the PC's receiver is tested against, the real sender (its own
- * thread and a UDP socket) to a receiver in this test on 127.0.0.1, and what sealing costs here.
- * The cost goes to secure-mic-bench.txt in the app's external files folder.
+ * The encrypted microphone with the device's own crypto (its AES-GCM, which is Conscrypt's on
+ * Android 6.0 and later and BouncyCastle's on 5.0 and 5.1, and the platform's ECDH): every line
+ * of the vectors the PC's receiver is tested against, the real sender (its own thread and a UDP
+ * socket) to a receiver in this test on 127.0.0.1, and what sealing costs here. The cost goes to
+ * secure-mic-bench.txt in the app's external files folder.
  */
 @RunWith(AndroidJUnit4.class)
 public class SecureMicDeviceTest {

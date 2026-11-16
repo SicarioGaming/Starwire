@@ -3,6 +3,7 @@ package com.limelight.binding.video;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -128,14 +129,28 @@ public class CustomVulkanDriverTest {
     // is still outside the folder
     @Test
     public void aSymlinkOutOfTheDriverFolderIsRefused() throws Exception {
-        File system = new File("/system/lib64/libvulkan.so");
-        if (!system.isFile()) {
-            system = new File("/system/lib/libvulkan.so");
+        File system = systemLibrary("libvulkan.so");
+        if (system == null) {
+            // Android 6 and older have no Vulkan loader (it came with Android 7), and this failed
+            // there with FileNotFoundException. Their C library is just as much outside the folder.
+            system = systemLibrary("libc.so");
         }
+        assertNotNull("no system library to link to", system);
         assertTrue(dir.mkdirs() || dir.isDirectory());
         File link = new File(dir, "libvulkan_link.so");
         Os.symlink(system.getAbsolutePath(), link.getAbsolutePath());
         assertNull(CustomVulkanDriver.resolve(dir, link.getAbsolutePath(), CustomVulkanDriver.sha256(system)));
+    }
+
+    // The system's own copy of a library, 64-bit first, or null
+    private static File systemLibrary(String name) {
+        for (String dir : new String[] {"/system/lib64", "/system/lib"}) {
+            File file = new File(dir, name);
+            if (file.isFile()) {
+                return file;
+            }
+        }
+        return null;
     }
 
     // Removing the drivers deletes a symlink itself, never what it points to

@@ -15,14 +15,14 @@ import android.os.SystemClock;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.runner.lifecycle.ActivityLifecycleCallback;
-import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry;
-import androidx.test.runner.lifecycle.Stage;
 import com.limelight.computers.ComputerDatabaseManager;
+import com.limelight.computers.ComputerManagerService;
 import com.limelight.nvstream.http.ComputerDetails;
+import com.limelight.testing.IgnorePcUpdates;
+import com.limelight.testing.TestFiles;
 import com.limelight.utils.CacheHelper;
 import org.junit.After;
-import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import java.io.OutputStream;
@@ -45,29 +45,13 @@ public class AppViewTest {
     // The test PC's address never answers, so after three failed polls the screen closes itself
     // with "lost connection": 12.5 s after launch on the RedMagic tablet. A test that slept and
     // drew full-size screenshots for a few seconds could run into that, and failed 1 run in 3.
-    // The screen ignores the PC's updates from the moment it's created (as it does while a game
-    // quits), so the tests don't race the network.
-    private final ActivityLifecycleCallback ignorePolls = (activity, stage) -> {
-        if (activity instanceof AppView && stage == Stage.PRE_ON_CREATE) {
-            try {
-                java.lang.reflect.Field suspend = AppView.class.getDeclaredField("suspendGridUpdates");
-                suspend.setAccessible(true);
-                suspend.setBoolean(activity, true);
-            }
-            catch (ReflectiveOperationException e) {
-                throw new AssertionError(e);
-            }
-        }
-    };
-
-    @Before
-    public void ignoreThePcsUpdates() {
-        ActivityLifecycleMonitorRegistry.getInstance().addLifecycleCallback(ignorePolls);
-    }
+    // The screen ignores the PC's updates from the moment it's created, so the tests don't race
+    // the network.
+    @Rule
+    public final IgnorePcUpdates ignorePcUpdates = new IgnorePcUpdates();
 
     @After
     public void removeTestPc() {
-        ActivityLifecycleMonitorRegistry.getInstance().removeLifecycleCallback(ignorePolls);
         ComputerDatabaseManager db = new ComputerDatabaseManager(target);
         ComputerDetails details = db.getComputerByUUID(UUID);
         if (details != null) {
@@ -82,7 +66,7 @@ public class AppViewTest {
         ComputerDetails details = new ComputerDetails();
         details.uuid = UUID;
         details.name = "TEST-PC";
-        // Unroutable, so the PC stays "checking" while the screen is up
+        // Unroutable, so the PC never answers; the game screen ignores that (IgnorePcUpdates)
         details.manualAddress = new ComputerDetails.AddressTuple("10.255.255.1", 47989);
         ComputerDatabaseManager db = new ComputerDatabaseManager(target);
         db.updateComputer(details);
@@ -299,15 +283,125 @@ public class AppViewTest {
         }
     }
 
+    // When its PC drops off the network the game screen says "lost connection" and closes. The
+    // other tests ignore the PC's updates, as the polls and the emulators' network pick when that
+    // happens. This one closes the screen on purpose, the way the polls do: the PC is offline and
+    // the app list poller passes that on. The main thread is asked to answer every quarter second
+    // until the screen is gone. On fold-z-36 (2026-10-27) a closing game screen didn't take the
+    // window's focus change for 5 s, Android called the app not responding, and nothing said
+    // where the main thread was. If it doesn't answer in 2.5 s, this logs its stack.
+    @Test
+    public void aLostPcClosesTheScreen() throws Exception {
+        try (ActivityScenario<AppView> scenario = ActivityScenario.launch(cachedPc())) {
+            AppView[] screen = new AppView[1];
+            scenario.onActivity(activity -> screen[0] = activity);
+
+            // The screen's service connection gives it the PC and its app list poller
+            boolean[] connected = new boolean[1];
+            long deadline = SystemClock.uptimeMillis() + 30_000;
+            while (true) {
+                onMain("while the screen opens", () -> connected[0] =
+                        field(screen[0], "computer") != null && field(screen[0], "poller") != null);
+                if (connected[0]) {
+                    break;
+                }
+                assertTrue("the game screen didn't get its PC in 30 s", SystemClock.uptimeMillis() < deadline);
+                SystemClock.sleep(250);
+            }
+
+            // A network change can set the PC back to checking in between, so this goes on until
+            // the screen starts to close
+            boolean[] closing = new boolean[1];
+            deadline = SystemClock.uptimeMillis() + 30_000;
+            while (true) {
+                onMain("while its PC goes offline", () -> {
+                    closing[0] = screen[0].isFinishing();
+                    if (!closing[0]) {
+                        IgnorePcUpdates.setIgnoring(screen[0], false);
+                        ((ComputerDetails) field(screen[0], "computer")).state = ComputerDetails.State.OFFLINE;
+                        ((ComputerManagerService.ApplistPoller) field(screen[0], "poller")).pollNow();
+                    }
+                });
+                if (closing[0]) {
+                    break;
+                }
+                assertTrue("the game screen stayed open 30 s with its PC offline", SystemClock.uptimeMillis() < deadline);
+                SystemClock.sleep(250);
+            }
+
+            // Paused, stopped and destroyed, with the main thread answering all the while
+            boolean[] destroyed = new boolean[1];
+            deadline = SystemClock.uptimeMillis() + 30_000;
+            while (true) {
+                onMain("while the screen closes", () -> destroyed[0] = screen[0].isDestroyed());
+                if (destroyed[0]) {
+                    break;
+                }
+                assertTrue("the game screen wasn't gone 30 s after it started to close",
+                        SystemClock.uptimeMillis() < deadline);
+                SystemClock.sleep(250);
+            }
+        }
+    }
+
+    // Runs this on the main thread and waits for it, without waiting for the main thread to go
+    // idle first as ActivityScenario does. If the main thread hasn't run it in 2.5 s this logs
+    // where the main thread is, and which step of the test it was: Android calls an app that
+    // hasn't taken its input in 5 s not responding, and can end the run before a test fails. A
+    // slow first frame while the screen opens isn't the screen closing. Anything it throws is
+    // thrown here, as thrown on the main thread it would end the app.
+    private static void onMain(String step, Runnable task) throws InterruptedException {
+        java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+        Throwable[] thrown = new Throwable[1];
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            try {
+                task.run();
+            }
+            catch (Throwable t) {
+                thrown[0] = t;
+            }
+            finally {
+                done.countDown();
+            }
+        });
+        if (!done.await(2500, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+            String stack = mainThreadStack();
+            android.util.Log.w("AppViewTest", "the main thread hasn't answered for 2.5 s " + step
+                    + ". It's at:" + stack);
+            if (!done.await(60, java.util.concurrent.TimeUnit.SECONDS)) {
+                fail("the main thread hasn't answered for a minute " + step + ". It was at:" + stack);
+            }
+        }
+        if (thrown[0] != null) {
+            throw new AssertionError(thrown[0]);
+        }
+    }
+
+    // The main thread's stack, its first 100 frames
+    private static String mainThreadStack() {
+        Thread main = android.os.Looper.getMainLooper().getThread();
+        StringBuilder stack = new StringBuilder(" (").append(main.getState()).append(")");
+        StackTraceElement[] frames = main.getStackTrace();
+        for (int i = 0; i < Math.min(100, frames.length); i++) {
+            stack.append("\n    at ").append(frames[i]);
+        }
+        if (frames.length > 100) {
+            stack.append("\n    (").append(frames.length - 100).append(" more)");
+        }
+        return stack.toString();
+    }
+
     @Test
     public void offscreenDrawingShowsGpuBitmaps() {
         // The tests above draw the screen by hand, and box art can be a GPU bitmap, which a
         // canvas made on a bitmap refuses: appListOpensWithoutClosing failed that way on every
-        // emulator
+        // emulator. Where the GPU gives back no picture at all (Google's ATD image) there's
+        // nothing to check, so it skips there.
         org.junit.Assume.assumeTrue("GPU bitmaps start with Android 8",
                 android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O);
         int green = android.graphics.Color.rgb(40, 160, 90);
         android.graphics.Bitmap[] drawn = new android.graphics.Bitmap[1];
+        String[] cantDraw = new String[1];
         RuntimeException[] failed = new RuntimeException[1];
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             android.graphics.Bitmap soft = android.graphics.Bitmap.createBitmap(
@@ -321,6 +415,9 @@ public class AppViewTest {
             image.layout(0, 0, 240, 320);
             try {
                 drawn[0] = drawToBitmap(image, 240, 320);
+                if (drawn[0] == null) {
+                    cantDraw[0] = whyGpuCantDrawOffscreen();
+                }
             }
             catch (RuntimeException e) {
                 // Thrown here it would stop the whole run, not just this test
@@ -329,6 +426,12 @@ public class AppViewTest {
         });
         if (failed[0] != null) {
             throw new AssertionError("drawing a GPU bitmap offscreen failed", failed[0]);
+        }
+        if (drawn[0] == null) {
+            // No picture skips only where the GPU can't draw a 1x1 one either; anywhere else it
+            // fails
+            org.junit.Assume.assumeTrue(cantDraw[0], cantDraw[0] == null);
+            fail("drawing a GPU bitmap offscreen gave no picture");
         }
         assertEquals(android.graphics.Bitmap.Config.ARGB_8888, drawn[0].getConfig());
         int middle = drawn[0].getPixel(120, 160);
@@ -430,8 +533,18 @@ public class AppViewTest {
                 android.view.View.MeasureSpec.makeMeasureSpec(height, android.view.View.MeasureSpec.EXACTLY));
         root.layout(0, 0, width, height);
         android.graphics.Bitmap bitmap = drawToBitmap(root, width, height);
+        if (bitmap == null) {
+            // The screen was laid out and drawn into the recording all the same; only its picture
+            // is missing, and that's allowed only where the GPU can't draw offscreen at all
+            String why = whyGpuCantDrawOffscreen();
+            if (why == null) {
+                throw new AssertionError("drawing the screen offscreen gave no picture");
+            }
+            android.util.Log.w("AppViewTest", "Not saving this drawing as " + fileName + ": " + why);
+            return;
+        }
         try (java.io.FileOutputStream out = new java.io.FileOutputStream(
-                new java.io.File(activity.getExternalFilesDir(null), fileName))) {
+                TestFiles.file(activity, fileName))) {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
         }
         catch (java.io.IOException e) {
@@ -443,13 +556,22 @@ public class AppViewTest {
     // a GPU (HARDWARE) bitmap, such as the box art appListOpensWithoutClosing hands the hero.
     // From Android 9 the screen is recorded instead and the recording drawn by the GPU, as the
     // real screen is. Android 8 has no public way, so it gets the canvas's hidden switch (not
-    // tried on an Android 8 device).
+    // tried on an Android 8 device). Null when the GPU gives back no picture.
     private static android.graphics.Bitmap drawToBitmap(android.view.View root, int width, int height) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             android.graphics.Picture picture = new android.graphics.Picture();
             root.draw(picture.beginRecording(width, height));
             picture.endRecording();
-            return android.graphics.Bitmap.createBitmap(picture, width, height, android.graphics.Bitmap.Config.ARGB_8888);
+            if (!picture.requiresHardwareAcceleration()) {
+                // No GPU bitmaps in it, so Android draws it in software
+                return android.graphics.Bitmap.createBitmap(picture, width, height, android.graphics.Bitmap.Config.ARGB_8888);
+            }
+            // Asked for ARGB_8888, Android has the GPU draw a GPU bitmap and copies that out, and
+            // when the GPU gives back nothing it calls copy() on null itself (Bitmap.java line
+            // 1314 on Android 11). Asked for the GPU bitmap, it hands back the null instead.
+            android.graphics.Bitmap gpu = android.graphics.Bitmap.createBitmap(
+                    picture, width, height, android.graphics.Bitmap.Config.HARDWARE);
+            return gpu == null ? null : gpu.copy(android.graphics.Bitmap.Config.ARGB_8888, false);
         }
         android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888);
         android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
@@ -463,5 +585,30 @@ public class AppViewTest {
         }
         root.draw(canvas);
         return bitmap;
+    }
+
+    // Null when this device's GPU can draw a GPU bitmap offscreen the way drawToBitmap does, else
+    // why it can't. It tries a 1x1 drawing with the same Android calls and nothing of the app's.
+    // Google's lean ATD images can't: Google's page on Gradle Managed Devices says they turn
+    // hardware rendering off. On the atd-30 leg (Android 11) the GPU drawing came back empty
+    // (logcat: "ThreadedRenderer: Error reading image: -30001!", that is no buffer came back) and
+    // every screenshot was black (this check itself not tried there yet).
+    private static String whyGpuCantDrawOffscreen() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) {
+            // drawToBitmap doesn't use the GPU there
+            return null;
+        }
+        android.graphics.Bitmap gpu = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+                .copy(android.graphics.Bitmap.Config.HARDWARE, false);
+        if (gpu == null) {
+            return "this device can't make GPU bitmaps";
+        }
+        android.graphics.Picture picture = new android.graphics.Picture();
+        picture.beginRecording(1, 1).drawBitmap(gpu, 0, 0, null);
+        picture.endRecording();
+        if (android.graphics.Bitmap.createBitmap(picture, 1, 1, android.graphics.Bitmap.Config.HARDWARE) == null) {
+            return "the GPU on this device gives back no picture of an offscreen drawing";
+        }
+        return null;
     }
 }

@@ -15,7 +15,8 @@
 #   --msg-file   checks one message, for .git/hooks/commit-msg. It lets git's own "Merge ...",
 #                "Revert ..." and fixup!/squash!/amend! messages through, so merging, reverting and
 #                autosquash keep working. The pull request check still asks for those to be
-#                reworded ("revert: ...") or squashed before merging.
+#                reworded ("revert: ...") or squashed before merging. It also lets an upstream
+#                commit brought in with git cherry-pick -x through, as the range check skips it.
 #   --self-test  runs planted good and bad messages, branch names and commits (in a throwaway repo
 #                in a temporary folder) and says if any is classified wrong.
 #
@@ -23,7 +24,7 @@
 # is "(cherry picked from commit <sha>)", which git cherry-pick -x writes) and commits whose
 # committer date is before CUTOFF below, when these rules started.
 # It only reads the repo: no network, no changes, and the same input always gives the same output.
-# Exit 0 = fine, 1 = something to fix, 2 = usage error.
+# Exit 0 = fine, 1 = something to fix, 2 = usage error, or the commits couldn't be read.
 #
 # Needs bash and git (both in Git for Windows). It avoids bash 4 features, so macOS's bash works.
 
@@ -61,7 +62,7 @@ bad() { VERDICT=bad; PROBLEMS+=("$1"); }
 # entry). MODE is "range" for a commit already made, or "hook" for a message about to be committed.
 check_message() {
   local mode=$1 msg=$2 subject rest second type scope_part scope bang after desc first word base t
-  local types_list
+  local types_list last
   VERDICT=good; PROBLEMS=()
   msg=${msg//$'\r'/}
   subject=${msg%%$'\n'*}
@@ -72,6 +73,10 @@ check_message() {
   if [ -z "$subject" ]; then bad "the message is empty"; return; fi
   if [ "$mode" = hook ]; then
     case $subject in "Merge "*|"Revert "*|"fixup!"*|"squash!"*|"amend!"*) VERDICT=skip; return ;; esac
+    # git cherry-pick -x from upstream: the range check skips these by the same last line
+    last=${msg%$'\n'}
+    last=${last##*$'\n'}
+    if [[ $last =~ $RE_PICK ]]; then VERDICT=skip; return; fi
   fi
   case $subject in
     "fixup!"*|"squash!"*|"amend!"*)
@@ -225,13 +230,16 @@ classify_commit() {
 }
 
 check_range() { # revision arguments for git log
-  local list sha ct parents n=0 good=0 nbad=0 merges=0 picks=0 early=0 p
+  local list sha ct parents n=0 good=0 nbad=0 merges=0 picks=0 early=0 p list_read=0
   if ! list=$(git log --reverse --no-show-signature --format='%H %ct %P' "$@"); then
     echo "can't read the commits in: $*" >&2
     exit 2
   fi
   echo "checking the commits in: $*"
+  # The loop has to reach the "end" line after the commits. Bash keeps a here-string over 64 KiB
+  # in a temp file, and on a full disk the loop would read nothing and pass.
   while read -r sha ct parents; do
+    if [ "$sha" = end ]; then list_read=1; break; fi
     [ -n "$sha" ] || continue
     n=$((n + 1))
     # shellcheck disable=SC2086
@@ -247,7 +255,11 @@ check_range() { # revision arguments for git log
         for p in "${PROBLEMS[@]}"; do echo "  - $p"; done
         gh_error "Commit ${sha:0:10}" "\"$SUBJECT\": ${PROBLEMS[0]}" ;;
     esac
-  done <<< "$list"
+  done <<< "$list"$'\n'"end"
+  if [ $list_read = 0 ]; then
+    echo "couldn't read the list of commits in: $* (is the disk full?), so they weren't checked" >&2
+    exit 2
+  fi
   echo "$n commit(s): $good fine, $nbad to fix; skipped $merges merge(s), $picks cherry-pick(s) from" \
        "upstream and $early from before the rules started ($CUTOFF_UTC UTC)"
   if [ $nbad -gt 0 ]; then
@@ -349,6 +361,9 @@ self_test() {
   msg hook good "fix: stop the crash"
   msg hook bad "Fix the thing"
   msg hook bad "fixed: the thing"
+  msg hook skip $'Port the fix\n\nCo-Authored-By: Test <test@example.invalid>\n(cherry picked from commit 0123456789abcdef0123456789abcdef01234567)\n'
+  msg hook bad $'Port the fix\n\n(cherry picked from commit 0123456)\n\nA note below the line'
+  msg range bad $'Port the fix\n\n(cherry picked from commit 0123456)\n\nA note below the line'
 
   # Branch names
   for s in main master develop release/v0.2.1 feature/dualsense-triggers bugfix/mic-echo \
@@ -426,13 +441,37 @@ self_test() {
   out=$(cd "$root" && GITHUB_ACTIONS= check_range "$c_bad..$c_pick"); status=$?
   result 0 "$status" "range with only a cherry-pick exits 0"
 
+  # A list of commits over 64 KiB, which bash keeps in a temp file. On a full disk it can't write
+  # it and the loop gets nothing. This BASH_ENV plays that: a read from a temp file gets nothing,
+  # a read from a pipe works.
+  printf '%s\n' 'read() { if [ -f /dev/stdin ]; then return 1; fi; builtin read "$@"; }' > "$tmp/full-disk.sh"
+  s=0
+  while [ $s -lt 1000 ]; do
+    printf 'commit refs/heads/long\ncommitter Test <test@example.invalid> %s +0000\ndata <<END\nFix the thing, part %s\nEND\n' \
+      $((after + 10 + s)) $s
+    [ $s -gt 0 ] || printf 'from %s\n' "$c_merge"
+    s=$((s + 1))
+  done > "$tmp/long.txt"
+  g fast-import --quiet < "$tmp/long.txt"
+  out=$(g log --format='%H %ct %P' main..long)
+  if { [ -p /dev/stdin ]; } <<< "short" && { [ -f /dev/stdin ]; } <<< "$out"; then
+    s=$(cd "$(dirname "$SELF")" && pwd)/$(basename "$SELF")
+    (cd "$root" && BASH_ENV=$tmp/full-disk.sh GITHUB_ACTIONS= bash "$s" main..long >/dev/null 2>&1); status=$?
+    result 2 "$status" "range main..long (1000 commits) on a full disk exits 2"
+  else
+    echo "skipped: a range on a full disk (this bash doesn't keep a long here-string in a temp file)"
+  fi
+
   # The commit-msg hook and --branch, end to end
   printf '%s\n' "fix: stop the crash" "" "# Please enter the commit message for your changes." \
     "# ------------------------ >8 ------------------------" "Fix the thing below the scissors" > "$tmp/m1"
   printf '%s\n' "Fix the thing" "# a comment" > "$tmp/m2"
   printf '%s\n' "Merge branch 'side2'" > "$tmp/m3"
   printf '%s\r\n' "" "fix: stop the crash" "" "Windows line endings." > "$tmp/m4"
-  for s in "0 m1" "1 m2" "0 m3" "0 m4"; do
+  # What git cherry-pick -x leaves for git cherry-pick --continue after a conflict
+  printf '%s\n' "Port the fix" "" "(cherry picked from commit $c_side)" "" "# Conflicts:" \
+    "#	app/src/main/res/values/strings.xml" > "$tmp/m5"
+  for s in "0 m1" "1 m2" "0 m3" "0 m4" "0 m5"; do
     set -- $s
     bash "$SELF" --msg-file "$tmp/$2" >/dev/null 2>&1; status=$?
     result "$1" "$status" "--msg-file $2 exits $1"

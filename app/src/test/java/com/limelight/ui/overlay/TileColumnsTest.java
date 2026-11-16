@@ -1,6 +1,8 @@
 package com.limelight.ui.overlay;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -32,6 +34,20 @@ public class TileColumnsTest {
         assertEquals(3, fit(400, "Keyboard (Y)", "Sensitivity", "Rotate"));
         // The same labels on a wider sheet go back to five
         assertEquals(5, fit(720, "Keyboard (Y)", "Sensitivity", "Rotate"));
+    }
+
+    @Test
+    public void sevenAcrossFitWhenEachTileHasRoomForTheLongestWord() {
+        // The stream menu's wider sheet: (1120 - 6 gaps) / 7 = 153, less the padding: 137 px,
+        // enough for "Full Keyboard" (130 px) but not "Supercalifragilistic" (200 px)
+        assertTrue(TileColumns.fits(Arrays.asList("Full Keyboard", "Stats (RB)", "Rotate"), TEN_PX, 1120,
+                GAP, PADDING, 2, 7));
+        assertFalse(TileColumns.fits(Arrays.asList("Rotate", "Supercalifragilistic"), TEN_PX, 1120,
+                GAP, PADDING, 2, 7));
+        // (860 - 6 gaps) / 7 = 116, less the padding: just the 100 px "Brightness" needs. A pixel
+        // less and it doesn't fit.
+        assertTrue(TileColumns.fits(Arrays.asList("Brightness"), TEN_PX, 860, GAP, PADDING, 2, 7));
+        assertFalse(TileColumns.fits(Arrays.asList("Brightness"), TEN_PX, 859, GAP, PADDING, 2, 7));
     }
 
     @Test

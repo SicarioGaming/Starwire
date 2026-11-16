@@ -26,8 +26,8 @@ android {
 
         // Starwire's own version. The code carries on from Moonlight X's 315 so that builds
         // installed during development can be upgraded in place.
-        versionName "0.2.1"
-        versionCode = 319
+        versionName "0.3.0"
+        versionCode = 320
         buildConfigField "String", "GIT_COMMIT", "\"${gitCommit}\""
 
         // Generate native debug symbols to allow Google Play to symbolicate our native crashes
@@ -118,6 +118,9 @@ android {
                 jvmArgs '--add-opens=java.base/jdk.internal.access=ALL-UNNAMED'
                 // Half-size screenshots: a quarter of the repo space, still clear enough to review
                 systemProperty 'roborazzi.record.resizeScale', '0.5'
+                // Comparing the tablet and unfolded screenshots ran out of memory at Gradle's
+                // default 512 MB once 0.3.0 added its screens; 2 GB leaves room
+                maxHeapSize = '2g'
             }
         }
     }
@@ -244,6 +247,12 @@ android {
         // (SecureMicDeviceTest)
         androidTest {
             resources.srcDirs += 'src/test/resources'
+            java.srcDirs += 'src/sharedTest/java'
+        }
+        // Device test tools whose own tests run on the JVM (StuckTestWatchdog, which
+        // device-test.sh runs every device test under)
+        test {
+            java.srcDirs += 'src/sharedTest/java'
         }
     }
 }
@@ -255,6 +264,12 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:5.5.0'
     implementation 'org.jmdns:jmdns:3.6.3'
     implementation 'com.github.cgutman:ShieldControllerExtensions:1.0.1'
+    // Reaches Android's hidden Bluetooth HID calls for the DualSense's trigger effects
+    // (Experimental, off by default). Its SHA-256 is checked: gradle/verification-metadata.xml
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.1'
+    // The USB exporter: usbipdcpp, libusb, Asio and spdlog, built from pinned sources
+    // (usbip-backend/src/main/cpp/CMakeLists.txt), from Moonlight V+
+    implementation project(':usbip-backend')
 
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 
@@ -279,4 +294,18 @@ dependencies {
 // Golden images live beside the tests, so a change to them shows up in review
 roborazzi {
     outputDir = file('src/test/screenshots')
+}
+
+// The usual commands cover the USB exporter's module too: its JVM tests, its lint and its device
+// test APK (the module has no flavours, so its tasks are the plain debug ones)
+tasks.configureEach { task ->
+    if (task.name == 'testNonRootDebugUnitTest') {
+        task.dependsOn ':usbip-backend:testDebugUnitTest'
+    }
+    else if (task.name == 'lintNonRootDebug') {
+        task.dependsOn ':usbip-backend:lintDebug'
+    }
+    else if (task.name == 'assembleNonRootDebugAndroidTest') {
+        task.dependsOn ':usbip-backend:assembleDebugAndroidTest'
+    }
 }

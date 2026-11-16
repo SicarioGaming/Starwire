@@ -16,9 +16,16 @@ public class AbsoluteTouchContext implements TouchContext {
     private long lastTouchUpTime = 0;
     private int lastTouchLocationX = 0;
     private int lastTouchLocationY = 0;
+    // Where the finger was when the long press came, which can be up to 30 pixels from where it
+    // went down
+    private int longPressX = 0;
+    private int longPressY = 0;
     private boolean cancelled;
     private boolean confirmedLongPress;
+    private boolean confirmedLongPressDrag;
     private boolean confirmedTap;
+    // Set while a tap's click waits out its 100 ms before its button is let go
+    private boolean tapButtonUpPending;
 
     // Tap and long-press buttons; swapped by Artemide's "left/right click swapped" mouse mode
     private final byte buttonPrimary;
@@ -27,23 +34,13 @@ public class AbsoluteTouchContext implements TouchContext {
     private final Runnable longPressRunnable = new Runnable() {
         @Override
         public void run() {
-            // This timer should have already expired, but cancel it just in case
-            cancelTapDownTimer();
-
-            // Switch from a left click to a right click after a long press
+            // Right button (left when swapped) down where the finger went down, unless the
+            // double tap rule keeps the cursor still. Nothing has been pressed before it.
             confirmedLongPress = true;
-            if (confirmedTap) {
-                conn.sendMouseButtonUp(buttonPrimary);
-            }
+            longPressX = lastTouchLocationX;
+            longPressY = lastTouchLocationY;
+            updatePositionToTouchDown();
             conn.sendMouseButtonDown(buttonSecondary);
-        }
-    };
-
-    private final Runnable tapDownRunnable = new Runnable() {
-        @Override
-        public void run() {
-            // Start our tap
-            tapConfirmed();
         }
     };
 
@@ -55,6 +52,7 @@ public class AbsoluteTouchContext implements TouchContext {
     private final Runnable leftButtonUpRunnable = new Runnable() {
         @Override
         public void run() {
+            tapButtonUpPending = false;
             conn.sendMouseButtonUp(buttonPrimary);
         }
     };
@@ -67,8 +65,7 @@ public class AbsoluteTouchContext implements TouchContext {
     private static final int DOUBLE_TAP_TIME_THRESHOLD = 250;
     private static final int DOUBLE_TAP_DISTANCE_THRESHOLD = 60;
 
-    private static final int TOUCH_DOWN_DEAD_ZONE_TIME_THRESHOLD = 100;
-    private static final int TOUCH_DOWN_DEAD_ZONE_DISTANCE_THRESHOLD = 20;
+    private static final int LONG_PRESS_DEAD_ZONE_DISTANCE_THRESHOLD = 20;
 
     public AbsoluteTouchContext(NvConnection conn, int actionIndex, View view)
     {
@@ -109,11 +106,23 @@ public class AbsoluteTouchContext implements TouchContext {
         lastTouchLocationX = lastTouchDownX = eventX;
         lastTouchLocationY = lastTouchDownY = eventY;
         lastTouchDownTime = eventTime;
-        cancelled = confirmedTap = confirmedLongPress = false;
+        cancelled = confirmedTap = confirmedLongPress = confirmedLongPressDrag = false;
 
         if (actionIndex == 0) {
-            // Start the timers
-            startTapDownTimer();
+            // Let go of the last tap's click now if it's still waiting out its 100 ms. Anything
+            // this touch presses would otherwise go down while that button is still held, so a
+            // second click would be lost in the first, and a drag would let go when the 100 ms
+            // were up.
+            if (tapButtonUpPending) {
+                handler.removeCallbacks(leftButtonUpRunnable);
+                leftButtonUpRunnable.run();
+            }
+
+            // Start the long press timer. No button goes down until we know whether this is a
+            // tap, a drag or a long press. Vibepollo's input.cpp, from Sunshine, holds a left
+            // button release back for 10 ms once the cursor is placed by position. A right button
+            // press in that time becomes a right click inside the left click, so the left button
+            // can't go down first and give way to the right one.
             startLongPressTimer();
         }
 
@@ -143,9 +152,8 @@ public class AbsoluteTouchContext implements TouchContext {
         }
 
         if (actionIndex == 0) {
-            // Cancel the timers
+            // Cancel the timer
             cancelLongPressTimer();
-            cancelTapDownTimer();
 
             // Raise the mouse buttons that we currently have down
             if (confirmedLongPress) {
@@ -155,15 +163,16 @@ public class AbsoluteTouchContext implements TouchContext {
                 conn.sendMouseButtonUp(buttonPrimary);
             }
             else {
-                // If we get here, this means that the tap completed within the touch down
-                // deadzone time. We'll need to send the touch down and up events now at the
+                // If we get here, this means that the tap completed before a long press without
+                // moving away. We'll need to send the touch down and up events now at the
                 // original touch down position.
                 tapConfirmed();
 
                 // Release the left mouse button in 100ms to allow for apps that use polling
-                // to detect mouse button presses.
+                // to detect mouse button presses. A new touch lets go of it sooner.
                 handler.removeCallbacks(leftButtonUpRunnable);
                 handler.postDelayed(leftButtonUpRunnable, 100);
+                tapButtonUpPending = true;
             }
         }
 
@@ -181,13 +190,12 @@ public class AbsoluteTouchContext implements TouchContext {
         handler.removeCallbacks(longPressRunnable);
     }
 
-    private void startTapDownTimer() {
-        cancelTapDownTimer();
-        handler.postDelayed(tapDownRunnable, TOUCH_DOWN_DEAD_ZONE_TIME_THRESHOLD);
-    }
-
-    private void cancelTapDownTimer() {
-        handler.removeCallbacks(tapDownRunnable);
+    private void updatePositionToTouchDown() {
+        if (lastTouchDownTime - lastTouchUpTime > DOUBLE_TAP_TIME_THRESHOLD ||
+                distanceExceeds(lastTouchDownX - lastTouchUpX, lastTouchDownY - lastTouchUpY, DOUBLE_TAP_DISTANCE_THRESHOLD)) {
+            // Don't reposition for finger down events within the deadzone. This makes double-clicking easier.
+            updatePosition(lastTouchDownX, lastTouchDownY);
+        }
     }
 
     private void tapConfirmed() {
@@ -196,14 +204,10 @@ public class AbsoluteTouchContext implements TouchContext {
         }
 
         confirmedTap = true;
-        cancelTapDownTimer();
 
-        // Left button down at original position
-        if (lastTouchDownTime - lastTouchUpTime > DOUBLE_TAP_TIME_THRESHOLD ||
-                distanceExceeds(lastTouchDownX - lastTouchUpX, lastTouchDownY - lastTouchUpY, DOUBLE_TAP_DISTANCE_THRESHOLD)) {
-            // Don't reposition for finger down events within the deadzone. This makes double-clicking easier.
-            updatePosition(lastTouchDownX, lastTouchDownY);
-        }
+        // Left button (right when swapped) down where the finger went down, unless the double
+        // tap rule keeps the cursor still
+        updatePositionToTouchDown();
         conn.sendMouseButtonDown(buttonPrimary);
     }
 
@@ -216,13 +220,22 @@ public class AbsoluteTouchContext implements TouchContext {
 
         if (actionIndex == 0) {
             if (distanceExceeds(eventX - lastTouchDownX, eventY - lastTouchDownY, LONG_PRESS_DISTANCE_THRESHOLD)) {
-                // Moved too far since touch down. Cancel the long press timer.
+                // Moved too far since touch down. Cancel the long press timer, and start a drag
+                // at the original position unless the long press came first.
                 cancelLongPressTimer();
+                tapConfirmed();
             }
 
-            // Ignore motion within the deadzone period after touch down
-            if (confirmedTap || distanceExceeds(eventX - lastTouchDownX, eventY - lastTouchDownY, TOUCH_DOWN_DEAD_ZONE_DISTANCE_THRESHOLD)) {
-                tapConfirmed();
+            // Ignore motion within the deadzone after a long press. It's around where the finger
+            // was when the long press came, so a finger that drifted before it isn't already past
+            // it. Once the finger leaves it, the cursor follows the finger as in a drag.
+            if (confirmedLongPress &&
+                    distanceExceeds(eventX - longPressX, eventY - longPressY, LONG_PRESS_DEAD_ZONE_DISTANCE_THRESHOLD)) {
+                confirmedLongPressDrag = true;
+            }
+
+            // Ignore motion until we're dragging
+            if (confirmedTap || confirmedLongPressDrag) {
                 updatePosition(eventX, eventY);
             }
         }
@@ -240,9 +253,8 @@ public class AbsoluteTouchContext implements TouchContext {
     public void cancelTouch() {
         cancelled = true;
 
-        // Cancel the timers
+        // Cancel the timer
         cancelLongPressTimer();
-        cancelTapDownTimer();
 
         // Raise the mouse buttons
         if (confirmedLongPress) {

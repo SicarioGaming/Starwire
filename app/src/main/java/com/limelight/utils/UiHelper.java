@@ -104,14 +104,43 @@ public class UiHelper {
             view.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
                 @Override
                 public WindowInsets onApplyWindowInsets(View view, WindowInsets windowInsets) {
+                    // Use the whole navigation bar, not just its tappable part. With gesture
+                    // navigation nothing there is tappable, but the transparent gesture bar
+                    // still covers the bottom of the list.
+                    int navBarBottom;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        navBarBottom = windowInsets.getInsets(WindowInsets.Type.navigationBars()).bottom;
+                    }
+                    else {
+                        navBarBottom = windowInsets.getSystemWindowInsetBottom();
+                    }
+
                     view.setPadding(view.getPaddingLeft(),
                             view.getPaddingTop(),
                             view.getPaddingRight(),
-                            windowInsets.getTappableElementInsets().bottom);
+                            Math.max(navBarBottom, windowInsets.getTappableElementInsets().bottom));
                     return windowInsets;
                 }
             });
-            view.requestApplyInsets();
+
+            // Requesting insets does nothing until the view is attached, and views
+            // created in a fragment's onCreateView() aren't attached yet
+            if (view.isAttachedToWindow()) {
+                view.requestApplyInsets();
+            }
+            else {
+                view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                    @Override
+                    public void onViewAttachedToWindow(View v) {
+                        v.removeOnAttachStateChangeListener(this);
+                        v.requestApplyInsets();
+                    }
+
+                    @Override
+                    public void onViewDetachedFromWindow(View v) {
+                    }
+                });
+            }
         }
     }
 
@@ -156,11 +185,19 @@ public class UiHelper {
                             tappableInsets.right,
                             0);
 
-                    // Show a translucent navigation bar if we can't tap there
-                    if (tappableInsets.bottom != 0) {
+                    // Show a translucent navigation bar if we can't tap there.
+                    //
+                    // Starwire: only when that changes. Setting a window flag sends the window's
+                    // attributes to the system again even when the flag was already set, and the
+                    // system can answer with another insets pass, so setting it on every pass can
+                    // go round without end (RootViewInsetsTest).
+                    boolean translucent = tappableInsets.bottom != 0;
+                    boolean wasTranslucent = (activity.getWindow().getAttributes().flags
+                            & WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION) != 0;
+                    if (translucent && !wasTranslucent) {
                         activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
                     }
-                    else {
+                    else if (!translucent && wasTranslucent) {
                         activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
                     }
 

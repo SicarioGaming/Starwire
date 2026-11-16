@@ -1,9 +1,9 @@
 name: Build and test
 
 # Every push to a branch and every pull request: the JVM tests, lint, the native host tests, the
-# tool checks, and the debug and test APKs. The on-device tests on emulators are devices.yml's;
-# a manual run here can add its core tier (a small phone, a foldable, a tablet, a handheld and
-# Android 6). Actions are pinned to full commit hashes; the comment says which release each one is.
+# tool checks, the Windows zip, and the debug and test APKs. The on-device tests on emulators are
+# devices.yml's; a manual run here can add its core tier (a small phone, a foldable, a tablet, a
+# handheld and Android 6). Actions are pinned to full commit hashes; the comment says which release each one is.
 on:
   push:
     branches: ['**']
@@ -39,11 +39,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
-      # Gradle won't even configure the project without the NDK version build.gradle names
-      - name: Install the NDK
+      # Gradle won't even configure the project without the NDK version build.gradle names, or
+      # the USB exporter's native build without the CMake version usbip-backend/build.gradle names
+      - name: Install the NDK and CMake
         run: |
           NDK=$(grep -oP 'ndkVersion "\K[^"]+' app/build.gradle)
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK" > /dev/null
+          CMAKE=$(grep -oP '^\s*version "\K[^"]+' usbip-backend/build.gradle)
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$NDK" "cmake;$CMAKE" > /dev/null
 
       # Robolectric fetches android-all-instrumented for SDK 36 (about 204 MB) into ~/.m2 on a
       # fresh runner. app/build.gradle names the Robolectric version, so a new one gets a new key.
@@ -80,6 +82,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           sh app/src/main/jni/moonlight-core/tests/partial_frame_test.sh
+          sh app/src/main/jni/moonlight-core/tests/host_packets_test.sh
           cd app/src/main/jni/vulkan/tests
           for t in frame_pacer present_scheduler; do
             g++ -std=c++17 -O2 -I.. ../$t.cpp ${t}_test.cpp -o "$RUNNER_TEMP/${t}_test"
@@ -89,6 +92,12 @@ jobs:
       - name: Tool checks
         if: ${{ !cancelled() }}
         run: bash .github/tools/check-tools.sh
+
+      # The Windows zip the Release workflow publishes, made the same way, so a file the
+      # microphone's or the USB helper's setup needs fails here rather than at the tag
+      - name: Windows zip
+        if: ${{ !cancelled() }}
+        run: bash .github/tools/make-windows-zip.sh "$RUNNER_TEMP/windows-zip"
 
       - name: Build the debug APK and the test APK
         run: ./gradlew --no-daemon assembleNonRootDebug assembleNonRootDebugAndroidTest
@@ -112,6 +121,30 @@ jobs:
           path: |
             app/build/reports/tests/
             app/build/reports/lint-results-nonRootDebug.*
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The PC's USB helper and its side of the USB tunnel, built with the C# compiler that comes with
+  # Windows and run as 64-bit and 32-bit programs, against a fake driver and over 127.0.0.1 only.
+  # It also checks setup-usb.ps1's plan without installing anything. Nothing in windows/ needs the
+  # submodules.
+  usb-helper:
+    name: USB helper tests (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: USB helper tests
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File windows\tests\run-usb-helper-tests.ps1 -OutDir "$env:RUNNER_TEMP\usb-helper-tests"
+
+      # Every check's line, for a failure that only happens on the runner
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: usb-helper-test-logs
+          path: ${{ runner.temp }}/usb-helper-tests/*.txt
           if-no-files-found: ignore
           retention-days: 7
 

@@ -37,6 +37,7 @@ import android.widget.Toast;
 import com.limelight.LimeLog;
 import com.limelight.R;
 import com.limelight.binding.input.driver.AbstractController;
+import com.limelight.binding.input.dualsense.DualSenseBluetooth;
 import com.limelight.binding.input.driver.UsbDriverListener;
 import com.limelight.binding.input.driver.UsbDriverService;
 import com.limelight.nvstream.NvConnection;
@@ -153,6 +154,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private final VibratorManager deviceVibratorManager;
     private final SensorManager deviceSensorManager;
     private final SceManager sceManager;
+    // DualSense trigger effects over Bluetooth, or null when that switch is off (Experimental)
+    private final DualSenseBluetooth dualSense;
     private final Handler mainThreadHandler;
     private final HandlerThread backgroundHandlerThread;
     private final Handler backgroundThreadHandler;
@@ -171,6 +174,12 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private boolean overlayTriggeredByRemoteBack = false;
 
     public ControllerHandler(Activity activityContext, NvConnection conn, GameGestures gestures, PreferenceConfiguration prefConfig) {
+        this(activityContext, conn, gestures, prefConfig, DualSenseBluetooth.forStream(activityContext, prefConfig));
+    }
+
+    // With the DualSense code given, or null for none: the JVM tests give one with a fake link
+    ControllerHandler(Activity activityContext, NvConnection conn, GameGestures gestures, PreferenceConfiguration prefConfig,
+                      DualSenseBluetooth dualSense) {
         this.activityContext = activityContext;
         this.conn = conn;
         this.gestures = gestures;
@@ -218,6 +227,11 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         this.sceManager = new SceManager(activityContext);
         this.sceManager.start();
+
+        this.dualSense = dualSense;
+        if (this.dualSense != null) {
+            this.dualSense.start();
+        }
 
         int deadzonePercentage = prefConfig.deadzonePercentage;
 
@@ -303,6 +317,9 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             releaseControllerNumber(context);
             context.destroy();
             inputDeviceContexts.remove(deviceId);
+        }
+        if (dualSense != null) {
+            dualSense.onControllerRemoved(deviceId);
         }
     }
 
@@ -404,6 +421,11 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         for (int i = 0; i < usbDeviceContexts.size(); i++) {
             UsbDeviceContext deviceContext = usbDeviceContexts.valueAt(i);
             deviceContext.destroy();
+        }
+
+        // Turns the DualSense's triggers off, so no effect outlasts the stream
+        if (dualSense != null) {
+            dualSense.stop();
         }
 
         deviceVibrator.cancel();
@@ -626,7 +648,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                     // Create a new context for the associated device if one doesn't exist
                     if (associatedDeviceContext == null) {
                         associatedDeviceContext = createInputDeviceContextForDevice(associatedDevice);
-                        inputDeviceContexts.put(associatedDevice.getId(), associatedDeviceContext);
+                        addInputDeviceContext(associatedDevice.getId(), associatedDeviceContext);
                     }
 
                     // Assign a controller number for the associated device if one isn't assigned
@@ -1164,9 +1186,17 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
         // Otherwise create a new context
         context = createInputDeviceContextForDevice(event.getDevice());
-        inputDeviceContexts.put(event.getDeviceId(), context);
+        addInputDeviceContext(event.getDeviceId(), context);
 
         return context;
+    }
+
+    // A new controller: kept, and shown to the DualSense code, which checks it on every connect
+    void addInputDeviceContext(int deviceId, InputDeviceContext context) {
+        inputDeviceContexts.put(deviceId, context);
+        if (dualSense != null) {
+            dualSense.onController(deviceId, context.inputDevice, context.hasJoystickAxes);
+        }
     }
 
     private byte maxByMagnitude(byte a, byte b) {
@@ -2171,6 +2201,10 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             return;
         }
 
+        // "Controller vibration strength" scales the rumble for every path below
+        lowFreqMotor = RumbleStrength.scale(lowFreqMotor, prefConfig.controllerVibrationStrength);
+        highFreqMotor = RumbleStrength.scale(highFreqMotor, prefConfig.controllerVibrationStrength);
+
         for (int i = 0; i < inputDeviceContexts.size(); i++) {
             InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
 
@@ -2243,6 +2277,10 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         if (stopped) {
             return;
         }
+
+        // The trigger motors follow "Controller vibration strength" too
+        leftTrigger = RumbleStrength.scale(leftTrigger, prefConfig.controllerVibrationStrength);
+        rightTrigger = RumbleStrength.scale(rightTrigger, prefConfig.controllerVibrationStrength);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             for (int i = 0; i < inputDeviceContexts.size(); i++) {
@@ -2419,6 +2457,25 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         }
     }
 
+    /**
+     * The host's DualSense trigger effects (0x5503). They reach a pad only when the DualSense
+     * switch is on and its checks passed; otherwise they're dropped, as before 0.3.0.
+     */
+    public void handleSetAdaptiveTriggers(short controllerNumber, byte eventFlags, byte typeLeft,
+                                          byte typeRight, byte[] left, byte[] right) {
+        if (stopped || dualSense == null) {
+            return;
+        }
+
+        for (int i = 0; i < inputDeviceContexts.size(); i++) {
+            InputDeviceContext deviceContext = inputDeviceContexts.valueAt(i);
+            if (deviceContext.assignedControllerNumber && deviceContext.controllerNumber == controllerNumber) {
+                dualSense.onHostTriggers(deviceContext.id, eventFlags & 0xFF, typeLeft & 0xFF, typeRight & 0xFF,
+                        left, right);
+            }
+        }
+    }
+
     public void handleSetControllerLED(short controllerNumber, byte r, byte g, byte b) {
         if (stopped) {
             return;
@@ -2463,28 +2520,7 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
                     // Release ALL gamepad inputs for all controllers before opening menu
                     // to ensure the host doesn't think any buttons/sticks are still pressed
-                    for (int i = 0; i < inputDeviceContexts.size(); i++) {
-                        InputDeviceContext context = inputDeviceContexts.valueAt(i);
-                        // Reset all button flags, triggers, and analog sticks to neutral
-                        context.inputMap = 0;
-                        context.leftTrigger = 0;
-                        context.rightTrigger = 0;
-                        context.leftStickX = 0;
-                        context.leftStickY = 0;
-                        context.rightStickX = 0;
-                        context.rightStickY = 0;
-                        sendControllerInputPacket(context);
-                    }
-
-                    // Also reset the default context
-                    defaultContext.inputMap = 0;
-                    defaultContext.leftTrigger = 0;
-                    defaultContext.rightTrigger = 0;
-                    defaultContext.leftStickX = 0;
-                    defaultContext.leftStickY = 0;
-                    defaultContext.rightStickX = 0;
-                    defaultContext.rightStickY = 0;
-                    sendControllerInputPacket(defaultContext);
+                    releaseAllControllerInput();
 
                     overlayMenuListener.onOverlayMenuOpen();
                 }
@@ -2493,10 +2529,41 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         mainThreadHandler.postDelayed(overlayMenuOpenRunnable, overlayMenuOpenMs);
     }
 
+    /**
+     * Release all gamepad inputs for all controllers, so the host doesn't think any buttons or
+     * sticks are still pressed. Called before the overlay menu opens: the open menu takes every
+     * controller event, so a button let go of while it's open would otherwise stay held on the
+     * host until it's pressed again.
+     */
+    public void releaseAllControllerInput() {
+        for (int i = 0; i < inputDeviceContexts.size(); i++) {
+            InputDeviceContext context = inputDeviceContexts.valueAt(i);
+            // Reset all button flags, triggers, and analog sticks to neutral
+            context.inputMap = 0;
+            context.leftTrigger = 0;
+            context.rightTrigger = 0;
+            context.leftStickX = 0;
+            context.leftStickY = 0;
+            context.rightStickX = 0;
+            context.rightStickY = 0;
+            sendControllerInputPacket(context);
+        }
+
+        // Also reset the default context
+        defaultContext.inputMap = 0;
+        defaultContext.leftTrigger = 0;
+        defaultContext.rightTrigger = 0;
+        defaultContext.leftStickX = 0;
+        defaultContext.leftStickY = 0;
+        defaultContext.rightStickX = 0;
+        defaultContext.rightStickY = 0;
+        sendControllerInputPacket(defaultContext);
+    }
+
 
     /**
      * Cancel the overlay menu hold detection and notify listener.
-     * If triggered by remote back button, finish the activity.
+     * If triggered by remote back button, open the menu or finish the activity.
      */
     private void cancelOverlayMenuHoldDetection() {
         if (overlayMenuOpenRunnable != null) {
@@ -2514,9 +2581,17 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
             overlayMenuListener.onOverlayMenuCancel();
         }
 
-        // If this was a remote back button short press, exit the activity
+        // If this was a remote back button short press, open the menu with "Back opens the
+        // menu" on, as the system's Back does, or else exit the activity
         if (wasActive && wasRemoteBack) {
-            activityContext.finish();
+            if (prefConfig.backOpensMenu && overlayMenuListener != null) {
+                // As the hold does
+                releaseAllControllerInput();
+                overlayMenuListener.onOverlayMenuOpen();
+            }
+            else {
+                activityContext.finish();
+            }
         }
     }
 

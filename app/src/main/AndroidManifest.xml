@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CAPTURE_KEYBOARD" />
+    <!-- Nearby devices (Android 12+): only asked for when the DualSense switch is turned on, to
+         send the pad trigger effects through Android's Bluetooth HID host -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA"/>
     <uses-permission android:name="com.android.providers.tv.permission.WRITE_EPG_DATA"/>
 
@@ -27,6 +30,9 @@
         android:required="false" />
     <uses-feature
         android:name="android.hardware.gamepad"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.bluetooth"
         android:required="false" />
     <uses-feature
         android:name="android.hardware.usb.host"
@@ -191,6 +197,9 @@
             <meta-data android:name="WindowManagerPreference:FreeformWindowSize" android:value="system-default" />
             <meta-data android:name="WindowManagerPreference:FreeformWindowOrientation" android:value="landscape" />
         </activity>
+        <!-- "Back opens the menu" needs Back to reach Game.onBackPressed, which predictive Back
+             skips, so Game keeps enableOnBackInvokedCallback="false" (GameBackKeyTest checks it).
+             A later targetSdk may stop allowing this; check Back still opens the menu then. -->
         <activity
             android:name=".Game"
             android:configChanges="mcc|mnc|density|colorMode|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|screenSize|smallestScreenSize|layoutDirection"

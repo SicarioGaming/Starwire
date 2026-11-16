@@ -13,6 +13,293 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-16
+
+### Added
+
+- **A Brightness item in the stream menu,** which opens the brightness slider. A controller moves
+  it in 5% steps, and A, B or Back closes it. It isn't shown on Android TV. From Moonlight X.
+  Checked by tests, and tried in a stream on my RedMagic Astra tablet with a debug build of 0.3.0
+  from 16 November.
+- **A Left edge swipe action setting,** in Settings under In-stream menu. It says what a swipe in
+  from the left edge of the screen does while streaming: open the brightness slider, open the
+  stream menu, or nothing. It's off (Disabled) by default, so the swipe goes to the game until you
+  pick something else. Moonlight X, where it comes from, opens the slider by default. Checked by
+  tests, not yet tried in a stream.
+- **Shortcuts for Windows' virtual desktops in the stream menu:** Win+Ctrl+Left and
+  Win+Ctrl+Right (previous and next desktop) side by side, then Win+Tab (Task View), on the
+  Shortcuts page. Checked by tests, not yet tried in a stream.
+- **Back opens the menu,** on by default. Back (the navigation bar's button or the back gesture)
+  now opens the stream menu instead of ending the stream, and Back again closes it. With the
+  brightness slider up from the left edge swipe, Back closes the slider first. To leave, use
+  Disconnect or Quit Session in the menu. A short press of a TV remote's Back opens the menu too,
+  where it used to end the stream; holding it still opens the menu as before. A switch in
+  **Settings → In-stream menu** turns it off, and Back ends the stream again. A mouse right-click
+  that Android sends as Back still reaches the PC as a right-click, and a controller's B still
+  goes to the game. The idea comes from Artemis (Yukino Song), via Artemide. Thank you to
+  u/Glove5751 for asking for it. Tested in JVM tests, with a stand-in for the remote, and tried in
+  a stream on my RedMagic Astra tablet with a debug build of 0.3.0 from 16 November. Not yet tried
+  on a phone or a TV.
+- **Controller vibration strength,** under Controllers: 0 to 100% of the game's rumble, on every
+  controller and on this device when it vibrates in place of one. Audio haptics on the controller
+  follows it too. 0% turns both off, and new installs start at 100%, as before. Checked by unit
+  tests only so far: pads on Starwire's USB driver, pads whose motors Android drives, built-in
+  controls, the on-screen controls and the fallback to this device. No test covers Shield
+  controllers, or audio haptics, which goes through the same code as the game's rumble. It hasn't
+  been tried on a device or felt on a real controller yet, my GameSir G8+ included.
+- **DualSense trigger effects over Bluetooth (Experimental, off by default),** in Settings →
+  Controllers → DualSense. On Android 12 and newer, a DualSense paired over Bluetooth gets the
+  game's own adaptive trigger effects from a host that sends them (Vibepollo does when it
+  emulates a DualSense), or one of four presets when the game sends
+  none: light resistance, gun click, heavy pedal or buzz. The game's effects win over a preset,
+  and "Off" turns both off. Trigger strength has 8 steps and uses the pad's own power limit.
+  Starwire checks the link every time the pad connects and goes back to the usual path if
+  anything fails; the status line says why. Test sends one effect. Rumble and the light bar stay
+  on Android's usual path, as before, but neither has been checked during a stream with trigger
+  effects on yet. It asks for the Nearby devices permission and uses a hidden Android call, through
+  HiddenApiBypass (LSPosed), whose files Gradle checks by SHA-256. How the reports reach the pad
+  and how the pad is found are ported from Moonlight V+ (qiin2333), with two changes: setReport is
+  only used on a phone without sendData, and a DualShock 4 is never taken for the pad. The code
+  that passes the host's effects to Java is Nightjar's (Ramazan Kara). Only the trigger modes
+  Nielk1's notes list reach the pad; any other mode turns the trigger off. **Tried on my
+  RedMagic Astra tablet (Android 16) with a debug build of 0.3.0 from 16 November:** over Bluetooth,
+  Starwire found the DualSense (the status line said "DualSense found"), and the Test button's gun
+  click was felt in both triggers. In a stream of Phantom Blade Zero from Vibepollo, the game's own
+  trigger effects came through: L2 was hard to pull when the character had no resources for a skill,
+  and the effects switched off and on as expected in the game's menus. The status line showed no
+  fallback for that stream. Apart from the Test button's gun click, the presets and the strength
+  steps have not been tried on a pad yet. Before that, on 26 October, a separate test app used the
+  same hidden sendData call on one tablet and one DualSense. It changed the light bar, and four
+  trigger effects felt as expected: firm resistance, a weapon click, a vibration and off.
+  setReport did nothing there.
+  Starwire's presets use other values, and light resistance and heavy pedal use a kind of effect
+  that test didn't try. Tested with JVM tests against a fake Bluetooth link.
+- **A log line for each DualSense trigger effect a game sends,** while Trigger effects is on, so
+  a screen recording can be matched to the effects the game really sent. Each line starts with
+  `DualSense effect:` and gives the time since the stream screen opened, the trigger (R2 or L2),
+  the effect's mode and bytes in hex as the PC sent them, and what Starwire did with it: passed
+  it on to the pad, held it because no pad was ready yet, turned the trigger off for a mode it
+  doesn't pass on, or ignored it for the Off preset. A trigger's effect is logged when it
+  changes, not each time the game sends it again. Up to 10 changes are logged in a second, timed
+  from that second's first line. Changes past that are counted but not logged. After that second, a
+  line says how many were left out, if any, and each trigger's last change is logged with its own
+  time. Nothing about the pad, the PC or you is in it. Checked by JVM tests, not yet read on a
+  device.
+- **USB devices (Experimental):** share a wired device plugged into the phone with the PC you
+  stream from. Turn on "USB devices (Experimental)" under Controllers (off by default), and the
+  stream menu gets a "USB devices" page. It lists what's plugged in: which devices can't be shared
+  and why, which ask you first (keyboards and mice), and that the rest are checked in full when you
+  share them. Choosing one asks Android's permission and shares it; choosing it again, unplugging
+  it or ending the stream gives it back, and after a lost connection, or the phone's network going
+  away, it offers to share it again. The device goes through the USB/IP exporter from Moonlight V+
+  (qiin2333 and CLF), built on usbipdcpp (yunsmall), and an encrypted tunnel to the PC's USB
+  helper, tied to the microphone's pairing ([usb-protocol.md](docs/dev/usb-protocol.md)). Starwire's
+  device rules decide before anything is shared: pads, wheels, sticks and audio devices pass,
+  keyboards and mice need your yes each time, and hubs, storage, network adapters, vendor-specific
+  devices (wired Xbox pads among them, for now) and USB 3 devices are refused, with the reason. A
+  device that turns out to be a keyboard or mouse only once Starwire reads all of it isn't shared,
+  and asks you then. One device at a time, on Android 9 or later on 64-bit ARM phones and tablets:
+  x86_64 Chromebooks and emulators don't get the setting, even ones that run ARM apps. Tested
+  on a computer: the stream menu's page, the exporter with its device rules and the tunnel
+  together, against a fake PC helper and a stand-in for the exporter's native part on 127.0.0.1.
+  Tried on my RedMagic Astra tablet (Android 16) with a debug build of 0.3.0 from 16 November, my
+  Windows 11 PC and the real helper: a DualSense plugged into the tablet by cable was shared from
+  the stream menu, Windows showed it as a working DualSense Wireless Controller, and I used it on
+  the PC. Stopping the share gave it back to the tablet all three times, and it worked there again.
+  On the first stop, the pad reset on the tablet and came back as a new USB device, so Starwire
+  ended that share as if it had been unplugged instead of as a normal stop. The DualSense is the
+  only device shared so far. Not tried yet: a wheel, a stick, an audio device, a keyboard or a
+  mouse, so the question for keyboards and mice hasn't been seen on a device; a device the rules
+  refuse; and sharing from a phone. The APK carries the exporter for 64-bit ARM (and
+  x86_64 in debug builds), and its licences are in Settings → About → Open-source licences. The
+  setting's credit line names Moonlight V+ and usbipdcpp, as Settings → About → Credits does.
+- **The PC's side of sharing a USB device from the phone.** Starwire's USB helper
+  for Windows (`setup-usb.cmd`, in the Windows zip) can now take a device over the encrypted USB tunnel
+  ([usb-protocol.md](docs/dev/usb-protocol.md)): from a phone paired with the PC's microphone
+  receiver, once USB sharing is on in its menu and Allow USB is ticked there for that phone. Its
+  icon by the clock is a USB plug on a dark tile, so it's easy to tell from the microphone
+  receiver's. Tests check that the setup builds the icon into the helper and puts it next to it,
+  but it hasn't been seen by the clock on a PC yet. The helper checks the device against the
+  device rules, attaches it with usbip-win2's driver through a relay on the PC itself, checks
+  what the device tells Windows, and detaches only its own device when the session ends. The
+  driver's commands, their layouts and its error codes are adapted from usbip-win2 0.9.8.1
+  (vadimgrn, BSD-2-Clause), and how it finds the port of a device it attached before a detach
+  follows Vibepollo (Chase Payne, Nonary). USB sharing is off until you turn it on, and the
+  firewall rule covers Private and Domain networks
+  only. The app's side (USB devices, above) and this helper were tried together on my RedMagic Astra
+  tablet and my Windows 11 PC, with usbip-win2's driver and a debug build of 0.3.0 from 16 November,
+  before the helper had its own icon: setup-usb.cmd installed and started the helper, the helper
+  logged the share and attached the DualSense the tablet shared, and the PC used it. Tested on
+  Windows 11 with a fake driver and a test phone over 127.0.0.1, and with the shared test vectors
+  and device rules' cases.
+  The helper's tunnel server also has tests for a hostile local network. When a session is stuck
+  because the relay is blocked writing to a phone or a driver that stopped reading, unpairing,
+  Stop sharing and turning USB off still close the sockets, end the session and detach the
+  device. Under a flood of connections, the number waiting stays within its cap and the record
+  kept for each address is pruned, so the threads that serve them stay bounded. Each address can
+  open one new waiting connection every two seconds, so one host can't churn the waiting room or
+  starve another's BIND. A BIND whose connection is closed stops waiting and reads no pairings. A
+  flood of BINDs still leaves one pairing-file read a second for the sharing phone's pairing check
+  and the menu. The running pairing check ends the session if the pairings file can't be read
+  twice in a row, and the menu reads the paired phones off the icon's thread. The tests run over
+  127.0.0.1 with a fake driver and a test phone. The send timeouts are turned off in the teardown
+  tests, so they prove the teardown itself finishes. These cases haven't been tried with a real
+  phone, a real device or the real driver.
+
+### Changed
+
+- **The Starwire wordmark** on the games screen is a little bigger. Beside a long PC name it
+  shrinks to make room, back to the size it was before, or further if the name would still reach
+  it. It stays the same size on screens under 360 dp wide, like a Galaxy Z Fold's cover screen.
+  Checked by tests and screenshots on a computer, not yet seen on a device.
+- **Virtual display** is the new name of the setting that was called "Display on the PC", in
+  Settings under PC and in a game's App Settings, so it's easier to find. Its choices are now Host
+  default, On (a screen made for this device) and Off (the PC's main monitor). A choice you
+  already made stays as it was. Thank you to u/elenayebenes for asking about it. Checked by
+  tests, not yet tried on a device.
+- **Quit Session in the stream menu asks first,** because it closes the game on the PC and
+  anything unsaved there is lost. Yes quits. No or Back keeps streaming. Tests answer it by touch,
+  and with a controller's A and B buttons as Android passes them on. From Moonlight X. Not yet
+  tried in a stream, so I don't know yet which answer a controller starts on. Two catches with a
+  controller. With Flip face buttons on, the question doesn't swap A and B the way the menu does,
+  so the button that picked Quit Session cancels it; the bitrate and touch mode pickers already
+  work that way. And a controller run by Starwire's own USB driver can't answer it, as it can't
+  move through the menu either.
+- **The stream menu fits up to seven buttons per row on wide screens,** such as a tablet held
+  sideways, so all the built-in buttons show in three rows without scrolling, USB devices and Fix
+  PC Cursor included. The sheet grows by two buttons of the usual size and covers a bit more of
+  the game, at most 60% of the screen's width. Screens under about 1000 dp wide, like phones and
+  most handhelds, and screens where a label would no longer fit whole (with a large font size, say)
+  keep the usual sheet with up to five per row, and scroll as before. The Shortcuts, Monitors and
+  USB devices pages keep their own layout on the wider sheet. Checked by tests and screenshots on a
+  computer, at the size of my RedMagic Astra tablet's screen among others. Tried on that tablet in a
+  test build that left out the menu's Sensitivity button: its 20 buttons showed in rows of seven,
+  seven and six, and the menu looked good. On a later debug build, with Sensitivity back, all 21
+  showed there in three full rows of seven.
+- **Google's video decoders, as on Pixel phones, are asked for the most frames they can handle**
+  at the stream's size, instead of just the stream's frame rate. They set their speed to just
+  meet what they're asked for. Moonlight X measured about 9 ms a frame before and about 7.8 ms
+  after, at 120 FPS on a Pixel 10 Pro. From Moonlight X. Checked by tests, but not tried here:
+  I don't have a Pixel.
+- **The stats box has rounded corners.** From Moonlight X. Checked by a test, not yet seen in a
+  stream.
+- **The Windows zip has the USB helper's files too,** next to the microphone's, which are the
+  same as 0.2.1's. One script makes the zip, for the release and on every push, and stops if a
+  file either setup needs is missing.
+
+### Fixed
+
+- The games screen takes a new font size from Android's settings straight away. The PC name,
+  the wordmark and the selected game used to keep the old size until you opened the screen again.
+  Checked by tests, not yet tried on a device.
+- Prevent packet loss sent a packet type that Sunshine, Apollo and Vibepollo don't know. They log
+  each one at their debug level, so Vibepollo's log got about 50 lines a second. It now sends a
+  ping, which these hosts log only at a more detailed level. A native test checks the new packet.
+  A stream with Vibepollo logging at debug level hasn't been tried with this build yet.
+- Starwire no longer sends Sunshine, Apollo and Vibepollo a message GeForce Experience needs to
+  turn on controller vibration. Going by their source code, these hosts send vibration without
+  it. Vibepollo warned about the message each time a stream started. GeForce Experience still gets
+  it. A native test checks which hosts get it, but controller vibration hasn't been tried with
+  this build yet.
+- **A tap near the left edge of the screen goes to the game** like any other tap. It used to open
+  the brightness slider instead. Now the stream menu's Brightness item opens the slider. A swipe
+  in from the left edge can open it too, but that's off by default. To turn it on, go to
+  Settings → In-stream menu → Left edge swipe action, and pick Brightness adjustment. The swipe
+  works in the trackpad, direct touch and multi-touch modes. It starts within 80 dp of the left
+  edge (about 1.3 cm) and moves 60 dp to the right (about 1 cm) within half a second. That isn't
+  fast, so a slow drag to the right from near the edge, like moving the cursor, opens the slider
+  too. That's why it's off by default. The drag goes to the game until it has moved 60 dp, and
+  the rest of it doesn't. The slider also works differently once it's open. It used to hide 3
+  seconds after it opened. Now it stays up until you change it, then hides 2 seconds after your
+  last change. Until then, a touch on the stream closes it, and none of that touch reaches the
+  game. From Moonlight X. Thank you to u/zolidz64 for reporting it. Checked by tests, not yet
+  tried in a stream, apart from the Brightness item (see Added).
+- **Multi-touch mode sent the PC mouse clicks instead of touches.** It worked just like direct
+  touch, and had since 0.1.0. Now each finger goes to the PC as a touch of its own, two at a
+  time. If the PC can't take touches, the mode still works like direct touch. The three-finger
+  tap for the stream menu works in this mode too, and so does the left edge swipe once it's
+  turned on. Off, as it is by default, the swipe reaches the PC as a touch. As in the other
+  modes, a third finger lets go of what the first two were doing on the PC, so touches with three
+  or more fingers don't reach it. Checked by tests, not yet tried in a stream.
+- **A long press and a drag in the gaming trackpad mode drag with the left button.** With
+  Long-press to right-click on, as it is by default, the long press held the right button. So
+  the PC got a right-button drag, with a right-click where it ended, and nothing was dragged.
+  It had been that way since 0.1.0. Now a long press presses nothing until the finger moves away
+  or lifts. Moved away, it presses the left button and drags. The small wobble of a finger held
+  still doesn't count. Lifted without moving away, it's still a right-click, but the right button
+  only goes down as the finger lifts. So a long press no longer holds the right button down while
+  your finger stays on the screen. The cursor holds still while the long press waits, so both
+  start where the long press was. A second finger tapped during a long press used to press the
+  right button twice, and now it's one right-click. With the setting off, a long press holds the
+  left button straight away, as before. Thank you to kayakyakr for reporting it in
+  [issue #5](https://github.com/SicarioGaming/Starwire/issues/5). Checked by tests, not yet
+  tried in a stream.
+- **A long press in direct touch mode sends only the right button.** On my RedMagic Astra tablet,
+  streaming from my Windows 11 PC with Vibepollo, a long press came through as a left click.
+  Starwire pressed the left button first and switched to the right one at 0.65 seconds, and 0.2.1
+  did the same. Going by Vibepollo's source code, a right press that comes straight after a left
+  release is sent to Windows as a quick right-click while the left button is still down, and the
+  right button's release is dropped. How Windows takes that hasn't been tested. Now nothing is
+  pressed when your finger goes down. A finger held still sends only the right button, at the
+  same 0.65 seconds, and lets go of it when you lift. After that, moving it more than 20 pixels
+  from where it was at 0.65 seconds drags with the right button. Smaller moves leave the cursor
+  where it is, so a finger that drifted a little still gives a right-click. A shorter press is a
+  click where the finger went down, sent when you lift, so a finger held still no longer holds
+  the left button down. Its button is let go 0.1 seconds after you lift, or as soon as your
+  finger goes down again, so each tap of a quick double tap is a click of its own. A drag with
+  the left button starts once your finger has moved 30 pixels, from where it went down. Before,
+  it started after 20 pixels, or with any move once 0.1 seconds had passed, so a shorter drag now
+  leaves the cursor where the finger went down. The same goes for multi-touch mode when the PC
+  can't take touches, and with the buttons swapped it's the other way round. Checked by tests on a
+  computer. On that tablet and PC, a test build with the first version of this fix gave a
+  right-click for a long press. Two smaller changes came after that test. On a later debug build,
+  a long press still gave a right-click, and a quick double tap gave a double-click,
+  which is what letting go of a tap's click as soon as your finger goes down again is for. Counting
+  the 20 pixels from where the finger was at 0.65 seconds hasn't been tried on a device yet.
+- Starwire no longer tries to show an error or a "please wait" box on a screen Android has
+  already closed. That could happen when a connection error or the host's answer came in late.
+  This is tested on a computer, not yet on a phone. The idea is from Moonlight V+ (qiin2333).
+- If you change the bitrate mid-stream again while the last change is still on its way, your
+  latest choice now wins. Before, the older change could reach the host last, or its answer
+  could come back last, and the stream or the menu ended up on the older choice. The changes now
+  go to the host one at a time, and only the latest is shown. This is tested with a stand-in
+  host, not yet with a real PC. The idea is from Moonlight V+ (qiin2333).
+- **The last setting in Settings scrolls clear of the gesture bar.** With gesture navigation,
+  the see-through bar at the bottom of the screen covered it. The list still runs behind the bar,
+  and its last row now scrolls up above it. The same code also leaves room for the bar under the
+  game list, the PC list, per-game settings, the Quick Launch app picker and the Credits and
+  Open-source licences pages; no test checks those screens yet. From Moonlight X. Checked by
+  tests, not yet tried on a device.
+- A controller button or keyboard key you were holding when you opened the stream menu stayed
+  pressed on the PC until you pressed it again. Every way of opening the menu now lets go of both
+  first: the floating button, Back (which opens the menu now, see Added), a TV remote's Back,
+  holding Select on a controller, the three-finger tap and the left edge swipe. Holding Select
+  always let go of controller buttons, but not of keys. Tested in JVM tests only. Not yet tried
+  on a device.
+- **The left part of the stream menu was cut off** when the floating menu button was off. The
+  game showed through more than a third of the menu, until something made Android lay out the
+  screen again, like turning on the floating button or the stats. It happened however the menu
+  was opened: holding Select, Back, the three-finger tap or the left edge swipe. Android works
+  out where the stream shows through only when it lays out the screen, and it did that as the
+  menu began to slide in from the right. The menu now keeps the stream out of where it slides to
+  as well. Thank you to SippyCupXIII for reporting it
+  ([#14](https://github.com/SicarioGaming/Starwire/issues/14)). Checked by JVM tests on a
+  1920x1080 screen at 320, 400 and 480 dpi, not yet tried on a device.
+- On the Android 11 phone emulators, the PC list and the games screen never let the app go idle,
+  so the device tests that open them never finished. A possible cause is fixed. Each time Android
+  measured the system bars, these screens and the settings screens set the navigation bar's look
+  again, even when nothing had changed, and Android can answer that by measuring again. They now
+  set it only when it changes. In the emulator run on 27 October, after this change, the device
+  tests finished on all three Android 11 phone emulators. One run can't show that this was the
+  cause. Also checked by JVM tests.
+- On Android 5.0 and 5.1, the encrypted microphone's code threw an error on a forged or damaged
+  audio packet instead of refusing it. These versions get AES-GCM from Android's old copy of
+  BouncyCastle, which reports a bad packet in a different way. Starwire only sends audio, so
+  streams weren't affected, but the on-device test failed on Android 5.0. In that same run,
+  Android 5.0 matched every line of the shared test vectors. JVM tests now run the shared test
+  vectors through a stand-in for how Android 5.0 and 5.1 report a bad packet. With the fix, that
+  on-device test passed on the Android 5.0 emulator on 27 October. No test has run on Android 5.1.
+
 ## [0.2.1] - 2026-10-23
 
 The repo changes that followed u/rambo3349's code review went live on GitHub before this release.
@@ -188,7 +475,8 @@ same app renamed; it installs separately, so you can uninstall Voidlink afterwar
 - **Extras:** monitor switching, pinch to zoom anytime, changing the bitrate mid-stream, audio
   haptics and shortcuts imported from a file.
 
-[Unreleased]: https://github.com/SicarioGaming/Starwire/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/SicarioGaming/Starwire/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/SicarioGaming/Starwire/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/SicarioGaming/Starwire/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/SicarioGaming/Starwire/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/SicarioGaming/Starwire/compare/v0.1.0...v0.1.2
