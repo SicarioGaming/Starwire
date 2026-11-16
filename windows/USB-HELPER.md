@@ -1,10 +1,11 @@
 # Sharing a USB device from the phone: the PC's USB helper
 
-**Status: not tried with a phone yet.** This is the PC's side. Starwire's side, which shares the
-device from the phone, is the "USB devices (Experimental)" setting, and the two haven't been tried
-together yet. The helper has been tested on Windows 11 with a fake driver and a test phone over
-127.0.0.1, never with a real phone or a real device, and the setup has only been tried without
-installing anything.
+**Experimental, and tried once with a tablet.** This is the PC's side. Starwire's side, which
+shares the device from the phone, is the "USB devices (Experimental)" setting. The two were tried
+together once, on a RedMagic Astra (Android 16) and a Windows 11 PC with usbip-win2's driver: a
+device plugged into the tablet showed up on the PC and worked there, and Stop gave it back. The
+helper's own tests run on Windows 11 with a fake driver and a test phone over 127.0.0.1. The setup
+has only been tried without installing anything.
 
 The helper lets a phone running Starwire lend a USB device plugged into it (a pad, a wheel, a
 headset) to this PC, so Windows sees it as if it were plugged in here. It uses usbip-win2's USB/IP
