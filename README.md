@@ -124,9 +124,10 @@ release, 146 of the 147 on-device tests passed and 1 skipped.
 These are checked by tests on a computer.
 
 **Updating from 0.2.1:** install the new APK over 0.2.1. It is signed with the same key, so it
-should keep your PCs, settings and microphone pairing. I tried that with debug builds, not yet
-with the release APK over the released 0.2.1. On the PC, the microphone receiver has not changed,
-so you can keep it as it is. The USB helper is new, and you only need it for USB devices.
+should keep your PCs, settings and microphone pairing. I tried that with debug builds, and after
+publishing, the release APK updated the released app on my tablet in place and kept my settings.
+On the PC, the microphone receiver has not changed, so you can keep it as it is. The USB helper is
+new, and you only need it for USB devices.
 
 **Two things work differently after the update:**
 
