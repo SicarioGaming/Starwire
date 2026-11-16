@@ -44,7 +44,7 @@ you ask for it.
   Lint runs the same way (`./gradlew lintNonRootDebug`). The warnings it already had are listed
   in `app/lint-baseline.xml`, so only a new one fails it.
 - **Screenshot tests** draw the settings, game, in-stream menu and PC list screens on the
-  computer (Robolectric and Roborazzi) at 8 sizes, from a Fold5 cover screen to a tablet, and
+  computer (Robolectric and Roborazzi) at 9 sizes, from a Fold5 cover screen to a tablet, and
   compare them pixel for pixel with the pictures in `app/src/test/screenshots`:
 
   ```bash
