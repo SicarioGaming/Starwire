@@ -18,7 +18,7 @@ Then it checks setup-usb.ps1 without running its install: what it would do (-Pla
 non-default port and folders in -OutDir, the firewall rule's parameters against New-NetFirewallRule's
 own (read only), and that it never names the microphone receiver's files. Last, it builds the
 helper itself, StarwireUsbHelper.exe, into -OutDir with setup-usb.ps1 -BuildOnly, for the laptop
-test (USB-LAPTOP-TEST.md). Nothing is installed.
+test (USB-LAPTOP-TEST.md), and checks it has its icon. Nothing is installed.
 
     powershell -NoProfile -ExecutionPolicy Bypass -File windows\tests\run-usb-helper-tests.ps1
 
@@ -112,6 +112,7 @@ Expect 'an uninstall removes only the helper''s files, never mic-pairings.dat or
     -not ($removes | Where-Object { $_ -match 'mic-pairings|StarwireMicReceiver|microphone' }) -and
     @($plan.Keeps) -contains (Join-Path (Join-Path $OutDir 'data') 'mic-pairings.dat') -and
     $removes -contains (Join-Path (Join-Path $OutDir 'data') 'usb-allowed.dat'))
+Expect 'an uninstall removes the icon the setup put next to the helper' ($removes -contains (Join-Path $installDir 'starwire-usb.ico'))
 $default = & powershell -NoProfile -ExecutionPolicy Bypass -File $setup -Plan -InstallDir $installDir | Out-String | ConvertFrom-Json
 Expect 'by default it listens on TCP 6981' ($default.Firewall.LocalPort -eq 6981 -and $default.Arguments -eq '--tunnel-port 6981')
 $text = Get-Content $setup -Raw
@@ -150,6 +151,33 @@ else {
     # A wrong option only prints the usage: nothing opened, nothing changed
     & $built --no-such-option | Out-Null
     Expect 'the helper runs, and a wrong option gets the usage (exit 1)' ($LASTEXITCODE -eq 1)
+    # Its icon, in the program and next to it, where it looks first for the clock's small sizes.
+    # It had none, so the clock showed Windows' plain program icon, which was hard to find.
+    $icon = Join-Path $windows 'starwire-usb.ico'
+    $builtIcon = Join-Path $OutDir 'starwire-usb.ico'
+    Expect 'the helper''s icon is next to it' ((Test-Path $icon) -and (Test-Path $builtIcon) -and
+        (Get-FileHash $builtIcon).Hash -eq (Get-FileHash $icon).Hash)
+    if (-not (Test-Path $icon)) {
+        Expect 'the helper has its own icon built in (there''s no windows\starwire-usb.ico)' $false
+    }
+    else {
+        Add-Type -AssemblyName System.Drawing
+        function Get-IconPixels($i) {
+            # Drawn through its handle, as Windows draws it: Icon.ToBitmap misreads an icon file's PNG images
+            $bitmap = [System.Drawing.Icon]::FromHandle($i.Handle).ToBitmap()
+            $pixels = New-Object int[] ($bitmap.Width * $bitmap.Height)
+            for ($y = 0; $y -lt $bitmap.Height; $y++) {
+                for ($x = 0; $x -lt $bitmap.Width; $x++) { $pixels[$y * $bitmap.Width + $x] = $bitmap.GetPixel($x, $y).ToArgb() }
+            }
+            return , $pixels
+        }
+        # The icon Explorer shows for the program, against the same size from starwire-usb.ico
+        $shown = [System.Drawing.Icon]::ExtractAssociatedIcon($built)
+        $want = Get-IconPixels (New-Object System.Drawing.Icon($icon, $shown.Width, $shown.Height))
+        $got = Get-IconPixels $shown
+        $different = @(0..($want.Count - 1) | Where-Object { $got[$_] -ne $want[$_] }).Count
+        Expect "the helper has its own icon built in, not Windows' plain program icon ($different of $($want.Count) pixels differ)" ($different -eq 0)
+    }
 }
 
 Write-Host ''

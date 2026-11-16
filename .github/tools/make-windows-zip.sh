@@ -27,9 +27,10 @@ ZIP_NAME=Starwire-Microphone-for-Windows.zip
 
 # The microphone receiver: what 0.2.0 and 0.2.1 shipped
 MIC_FILES="setup-microphone.cmd setup-microphone.ps1 StarwireMicReceiver.cs SecureMic.cs starwire-mic.ico README.md"
-# The USB helper: its setup, the sources setup-usb.ps1 builds it from, and its guide. It reads no
-# other file next to it: the test vectors and the device rules' cases are only for its tests.
-USB_FILES="setup-usb.cmd setup-usb.ps1 StarwireUsbHelper.cs UsbTunnel.cs UsbRelay.cs UsbTunnelCodec.cs UsbDeviceRules.cs USB-HELPER.md"
+# The USB helper: its setup, the sources setup-usb.ps1 builds it from, its icon and its guide. It
+# reads no other file next to it: the test vectors and the device rules' cases are only for its
+# tests.
+USB_FILES="setup-usb.cmd setup-usb.ps1 StarwireUsbHelper.cs UsbTunnel.cs UsbRelay.cs UsbTunnelCodec.cs UsbDeviceRules.cs starwire-usb.ico USB-HELPER.md"
 FILES="$MIC_FILES $USB_FILES"
 
 usage() {

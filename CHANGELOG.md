@@ -111,16 +111,18 @@ steps and the checksums for each version.
 - **The PC's side of sharing a USB device from the phone.** Starwire's USB helper
   for Windows (`setup-usb.cmd`, in the Windows zip) can now take a device over the encrypted USB tunnel
   ([usb-protocol.md](docs/dev/usb-protocol.md)): from a phone paired with the PC's microphone
-  receiver, once USB sharing is on in its menu and Allow USB is ticked there for that phone. It
-  checks the device against the device rules, attaches it with usbip-win2's driver through a
-  relay on the PC itself, checks what the device tells Windows, and detaches only its own device
-  when the session ends. USB sharing is off until you turn it on, and the firewall rule covers
-  Private and Domain networks only. The app's side (USB devices, above) and this helper were
-  tried together on my RedMagic Astra tablet and my Windows 11 PC, with usbip-win2's driver and
-  the final 0.3.0 build: setup-usb.cmd installed and started the helper, the helper logged the
-  share and attached the DualSense the tablet shared, and the PC used it. Tested on Windows 11
-  with a fake driver and a test phone over 127.0.0.1, and with the shared test vectors and device
-  rules' cases.
+  receiver, once USB sharing is on in its menu and Allow USB is ticked there for that phone. Its
+  icon by the clock is a USB plug on a dark tile, so it's easy to tell from the microphone
+  receiver's. Tests check that the setup builds the icon into the helper and puts it next to it,
+  but it hasn't been seen by the clock on a PC yet. The helper checks the device against the
+  device rules, attaches it with usbip-win2's driver through a relay on the PC itself, checks
+  what the device tells Windows, and detaches only its own device when the session ends. USB
+  sharing is off until you turn it on, and the firewall rule covers Private and Domain networks
+  only. The app's side (USB devices, above) and this helper were tried together on my RedMagic
+  Astra tablet and my Windows 11 PC, with usbip-win2's driver and the final 0.3.0 build:
+  setup-usb.cmd installed and started the helper, the helper logged the share and attached the
+  DualSense the tablet shared, and the PC used it. Tested on Windows 11 with a fake driver and a
+  test phone over 127.0.0.1, and with the shared test vectors and device rules' cases.
   The helper's tunnel server was checked against a hostile local network, and these hold in its
   tests: when a session is stuck because the relay is blocked writing to a phone that stopped
   reading, or blocked writing to a driver that stopped reading, unpairing, Stop sharing and
