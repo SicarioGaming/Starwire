@@ -1064,12 +1064,14 @@ printf '%s\n' "one   test/one   main  $reviewed  port" \
     "gone  test/one   main  0123456789abcdef0123456789abcdef01234567  ideas" \
     "none  test/none  main  $reviewed  port" > "$work/tool/sources.txt"
 # Only this config, which sends https://github.com/ to the made-up repos (with filters allowed, as
-# GitHub does), so a maintenance.auto in the user's own config can't hide the problem
+# GitHub does), so a maintenance.auto in the user's own config can't hide the problem. Git may
+# only read local paths, so a URL the config misses fails here instead of going to the network.
 git config --file "$work/gitconfig" "url.$(host_path "$work/up")/.insteadOf" https://github.com/
 git config --file "$work/gitconfig" uploadpack.allowFilter true
 set +e
-upstream_report=$(TMPDIR="$work/tmp" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL="$(host_path "$work/gitconfig")" \
-    GIT_TRACE2_EVENT="$(host_path "$work/trace.json")" bash "$work/tool/check.sh" 2> "$work/stderr")
+upstream_report=$(TMPDIR="$work/tmp" GIT_ALLOW_PROTOCOL=file GIT_CONFIG_NOSYSTEM=1 \
+    GIT_CONFIG_GLOBAL="$(host_path "$work/gitconfig")" GIT_TRACE2_EVENT="$(host_path "$work/trace.json")" \
+    bash "$work/tool/check.sh" 2> "$work/stderr")
 status=$?
 set -e
 if [ $status -ne 0 ] || [ -s "$work/stderr" ]; then
