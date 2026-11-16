@@ -216,16 +216,21 @@ steps and the checksums for each version.
 - **A long press in direct touch mode sends only the right button.** On my RedMagic Astra tablet,
   streaming from my Windows 11 PC with Vibepollo, a long press came through as a left click.
   Starwire pressed the left button first and switched to the right one at 0.65 seconds, and 0.2.1
-  did the same. Going by its source code, Vibepollo, like Sunshine, folds a right press that
-  comes straight after a left release into that left click. Now a finger held still sends only
-  the right button, at the same 0.65 seconds, and lets go of it when you lift. After that,
-  moving your finger more than 20 pixels from where it was then drags with the right button, so a
-  finger that drifted a little before the long press still gives a right-click. A shorter press
-  that doesn't move is sent as a click when you lift. Its button is let go 0.1 seconds later, or
-  as soon as your finger goes down again, so each tap of a quick double tap is a click of its own.
-  Moving your finger more than 30 pixels still drags with the left button, from where it went
-  down. The same goes for multi-touch mode when the PC can't take touches, and with the buttons
-  swapped it's the other way round. Checked by tests on a computer; not tried on a device yet.
+  did the same. Going by Vibepollo's source code, a right press that comes straight after a left
+  release is sent to Windows as a quick right-click while the left button is still down, and the
+  right button's release is dropped. How Windows takes that hasn't been tested. Now nothing is
+  pressed when your finger goes down. A finger held still sends only the right button, at the
+  same 0.65 seconds, and lets go of it when you lift. After that, moving it more than 20 pixels
+  from where it was at 0.65 seconds drags with the right button. Smaller moves leave the cursor
+  where it is, so a finger that drifted a little still gives a right-click. A shorter press is a
+  click where the finger went down, sent when you lift, so a finger held still no longer holds
+  the left button down. Its button is let go 0.1 seconds after you lift, or as soon as your
+  finger goes down again, so each tap of a quick double tap is a click of its own. A drag with
+  the left button starts once your finger has moved 30 pixels, from where it went down. Before,
+  it started after 20 pixels, or with any move once 0.1 seconds had passed, so a shorter drag now
+  leaves the cursor where the finger went down. The same goes for multi-touch mode when the PC
+  can't take touches, and with the buttons swapped it's the other way round. Checked by tests on
+  a computer; not tried on a device yet.
 - Starwire no longer tries to show an error or a "please wait" box on a screen Android has
   already closed. That could happen when a connection error or the host's answer came in late.
   This is tested on a computer, not yet on a phone. The idea is from Moonlight V+ (qiin2333).
