@@ -333,6 +333,76 @@ public class GameDirectTouchLongPressTest {
                 "216 " + placed(80, 0), "232 " + placed(120, 0), "248 up1"), pc.timed);
     }
 
+    // Moved 40 pixels at 200 ms, which starts a drag, then 40 more at 1000 ms, after the long
+    // press would have come, and lifted at 1016 ms
+    private void dragPastTheLongPress() {
+        finger(MotionEvent.ACTION_DOWN);
+        advance(200);
+        finger(MotionEvent.ACTION_MOVE, 40, 0);
+        advance(800);
+        finger(MotionEvent.ACTION_MOVE, 80, 0);
+        advance(16);
+        finger(MotionEvent.ACTION_UP, 80, 0);
+        advance(1000);
+    }
+
+    // A drag stops the long press, so it stays a drag with the left button however long it lasts
+    @Test
+    public void aDragThatGoesOnPastTheLongPressStaysALeftButtonDrag() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
+        dragPastTheLongPress();
+        assertEquals(list("200 " + placedAtTheFinger(), "200 down1", "200 " + placed(40, 0),
+                "1000 " + placed(80, 0), "1016 up1"), pc.timed);
+    }
+
+    // A tap that moves 25 pixels before it lifts at 200 ms. That's too little for a drag, so the
+    // click is where the finger went down, not where it lifted.
+    @Test
+    public void aTapThatMovesLessThan30PixelsClicksWhereItWentDown() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
+        finger(MotionEvent.ACTION_DOWN);
+        advance(100);
+        finger(MotionEvent.ACTION_MOVE, 25, 0);
+        advance(100);
+        finger(MotionEvent.ACTION_UP, 25, 0);
+        advance(1000);
+        assertEquals(list("200 " + placedAtTheFinger(), "200 down1", "300 up1"), pc.timed);
+    }
+
+    // Android takes the touch for a gesture of its own in the middle of a drag. The left button
+    // is let go then.
+    @Test
+    public void aDragTheSystemCancelsLetsGoOfTheLeftButton() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
+        finger(MotionEvent.ACTION_DOWN);
+        advance(200);
+        finger(MotionEvent.ACTION_MOVE, 40, 0);
+        advance(100);
+        finger(MotionEvent.ACTION_CANCEL, 40, 0);
+        advance(1000);
+        assertEquals(list("200 " + placedAtTheFinger(), "200 down1", "200 " + placed(40, 0), "300 up1"),
+                pc.timed);
+    }
+
+    // A second finger at 300 ms, in the middle of a drag, lets go of the left button, and then the
+    // two fingers scroll
+    @Test
+    public void aSecondFingerDuringADragLetsGoOfTheLeftButtonAndScrolls() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
+        fingers(MotionEvent.ACTION_DOWN, at(0, 0, 0));
+        advance(200);
+        fingers(MotionEvent.ACTION_MOVE, at(0, 40, 0));
+        advance(100);
+        fingers(pointer(MotionEvent.ACTION_POINTER_DOWN, 1), at(0, 40, 0), at(1, 300, 0));
+        advance(16);
+        fingers(MotionEvent.ACTION_MOVE, at(0, 40, 40), at(1, 300, 40));
+        fingers(pointer(MotionEvent.ACTION_POINTER_UP, 1), at(0, 40, 40), at(1, 300, 40));
+        fingers(MotionEvent.ACTION_UP, at(0, 40, 40));
+        advance(1000);
+        assertEquals(list("200 " + placedAtTheFinger(), "200 down1", "200 " + placed(40, 0), "300 up1",
+                "316 scroll 120"), pc.timed);
+    }
+
     // As before, a move after the long press drags with the right button. A wobble of 10 pixels
     // leaves the cursor where it is. Once the finger is more than 20 pixels from where it went
     // down, the cursor follows it until it lifts, back toward the start too.
@@ -353,6 +423,43 @@ public class GameDirectTouchLongPressTest {
         advance(1000);
         assertEquals(list("650 " + placedAtTheFinger(), "650 down3", "716 " + placed(50, 0),
                 "732 " + placed(100, 0), "748 " + placed(10, 0), "764 up3"), pc.timed);
+    }
+
+    // A long press, then a move of 25 pixels. That's past the 20 pixels a long press ignores, so
+    // the cursor follows the finger with the right button held.
+    @Test
+    public void aMoveOf25PixelsAfterALongPressIsARightButtonDrag() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
+        finger(MotionEvent.ACTION_DOWN);
+        advance(700);
+        finger(MotionEvent.ACTION_MOVE, 25, 0);
+        advance(16);
+        finger(MotionEvent.ACTION_UP, 25, 0);
+        advance(1000);
+        assertEquals(list("650 " + placedAtTheFinger(), "650 down3", "700 " + placed(25, 0), "716 up3"),
+                pc.timed);
+    }
+
+    // A right-button drag, then a tap 400 pixels across that moves 10 pixels before it lifts. The
+    // tap starts afresh, so nothing goes out until it lifts, and then it's a click where it went
+    // down.
+    @Test
+    public void aTapAfterARightButtonDragIsAClickOfItsOwn() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
+        finger(MotionEvent.ACTION_DOWN);
+        advance(700);
+        finger(MotionEvent.ACTION_MOVE, 50, 0);
+        advance(16);
+        finger(MotionEvent.ACTION_UP, 50, 0);
+        advance(1000);
+        finger(MotionEvent.ACTION_DOWN, 400, 0);
+        advance(100);
+        finger(MotionEvent.ACTION_MOVE, 410, 0);
+        advance(100);
+        finger(MotionEvent.ACTION_UP, 410, 0);
+        advance(1000);
+        assertEquals(list("650 " + placedAtTheFinger(), "650 down3", "700 " + placed(50, 0), "716 up3",
+                "1916 " + placed(400, 0), "1916 down1", "2016 up1"), pc.timed);
     }
 
     // Two still presses of 150 ms, 150 ms apart, the second 10 pixels across from the first. The
@@ -403,6 +510,14 @@ public class GameDirectTouchLongPressTest {
         openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED);
         longPress();
         assertEquals(list("650 " + placedAtTheFinger(), "650 down1", HELD_MS + " up1"), pc.timed);
+    }
+
+    @Test
+    public void withTheButtonsSwappedADragThatGoesOnPastTheLongPressStaysARightButtonDrag() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH_SWAPPED);
+        dragPastTheLongPress();
+        assertEquals(list("200 " + placedAtTheFinger(), "200 down3", "200 " + placed(40, 0),
+                "1000 " + placed(80, 0), "1016 up3"), pc.timed);
     }
 
     // A second finger at 300 ms, 300 pixels across, then both move down 40 pixels twice, which
