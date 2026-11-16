@@ -18,106 +18,352 @@
 
 ---
 
-## Update (28 Oct)
+## New in 0.3.0
 
-0.3.0 is out now ([download](https://github.com/SicarioGaming/Starwire/releases/tag/v0.3.0)). Back opens the stream menu now, there's a Brightness item and a vibration strength setting, and a round of fixes, multi-touch mode among them. There are also two Experimental parts to try, both off until you turn them on: DualSense trigger effects and sharing a USB device from your phone with the PC. If you try them, a [GitHub issue](https://github.com/SicarioGaming/Starwire/issues) saying what happened helps a lot.
+Starwire 0.3.0 is out ([download](https://github.com/SicarioGaming/Starwire/releases/tag/v0.3.0)).
+It brings two Experimental features, DualSense adaptive triggers over Bluetooth and USB device
+passthrough to your PC, and both are switched off until you turn them on. Back now opens the
+stream menu, there is a new Brightness item and a vibration strength setting, and multi-touch mode
+now sends real touches to the PC. If you try the Experimental features, a
+[GitHub issue](https://github.com/SicarioGaming/Starwire/issues) describing what happened would
+help a great deal.
 
-<details open>
-<summary><b>Release notes for 0.3.0</b></summary>
+<table>
+<tr>
+<td width="50%" valign="top">
 
-**Updating from 0.2.1:** install the new APK over 0.2.1. On the PC, the microphone receiver hasn't changed, so keep it as it is. The USB helper is new, and only needed for USB devices.
+**🎯 DualSense trigger effects** (Experimental)<br>
+A DualSense paired over Bluetooth receives the game's own adaptive trigger effects from a host
+that sends them, which Vibepollo does when it emulates a DualSense. For games that send no
+effects, there are four presets, and trigger strength has 8 steps. This needs Android 12 or
+newer, and you can find it in **Settings → Controllers → DualSense**.
+
+</td>
+<td width="50%" valign="top">
+
+<img src="docs/images/0.3.0/adaptive-triggers.gif" alt="Illustration: three drawn scenes, a bow, a car braking and a rivet tool, each with a drawn trigger and a curve of what the effect's bytes ask for. It ends on four effects a test app sent to a wireless DualSense on 26 Oct 2026, all felt as expected, and says Starwire itself later passed a game's own trigger effects through to the pad in a stream.">
+<sub>This is an illustration, not a screen capture. The curves are drawn from the bytes of the effects that a separate test app sent to a DualSense on 26 October. Since then, a game's own effects have come through Starwire to the controller during a stream.</sub>
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+<img src="docs/images/0.3.0/usb-devices.gif" alt="Illustration: a wired pad is plugged into a tablet, and an encrypted link over the home network or a VPN, using the microphone pairing, carries it to the PC's USB helper and usbip-win2 driver, where it shows up as if plugged in there. Experimental, off by default. Tried once with a RedMagic Astra and a Windows 11 PC.">
+<sub>This is an illustration, not a screen capture. I tried it with my RedMagic Astra tablet and my Windows 11 PC: the device worked on the PC, and selecting it again gave it back to the tablet.</sub>
+
+</td>
+<td width="50%" valign="top">
+
+**🔌 USB devices** (Experimental)<br>
+Share one wired device plugged into your phone or tablet, such as a controller, a racing wheel or
+a headset, with the PC you are streaming from. The device travels through an encrypted connection
+tied to the microphone pairing, to the PC's [USB helper](windows/USB-HELPER.md) and usbip-win2's
+driver, version 0.9.8.1. This needs a 64-bit ARM device with Android 9 or newer, and you can find
+it in **Settings → Controllers**.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**↩ Back opens the stream menu,** and it is on by default. Pressing Back again closes the menu.
+The idea comes from Artemis, by way of Artemide.
+
+**Also new:** a controller vibration strength setting, shortcuts for Windows' virtual desktops,
+and, from Moonlight X, a Brightness item in the stream menu, a Left edge swipe action setting and
+a confirmation before Quit Session closes the game. The setting that was called "Display on the
+PC" is now called Virtual display.
+
+</td>
+<td width="50%" valign="top">
+
+<img src="docs/images/0.3.0/back-opens-menu.gif" alt="Illustration: a back swipe on a tablet opens Starwire's stream menu, and Back again closes it. A setting, on by default; turned off, Back ends the stream as before. Checked by JVM tests and tried in a stream on a tablet, not yet on a phone or TV.">
+<sub>This is an illustration. The menu comes from the app's own screenshot test with the game's name replaced, and the stream behind it is a drawing.</sub>
+
+</td>
+</tr>
+</table>
+
+**All device tests for this release were performed on my RedMagic Astra tablet** (Android 16)
+with a DualSense controller, streaming from my Windows 11 PC with Vibepollo, using a test build of
+0.3.0 from 27 October. A game's own trigger effects came through to the controller. A USB device
+plugged into the tablet appeared on the PC and worked there, and selecting it again gave it back
+to the tablet. Back opened the stream menu, the Brightness item and the stream menu itself worked
+during a stream, and updating over 0.2.1 kept my PCs, my settings and my microphone pairing.
+**Not tried yet:** Starwire's own trigger presets and strength steps on a controller, and
+vibration strength, the left edge swipe and the virtual desktop shortcuts during a stream. These
+are checked by tests on a computer. The USB setup script has also had less testing than the rest
+of this release.
+
+**Updating from 0.2.1:** install the new APK over 0.2.1. On the PC, the microphone receiver has
+not changed, so you can keep it as it is. The USB helper is new, and you only need it for USB
+devices.
 
 **Two things work differently after the update:**
 
-- **Back opens the stream menu** instead of ending the stream, and Back again closes it. To leave, use Disconnect or Quit Session in the menu, or turn it off in Settings → In-stream menu.
-- **A tap near the left edge goes to the game.** The brightness slider is now the Brightness item in the stream menu, and a swipe in from the left edge can open it once you pick that in Settings → In-stream menu → Left edge swipe action.
+- **Back opens the stream menu** instead of ending the stream, and pressing Back again closes the
+  menu. To leave a stream, use Disconnect or Quit Session in the menu, or turn this off in
+  **Settings → In-stream menu → Back opens the menu**.
+- **A tap near the left edge of the screen now goes to the game.** The brightness slider is now
+  the Brightness item in the stream menu, and a swipe in from the left edge can also open it once
+  you choose that in **Settings → In-stream menu → Left edge swipe action**.
+
+<details>
+<summary><b>Everything in 0.3.0: what each part needs, every fix, and what was tested</b></summary>
+
+<br>
 
 **Experimental, off by default:**
 
-- **DualSense trigger effects** (Settings → Controllers → DualSense): needs Android 12 or newer and a DualSense paired over Bluetooth. You get the game's own adaptive trigger effects from a host that sends them, or one of four presets.
-- **USB devices** (Settings → Controllers): shares one wired device plugged into your phone or tablet with the PC. Needs a 64-bit ARM device with Android 9 or newer, the microphone receiver with that device paired, the PC's [USB helper](windows/USB-HELPER.md) and usbip-win2's driver, version 0.9.8.1.
+- **DualSense trigger effects** (Settings → Controllers → DualSense (Experimental) → Trigger
+  effects): this needs Android 12 or newer and a DualSense paired over Bluetooth. A controller
+  connected by cable is not supported yet. The setting asks for the Nearby devices permission, and
+  it uses a hidden Android function, so a future Android update could stop it from working. The
+  presets are light resistance, gun click, heavy pedal and buzz, and the Test button sends one
+  effect. If a check fails when the controller connects, Starwire falls back to the usual
+  controller path, and the status line explains why. Rumble and the light bar work as before.
+- **USB devices** (Settings → Controllers → USB devices (Experimental)): once this is on, the
+  stream menu has a USB devices page. Select a device there to share it, and select it again,
+  unplug it or end the stream to give it back. Controllers, racing wheels, flight sticks and
+  audio devices can be shared. Keyboards and mice ask for your confirmation every time. Hubs,
+  storage, network adapters, vendor-specific devices (which includes wired Xbox controllers for
+  now) and USB 3 devices are refused, and the page shows the reason. On the PC, it needs the
+  microphone receiver with this device paired, the [USB helper](windows/USB-HELPER.md)
+  (`setup-usb.cmd`, in the Windows zip) and usbip-win2's driver, version 0.9.8.1. Starwire only
+  shares devices with a PC on your home network or a private VPN. x86_64 Chromebooks and
+  emulators do not get the setting, even ones that can run ARM apps.
 
-**What's new in 0.3.0:**
+<p align="center">
+<img src="docs/images/0.3.0/dualsense-signal-path.png" width="820" alt="Illustration: how the DualSense gets its effects. A game on the Windows PC programs the triggers of the DualSense the host emulates. Vibepollo sends them to the tablet as control message 0x5503. Starwire reads it, turns unknown trigger modes off, builds Bluetooth report 0x31 and sends it with sendData, and the DualSense plays the effects on R2 and L2. Tried in a stream with Starwire, game to pad. Before that, on 26 Oct, a test app sent the light bar colour and four trigger effects from the tablet to the same pad. The message layout and the report bytes are also checked by unit tests.">
+<br>
+<sub>This is an illustration of how a game's trigger effects reach the controller, and of which steps were tried.</sub>
+</p>
 
-- Back opens the menu, on by default. The idea is from Artemis, via Artemide.
-- A Brightness item in the stream menu, and a Left edge swipe action setting. From Moonlight X.
-- Controller vibration strength, 0 to 100% of the game's rumble.
-- Shortcuts for Windows' virtual desktops on the stream menu's Shortcuts page.
-- Quit Session asks first. From Moonlight X.
-- "Display on the PC" is now called Virtual display.
+**What's new:**
 
-**Fixes**
+- **Back opens the stream menu,** and it is on by default. A short press of a TV remote's Back
+  button opens it too. The idea comes from Artemis (Yukino Song), by way of Artemide. Thank you to
+  u/Glove5751 for asking for it.
+- **A Brightness item in the stream menu,** which opens the brightness slider. A controller moves
+  the slider in 5% steps. The item is not shown on Android TV. From Moonlight X.
+- **A Left edge swipe action setting,** which lets a swipe in from the left edge open the
+  brightness slider or the stream menu. It is off by default, so the swipe goes to the game. From
+  Moonlight X.
+- **Controller vibration strength,** under Controllers, from 0 to 100% of the game's rumble, on
+  every controller. Audio haptics on the controller follow the same setting.
+- **Shortcuts for Windows' virtual desktops** on the stream menu's Shortcuts page: Win+Ctrl+Left,
+  Win+Ctrl+Right and Win+Tab (Task View).
+- **Quit Session asks first,** because it closes the game on the PC. From Moonlight X.
+- **Virtual display** is the new name of the setting that used to be called "Display on the PC",
+  with the choices Host default, On and Off. A choice you already made stays as it was. Thank you
+  to u/elenayebenes for asking about it.
+- **Google's video decoders, as found on Pixel phones,** are now asked for the most frames they
+  can handle at the stream's size. This comes from Moonlight X, which measured about 9 ms per frame
+  before the change and about 7.8 ms after it at 120 FPS on a Pixel 10 Pro. I have not tried this
+  myself, because I do not have a Pixel.
+- The Starwire wordmark on the games screen is a little bigger, and the stats box has rounded
+  corners (from Moonlight X).
 
-- Multi-touch mode sent the PC mouse clicks instead of touches. Now each finger is a touch of its own.
-- A button or key you held when you opened the stream menu no longer stays pressed on the PC.
-- With gesture navigation, the last setting scrolls clear of the gesture bar. From Moonlight X.
-- If you change the bitrate twice in a row, your latest choice wins.
-- On Android 5.0 and 5.1, the encrypted microphone's code refuses a damaged packet instead of throwing an error.
+**Fixes:**
 
-**Tried on my RedMagic Astra (Android 16)** with a test build: a game's trigger effects reached a DualSense in a stream, a USB device plugged into the tablet worked on the PC and Stop gave it back, Back opens the menu and the Brightness item worked, and updating over 0.2.1 kept my PCs, settings and microphone pairing. **Not tried yet:** Starwire's own trigger presets and strength steps on a pad. Everything else new is checked by tests on a computer, and hasn't been tried in a stream yet.
+- **Multi-touch mode sent mouse clicks to the PC instead of touches,** and had done so since
+  0.1.0. Each finger now reaches the PC as a touch of its own, with up to two at a time.
+- **The left part of the stream menu was cut off** when the floating menu button was turned off,
+  however the menu was opened. The whole menu now shows. Thank you to SippyCupXIII for reporting
+  it on an AYN Odin 2 Portal ([#14](https://github.com/SicarioGaming/Starwire/issues/14)).
+- **In touchpad mode, dragging after a long press used the right mouse button,** so a drop ended
+  in a right-click. A long press followed by a drag now drags with the left button, and a long
+  press without moving is still a right-click. Thank you to kayakyakr for reporting it
+  ([#5](https://github.com/SicarioGaming/Starwire/issues/5)).
+- A tap near the left edge of the screen goes to the game. Thank you to u/zolidz64 for reporting
+  it.
+- A button or key that was held down when you opened the stream menu no longer stays pressed on
+  the PC.
+- Prevent packet loss sent a packet type that Sunshine, Apollo and Vibepollo do not recognise,
+  which filled Vibepollo's debug log with about 50 lines a second. It now sends a ping instead. I
+  have not yet tried it with Vibepollo logging at its debug level.
+- Sunshine, Apollo and Vibepollo no longer receive a message that only GeForce Experience needs.
+  Vibepollo used to warn about it every time a stream started. Controller vibration has not been
+  tried with this build yet.
+- If you change the bitrate twice in a row during a stream, your latest choice now wins. The idea
+  comes from Moonlight V+ (qiin2333).
+- Starwire no longer tries to show an error or a "please wait" box on a screen that Android has
+  already closed. The idea comes from Moonlight V+ (qiin2333).
+- With gesture navigation, the last setting now scrolls clear of the gesture bar. From Moonlight X.
+- The games screen now picks up a new font size from Android's settings straight away.
+- On Android 5.0 and 5.1, the encrypted microphone's code now refuses a damaged packet instead of
+  throwing an error. Streams were not affected. The fix has not run on Android 5.0 or 5.1 yet.
+
+**What was tested, and what was not:**
+
+- **On a device:** the device tests are described above, under "All device tests for this
+  release". That test build came before the last fixes in this release, which include the fixes
+  for #14 and #5 and a fix for unplugging a USB device at the moment sharing starts. Those fixes
+  are checked by tests on a computer.
+- Before that, on 26 October, a separate test app, not Starwire, sent four trigger effects to the
+  same DualSense from the same tablet, and the light bar changed.
+- **Not tried on a controller yet:** Starwire's own trigger presets and strength steps.
+- **Not run on this build:** the on-device test suite. The USB setup script has also had less
+  testing than the rest of this release.
+- Everything else new in this release, such as vibration strength, the left edge swipe and the
+  virtual desktop shortcuts, is checked by tests on a computer and has not been tried in a stream
+  yet.
+- 1,030 unit tests for the app pass on a computer (314 in 0.2.1). The USB helper's own tests pass
+  on Windows 11, with a fake driver and a test phone over 127.0.0.1.
+- The emulator tests on 17 virtual Android devices run on GitHub when the release is published,
+  so their results come after the release and appear on the
+  [Actions tab](https://github.com/SicarioGaming/Starwire/actions).
+
+**Known issues:**
+
+- The USB devices page shares one device at a time, and wired Xbox controllers are refused for
+  now.
+- With Flip face buttons turned on, the Quit Session question does not swap A and B the way the
+  menu does.
+- Once the left edge swipe is turned on, a slow drag to the right from near the left edge opens
+  the slider too, which is why the swipe is off by default.
+
+[CHANGELOG.md](CHANGELOG.md) has every change in full, and
+[Where every feature comes from](#where-every-feature-comes-from) says who made each part.
 
 </details>
 
-## Update (23 Oct)
+**Next:** profiles are planned for 0.4.0 (thank you to u/kylo_____ben for asking), and a
+contributor's Linux microphone receiver is a candidate for the same release. I will also go
+through the pull requests that are already open on GitHub.
 
-Hey everyone - thank you so much for giving Starwire a chance, and for all of the meaningful feedback I've received thus far. I may never beat the "AI/Vibecoded Slop" allegations fully, but I promise to keep trying with my chin up haha.
+## Why I made Starwire
 
-After [u/rambo3349](https://www.reddit.com/r/MoonlightStreaming/comments/1xd12x5/starwire_020_mic_passthrough_wo_needing_to_modify/19rigium2zrt0/) reviewed Starwire's code and GitHub repo, I made a bunch of changes to hopefully resolve some of those issues. If there are any further issues with the code or Github repo, I will prepare a smaller release to address them (ex. 0.2.2) as opposed to making you guys wait for the next major release (0.3.0, which I am targeting for early next week).
+I have been exclusively streaming games from my headless PC to client devices for about five
+years now. I recently found myself looking for a new Android client, and came upon
+[MoreOrLessSoftware](https://github.com/MoreOrLessSoftware)'s
+[Moonlight X](https://github.com/MoreOrLessSoftware/moonlight-android), which includes direct
+frame pacing and PyroWave support. It had a noticeable impact on my stream quality, even without
+using PyroWave (I don't have the connection strength to use it in practice), but I wondered how
+the stream could perform if it had the Fast V-Sync, LFR, Async, and Codec options that
+Artemis/Artemide has. I also missed some QoL features that the recent Windows forks have adopted
+that seem to be lagging in terms of an Android client equivalent.
 
-In the longer-term pipeline (0.4.0), I noticed a lot of users are connecting from an Ayn Thor or similar DS device. I'm actually super jealous, my Thor should arrive in the next month and on that front I'm wondering what you guys would like to see in terms of "DS features" in future Starwire releases.
+Back-end development started from
+[Moonlight X](https://github.com/MoreOrLessSoftware/moonlight-android)'s video pipeline, adds
+the touchscreen tools from [Artemide](https://github.com/derflacco/moonlight-android) and
+[Artemis](https://github.com/ClassicOldSong/moonlight-android), and picks up favourite features
+from [Moonlight V+](https://github.com/qiin2333/moonlight-vplus),
+[Moonlit Artemis](https://github.com/4had45/moonlit-artemis) and
+[Moonlight X Turnip](https://github.com/NoCrypt/moonlight-x-turnip). I then gave it a refreshed UI
+that draws from some of the trends coming out of Silicon Valley these days. It installs next to
+any Moonlight you already have, so you can try it without giving anything up.
 
-Aside from that, here are the release notes for 0.2.1, which is out now ([download](https://github.com/SicarioGaming/Starwire/releases/tag/v0.2.1)):
+## Features
 
-<details>
-<summary><b>Release notes for 0.2.1</b></summary>
+<table>
+<tr>
+<td width="50%" valign="top">
 
-**Following u/rambo3349's code review (already live on GitHub):**
+### 🎨 A look that follows your game
+The screens take their colour from the game you've picked. Games without cover art each get
+their own take on the Starwire tile, and apps like Steam Big Picture get their own icons. Your
+last game is ready to go with one tap, with its stream settings right under its name, and a Quit
+button sits beside Resume while it runs.
 
-- **Real commit history:** every commit now has its own description, and the repo shares history with Moonlight X again, so upstream updates can be merged properly.
-- **Prebuilt libraries:** every one is traced back to its source and rebuilt byte for byte by GitHub ([PROVENANCE.md](docs/PROVENANCE.md)).
-- **Clearer about what's experimental:** the custom Turnip driver is now described as an experimental option, not listed with the speed features.
-- **Mic measurements:** the 0.2.0 numbers are published with the raw data and a script that recomputes them ([here](docs/measurements/2026-10-22-mic/)), with two rounded numbers corrected.
-- **Security and contributing:** a [SECURITY.md](SECURITY.md) with private vulnerability reporting, and a [CONTRIBUTING.md](CONTRIBUTING.md).
-- **Checksums** are on the release pages, so you can check your download.
+### 🎮 Everything during a stream, one tap away
+Open the menu with Back, the floating button, a three-finger tap or by holding Select on a
+controller. Keyboard, full on-screen keyboard, mouse modes, zoom, key shortcuts, monitor
+switching, bitrate, brightness, clipboard: it's all in one grid, and works with a controller
+too. Anything that turns on and off has a small switch, so you can see what's on at a glance.
 
-**What's new in 0.2.1:**
+### ⚡ Low-latency video options
+Moonlight X's Vulkan renderer and PyroWave codec, and the low-latency options from Artemis and
+Artemide: Warp Drive, Fast V-Sync and async decoding. I ported them, but I haven't measured how
+much each one saves in Starwire yet.
 
-- **Encrypted microphone:** the mic is now encrypted, and only devices you've paired can send audio to your PC. Being on the same network is no longer enough, and encryption no longer requires Tailscale or a similar VPN.
-- **Less mic delay:** the PC side plays through a faster Windows audio path. In my tests the median delay dropped from about 114 to 98 ms, with far fewer dropouts.
-- **The mic setup window** fits small screens, like a 1280x720 stream.
-- **Custom resolutions and frame rates,** in the main settings and per game. These come from Moonlight X, credited to them.
-- **An about page** with credits and the full open-source licences.
-- **The floating menu button stays where you put it,** for each orientation.
-- **The custom driver option** is marked experimental, with a plain warning before you turn it on.
-- Various other small cleanups to the Github repo and changes to wording for transparency.
+</td>
+<td width="50%" valign="top">
 
-**Fixes**
+<img src="docs/images/stream_menu_aniimo.jpg" alt="The in-stream menu open over a game: the game's name, a grid of tools such as Keyboard, Full Keyboard, Mouse, Shortcuts, Monitors and Bitrate, and buttons to close, quit or disconnect">
+<sub>The in-stream menu over Aniimo on my tablet. Stats and the menu button are switched on. Aniimo © Pawprint Studio.</sub>
 
-- The PC's cursor comes back if Starwire is closed or crashes while it's hidden, and there's a "Fix PC cursor" button in the stream menu.
-- No more "PC not paired" flicker on the games screen.
-- No more crash on RedMagic devices when the games screen resizes.
-- No more crashes from some unusual host replies, or on the resume button on Android 5 and 6.
-- A rare video mix-up with async decoding after a hiccup is fixed.
-- On Android 5 to 7, the background animations now stop when animations are turned off (saves battery).
-- The in-stream menu and the games screen fit small screens better.
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 
-**Testing and Development**
+<img src="docs/images/cover_glow_settings.png" alt="The settings screen: section buttons along the top, settings in plain words, and a panel predicting how the chosen options will play">
+<sub>Redesigned settings, with the Predicted impact panel on the right.</sub>
 
-- 314 unit tests (from none), 32 of them screenshot tests, and 138 on-device tests.
-- The same tests also run on 5 virtual devices, including a Fold shape folded, half-open and unfolded. (Thank you to u/MickeyBronson)
-- Checks run automatically on every change.
+</td>
+<td width="50%" valign="top">
 
-**Known issues**
+### 🧭 Feature-packed and intuitive settings
+Sections with plain names (Stream, Sound & vibration, Controllers…), and a **Predicted impact**
+panel that shows whether your choices lean towards fastest response or smoothest motion, and
+which setting is pushing it which way. Tap a setting that came from another fork and a small
+line under the panel says where it came from and who made it.
 
-- Right-to-left languages (Hebrew, Persian) show translated text, but the layout doesn't mirror yet.
-- On very narrow screens, the Quit and Disconnect buttons can cut their labels short.
-- The custom Turnip driver option still hasn't been tried with a real Turnip driver.
+### 🖐 Made for touchscreens
+Pinch to zoom anytime, trackpad modes, long-press to right-click, an on-screen keyboard with
+every key, and the option to hide the PC's mouse pointer while you play.
 
-</details>
+### 📳 Feel the bass
+Audio haptics turns a game's bass into vibration on your device or controller.
 
-Thank you all for your continued trust and engagement. Please keep an eye out for announcements re: 0.3.0. Cheers!
+### 🎙 Your microphone on the PC
+Talk in game chat or Discord through your device's microphone, **with Vibepollo, Sunshine or
+Apollo as they are**: one setup script on the PC, one switch in Starwire, and a code to pair
+them once. The audio is encrypted, and only devices you've paired can send it. See
+[New in 0.2.0](#new-in-020-your-microphone-on-the-pc-with-any-host) for how it works and how to
+set it up.
 
----
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🎯 Adaptive triggers on a DualSense
+Experimental, from 0.3.0. A DualSense paired over Bluetooth receives the game's own trigger
+effects from a host that sends them, or one of four presets for games that send none, with 8
+strength steps. It needs Android 12 or newer. A game's effects have come through to the
+controller during a stream on my RedMagic Astra, but I have not yet felt the presets.
+
+</td>
+<td width="50%" valign="top">
+
+### 🔌 Your phone's USB devices on the PC
+Experimental, from 0.3.0. Plug a wired controller, racing wheel, flight stick or headset into
+your phone or tablet and use it on the PC you are streaming from, through an encrypted connection
+and a small USB helper on the PC. It shares one device at a time and needs a 64-bit ARM device
+with Android 9 or newer. The [USB helper guide](windows/USB-HELPER.md) covers the PC side.
+
+</td>
+</tr>
+</table>
+
+<p align="center">
+<img src="docs/images/aniimo_gameplay.jpg" width="820" alt="Aniimo streaming full screen on a tablet, with a one-line stats readout at the top: 47 Mbps, ping 4 ms, decode 1.2 ms, dropped 0.0%, 160 FPS">
+<br>
+<sub>Aniimo streamed to my RedMagic Astra, with the Lite stats line at the top. Aniimo © Pawprint Studio.</sub>
+</p>
+
+## Get started
+
+1. **Set up your PC.** I use [Vibepollo](https://github.com/Nonary/Vibepollo), and it's the only
+   host I test with; it supports every feature. [Apollo](https://github.com/ClassicOldSong/Apollo)
+   and [Sunshine](https://github.com/LizardByte/Sunshine) should work too, since Vibepollo is built
+   on them, but I haven't tried them myself. Some extras need Vibepollo or an Apollo-based host,
+   and the feature tables below mark them. On Sunshine that means no clipboard sharing, PC
+   commands, Virtual Display, changing the bitrate mid-stream or hiding the PC cursor.
+2. **Install Starwire.** Download the latest `Starwire-…apk` from the
+   [Releases page](https://github.com/SicarioGaming/Starwire/releases) and open it.
+3. **Pair.** Tap your PC, then type the PIN Starwire shows into your host's PIN page (usually
+   `https://localhost:47990`). You only do this once.
+4. **Play.** Tap a game, then **Play**.
+
+Android 5.0+. PyroWave, the experimental custom Turnip driver option and USB devices need a
+64-bit ARM device, and USB devices needs Android 9 or newer. DualSense trigger effects need
+Android 12 or newer. Updates from the Releases page install over the top and keep your settings,
+and [Obtainium](https://github.com/ImranR98/Obtainium) can keep it updated for you.
+
 ## New in 0.2.0: your microphone on the PC, with any host
 
 Mic passthrough was a highly requested feature after the 0.1.0 launch, and one of the last things
@@ -243,116 +489,6 @@ seconds).
 
 </details>
 
-## Why I made Starwire
-
-I have been exclusively streaming games from my headless PC to client devices for about five
-years now. I recently found myself looking for a new Android client, and came upon
-[MoreOrLessSoftware](https://github.com/MoreOrLessSoftware)'s
-[Moonlight X](https://github.com/MoreOrLessSoftware/moonlight-android), which includes direct
-frame pacing and PyroWave support. It had a noticeable impact on my stream quality, even without
-using PyroWave (I don't have the connection strength to use it in practice), but I wondered how
-the stream could perform if it had the Fast V-Sync, LFR, Async, and Codec options that
-Artemis/Artemide has. I also missed some QoL features that the recent Windows forks have adopted
-that seem to be lagging in terms of an Android client equivalent.
-
-Back-end development started from
-[Moonlight X](https://github.com/MoreOrLessSoftware/moonlight-android)'s video pipeline, adds
-the touchscreen tools from [Artemide](https://github.com/derflacco/moonlight-android) and
-[Artemis](https://github.com/ClassicOldSong/moonlight-android), and picks up favourite features
-from [Moonlight V+](https://github.com/qiin2333/moonlight-vplus),
-[Moonlit Artemis](https://github.com/4had45/moonlit-artemis) and
-[Moonlight X Turnip](https://github.com/NoCrypt/moonlight-x-turnip). I then gave it a refreshed UI
-that draws from some of the trends coming out of Silicon Valley these days. It installs next to
-any Moonlight you already have, so you can try it without giving anything up.
-
-## Features
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-### 🎨 A look that follows your game
-The screens take their colour from the game you've picked. Games without cover art each get
-their own take on the Starwire tile, and apps like Steam Big Picture get their own icons. Your
-last game is ready to go with one tap, with its stream settings right under its name, and a Quit
-button sits beside Resume while it runs.
-
-### 🎮 Everything during a stream, one tap away
-Open the menu with the floating button, a three-finger tap or by holding Select on a
-controller. Keyboard, full on-screen keyboard, mouse modes, zoom, key shortcuts, monitor
-switching, bitrate, clipboard: it's all in one grid, and works with a controller too. Anything
-that turns on and off has a small switch, so you can see what's on at a glance.
-
-### ⚡ Low-latency video options
-Moonlight X's Vulkan renderer and PyroWave codec, and the low-latency options from Artemis and
-Artemide: Warp Drive, Fast V-Sync and async decoding. I ported them, but I haven't measured how
-much each one saves in Starwire yet.
-
-</td>
-<td width="50%" valign="top">
-
-<img src="docs/images/stream_menu_aniimo.jpg" alt="The in-stream menu open over a game: the game's name, a grid of tools such as Keyboard, Full Keyboard, Mouse, Shortcuts, Monitors and Bitrate, and buttons to close, quit or disconnect">
-<sub>The in-stream menu over Aniimo on my tablet. Stats and the menu button are switched on. Aniimo © Pawprint Studio.</sub>
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-<img src="docs/images/cover_glow_settings.png" alt="The settings screen: section buttons along the top, settings in plain words, and a panel predicting how the chosen options will play">
-<sub>Redesigned settings, with the Predicted impact panel on the right.</sub>
-
-</td>
-<td width="50%" valign="top">
-
-### 🧭 Feature-packed and intuitive settings
-Sections with plain names (Stream, Sound & vibration, Controllers…), and a **Predicted impact**
-panel that shows whether your choices lean towards fastest response or smoothest motion, and
-which setting is pushing it which way. Tap a setting that came from another fork and a small
-line under the panel says where it came from and who made it.
-
-### 🖐 Made for touchscreens
-Pinch to zoom anytime, trackpad modes, long-press to right-click, an on-screen keyboard with
-every key, and the option to hide the PC's mouse pointer while you play.
-
-### 📳 Feel the bass
-Audio haptics turns a game's bass into vibration on your device or controller.
-
-### 🎙 Your microphone on the PC
-Talk in game chat or Discord through your device's microphone, **with Vibepollo, Sunshine or
-Apollo as they are**: one setup script on the PC, one switch in Starwire, and a code to pair
-them once. The audio is encrypted, and only devices you've paired can send it. See
-[New in 0.2.0](#new-in-020-your-microphone-on-the-pc-with-any-host) for how it works and how to
-set it up.
-
-</td>
-</tr>
-</table>
-
-<p align="center">
-<img src="docs/images/aniimo_gameplay.jpg" width="820" alt="Aniimo streaming full screen on a tablet, with a one-line stats readout at the top: 47 Mbps, ping 4 ms, decode 1.2 ms, dropped 0.0%, 160 FPS">
-<br>
-<sub>Aniimo streamed to my RedMagic Astra, with the Lite stats line at the top. Aniimo © Pawprint Studio.</sub>
-</p>
-
-## Get started
-
-1. **Set up your PC.** I use [Vibepollo](https://github.com/Nonary/Vibepollo), and it's the only
-   host I test with; it supports every feature. [Apollo](https://github.com/ClassicOldSong/Apollo)
-   and [Sunshine](https://github.com/LizardByte/Sunshine) should work too, since Vibepollo is built
-   on them, but I haven't tried them myself. Some extras need Vibepollo or an Apollo-based host,
-   and the feature tables below mark them. On Sunshine that means no clipboard sharing, PC
-   commands, Virtual Display, changing the bitrate mid-stream or hiding the PC cursor.
-2. **Install Starwire.** Download the latest `Starwire-…apk` from the
-   [Releases page](https://github.com/SicarioGaming/Starwire/releases) and open it.
-3. **Pair.** Tap your PC, then type the PIN Starwire shows into your host's PIN page (usually
-   `https://localhost:47990`). You only do this once.
-4. **Play.** Tap a game, then **Play**.
-
-Android 5.0+. PyroWave and the experimental custom Turnip driver option need a 64-bit ARM device.
-Updates from the Releases page install over the top and keep your settings, and
-[Obtainium](https://github.com/ImranR98/Obtainium) can keep it updated for you.
-
 ## Development
 
 I made Starwire as a vibecoding exercise after experiencing the wonderful software that is
@@ -360,7 +496,7 @@ Vibepollo. I decided what the app should do and how it should look, and
 [Claude Code](https://claude.com/claude-code) wrote the code. I also
 used [REA](https://github.com/morluto/rea) by morluto to look inside the other apps and see how
 their features work. I test on my RedMagic Astra (Snapdragon 8 Elite, Android 16) with a GameSir
-G8+, streaming from Vibepollo, and on my Galaxy Z Fold 6. The on-device tests in
+G8+ and a DualSense, streaming from Vibepollo, and on my Galaxy Z Fold 6. The on-device tests in
 `app/src/androidTest` run on the tablet. Some things haven't been tried yet: the custom
 Turnip driver option with a real Turnip driver, and hosts other than Vibepollo.
 [CONTRIBUTING.md](CONTRIBUTING.md) says how to build Starwire and run the tests.
@@ -370,7 +506,8 @@ Turnip driver option with a real Turnip driver, and hosts other than Vibepollo.
 | Folder or file | What it is |
 | --- | --- |
 | [`app/`](app) | The Starwire Android app, with its tests in `app/src/test` and `app/src/androidTest` |
-| [`windows/`](windows) | The microphone receiver and its setup for the Windows PC |
+| [`usbip-backend/`](usbip-backend) | The USB exporter that USB devices uses, from Moonlight V+, built on usbipdcpp and libusb ([its README](usbip-backend/README.md)) |
+| [`windows/`](windows) | The microphone receiver, the USB helper and their setup for the Windows PC |
 | [`docs/`](docs) | Screenshots, the [roadmap](docs/ROADMAP.md), [where the prebuilt libraries come from](docs/PROVENANCE.md), the mic measurements and maintainer notes |
 | [`.github/`](.github) | The workflows that build, test and release Starwire, the issue forms, the release notes and the maintainer's scripts |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each version |
@@ -380,11 +517,70 @@ Turnip driver option with a real Turnip driver, and hosts other than Vibepollo.
 | [`LICENSE.txt`](LICENSE.txt) | The GPL-3.0 licence |
 | `.gitmodules` | Links moonlight-common-c, the streaming protocol library, from [Starwire's copy](https://github.com/SicarioGaming/moonlight-common-c) |
 | `build.gradle`, `settings.gradle`, `gradle.properties`, `gradle/`, `gradlew`, `gradlew.bat` | The Gradle build settings and the Gradle wrapper |
-| `.gitignore` | Files kept out of the repo |
+| `.gitignore`, `.gitattributes` | Files kept out of the repo, and the shell scripts Git keeps with Unix line endings |
 
 ## Changelog
 
 The full list of changes in every version, and what's coming next, is in [CHANGELOG.md](CHANGELOG.md).
+
+<details>
+<summary><b>Earlier updates</b></summary>
+
+### Update (23 Oct)
+
+Hey everyone - thank you so much for giving Starwire a chance, and for all of the meaningful feedback I've received thus far. I may never beat the "AI/Vibecoded Slop" allegations fully, but I promise to keep trying with my chin up haha.
+
+After [u/rambo3349](https://www.reddit.com/r/MoonlightStreaming/comments/1xd12x5/starwire_020_mic_passthrough_wo_needing_to_modify/19rigium2zrt0/) reviewed Starwire's code and GitHub repo, I made a bunch of changes to hopefully resolve some of those issues. If there are any further issues with the code or Github repo, I will prepare a smaller release to address them (ex. 0.2.2) as opposed to making you guys wait for the next major release (0.3.0, which I am targeting for early next week).
+
+In the longer-term pipeline (0.4.0), I noticed a lot of users are connecting from an Ayn Thor or similar DS device. I'm actually super jealous, my Thor should arrive in the next month and on that front I'm wondering what you guys would like to see in terms of "DS features" in future Starwire releases.
+
+Aside from that, here are the release notes for 0.2.1, which is out now ([download](https://github.com/SicarioGaming/Starwire/releases/tag/v0.2.1)):
+
+#### Release notes for 0.2.1
+
+**Following u/rambo3349's code review (already live on GitHub):**
+
+- **Real commit history:** every commit now has its own description, and the repo shares history with Moonlight X again, so upstream updates can be merged properly.
+- **Prebuilt libraries:** every one is traced back to its source and rebuilt byte for byte by GitHub ([PROVENANCE.md](docs/PROVENANCE.md)).
+- **Clearer about what's experimental:** the custom Turnip driver is now described as an experimental option, not listed with the speed features.
+- **Mic measurements:** the 0.2.0 numbers are published with the raw data and a script that recomputes them ([here](docs/measurements/2026-10-22-mic/)), with two rounded numbers corrected.
+- **Security and contributing:** a [SECURITY.md](SECURITY.md) with private vulnerability reporting, and a [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Checksums** are on the release pages, so you can check your download.
+
+**What's new in 0.2.1:**
+
+- **Encrypted microphone:** the mic is now encrypted, and only devices you've paired can send audio to your PC. Being on the same network is no longer enough, and encryption no longer requires Tailscale or a similar VPN.
+- **Less mic delay:** the PC side plays through a faster Windows audio path. In my tests the median delay dropped from about 114 to 98 ms, with far fewer dropouts.
+- **The mic setup window** fits small screens, like a 1280x720 stream.
+- **Custom resolutions and frame rates,** in the main settings and per game. These come from Moonlight X, credited to them.
+- **An about page** with credits and the full open-source licences.
+- **The floating menu button stays where you put it,** for each orientation.
+- **The custom driver option** is marked experimental, with a plain warning before you turn it on.
+- Various other small cleanups to the Github repo and changes to wording for transparency.
+
+**Fixes**
+
+- The PC's cursor comes back if Starwire is closed or crashes while it's hidden, and there's a "Fix PC cursor" button in the stream menu.
+- No more "PC not paired" flicker on the games screen.
+- No more crash on RedMagic devices when the games screen resizes.
+- No more crashes from some unusual host replies, or on the resume button on Android 5 and 6.
+- A rare video mix-up with async decoding after a hiccup is fixed.
+- On Android 5 to 7, the background animations now stop when animations are turned off (saves battery).
+- The in-stream menu and the games screen fit small screens better.
+
+**Testing and Development**
+
+- 314 unit tests (from none), 32 of them screenshot tests, and 138 on-device tests.
+- The same tests also run on 5 virtual devices, including a Fold shape folded, half-open and unfolded. (Thank you to u/MickeyBronson)
+- Checks run automatically on every change.
+
+**Known issues**
+
+- Right-to-left languages (Hebrew, Persian) show translated text, but the layout doesn't mirror yet.
+- On very narrow screens, the Quit and Disconnect buttons can cut their labels short.
+- The custom Turnip driver option still hasn't been tried with a real Turnip driver.
+
+Thank you all for your continued trust and engagement. Please keep an eye out for announcements re: 0.3.0. Cheers!
 
 **2026/10/22:** [Version 0.2.0](https://github.com/SicarioGaming/Starwire/releases/tag/v0.2.0)
 sends your microphone to the PC with any host (Vibepollo, Sunshine, Apollo), through a small
@@ -401,6 +597,8 @@ has been released, and fixes an error that caused the client to crash upon loadi
 apps. To update, download the new APK and open it on your device. You will receive a prompt to
 update the existing app, which will retain existing settings. Obtainium users should receive the
 update automatically.
+
+</details>
 
 ---
 
@@ -456,7 +654,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Floating menu button (tap to open, drag to move) | Ported from Artemis (Yukino Song / ClassicOldSong), via Artemide |
 | A smaller floating button that stays see-through until you touch it, and closes the menu too | New in Starwire, on the Artemis button |
 | The floating button stays where you dragged it, with a spot for landscape and one for portrait | New in Starwire |
-| From 0.3.0: Back opens the menu instead of ending the stream, and Back again closes it. It's on by default, with a switch in Settings → In-stream menu. A short press of a TV remote's Back opens the menu too. Tested in JVM tests, not yet tried on a phone or a TV | Idea from Artemis (Yukino Song / ClassicOldSong), via Artemide. The TV remote part is new in Starwire, on Moonlight X's remote handling |
+| From 0.3.0: Back opens the menu instead of ending the stream, and Back again closes it. It's on by default, with a switch in Settings → In-stream menu. A short press of a TV remote's Back opens the menu too. Tested in JVM tests and tried in a stream on a tablet, not yet on a phone or a TV | Idea from Artemis (Yukino Song / ClassicOldSong), via Artemide. The TV remote part is new in Starwire, on Moonlight X's remote handling |
 | On/off switches on the items that toggle something, and the menu stays open when you tap them | New in Starwire |
 | The menu header shows the game's cover art, or a Starwire tile for Desktop and games without art | New in Starwire |
 | Shortcuts page: Esc, F11, Alt+F4, Alt+Enter, Ctrl+V, Win, Win+D, Win+G, Ctrl+Alt+Tab, Shift+Tab, Win+Shift+Left, Ctrl+Alt+Shift+F1/F12, Win+Alt+B | Ported from Axixi2233's Moonlight fork (axi), via Artemis and Artemide |
@@ -472,7 +670,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | On-screen controller toggle | Ported from Artemis (Yukino Song), via Artemide |
 | Monitor switcher (Monitor 1–6, using the host's Ctrl+Alt+Shift+F1… shortcuts) | Idea from Moonlit Artemis (Mohammad Forhad / 4had45) |
 | Change bitrate mid-stream **(Vibepollo)** | Idea from Moonlight V+ (qiin2333) |
-| From 0.3.0: a Brightness item that opens the brightness slider, left out on Android TV. A controller moves it in 5% steps. A swipe in from the left edge of the screen can open the slider or the menu too. It's off by default: turn it on in Settings, In-stream menu, Left edge swipe action. The swipe starts within 80 dp of the edge (about 1.3 cm) and moves 60 dp to the right (about 1 cm) within half a second, so a slow drag from near the edge counts too, and the drag goes to the game until then. A tap at the edge goes to the game. The slider stays up until you change it, then hides 2 seconds after your last change. Checked by tests, not yet tried in a stream | Ported from Moonlight X (MoreOrLessSoftware), as a tile in Starwire's menu and a setting under In-stream menu |
+| From 0.3.0: a Brightness item that opens the brightness slider, left out on Android TV. A controller moves it in 5% steps. A swipe in from the left edge of the screen can open the slider or the menu too. It's off by default: turn it on in Settings, In-stream menu, Left edge swipe action. The swipe starts within 80 dp of the edge (about 1.3 cm) and moves 60 dp to the right (about 1 cm) within half a second, so a slow drag from near the edge counts too, and the drag goes to the game until then. A tap at the edge goes to the game. The slider stays up until you change it, then hides 2 seconds after your last change. Checked by tests. The Brightness item was tried in a stream on a tablet; the swipe hasn't been tried in a stream yet | Ported from Moonlight X (MoreOrLessSoftware), as a tile in Starwire's menu and a setting under In-stream menu |
 | From 0.3.0: Quit Session asks before it closes the game on the PC. Yes quits, and No or Back keeps streaming. Checked by tests with touch and a controller's A and B buttons, not yet tried in a stream | Ported from Moonlight X (MoreOrLessSoftware) |
 
 </details>
@@ -518,8 +716,9 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Send your microphone to the PC with any host: a VBAN stream to Starwire's receiver on the PC, which plays it into VB-Cable. Encrypted from 0.2.1, and only from devices you've paired with the PC; a "Not encrypted" option stays for Voicemeeter and other VBAN apps ([see above](#new-in-020-your-microphone-on-the-pc-with-any-host)). The receiver has no window, just an icon by the clock with pairing, a mic check and a test tone | New in Starwire, with its Windows receiver and setup script; VBAN is VB-Audio's network audio format |
 | Or send it over the stream itself, with a choice of microphone **(needs [logabell's Apollo build](https://github.com/logabell/apollo-microphone/releases) on the PC)** | Ported from logabell's Artemis and moonlight-common-c microphone changes ([Artemis PR #537](https://github.com/ClassicOldSong/moonlight-android/pull/537)); echo-cancelled capture is new in Starwire |
 | Per-game settings for the new options (codec, V-Sync, LFR, async decode, display, touch mode, cursor, audio haptics, and from 0.2.1 the jitter buffer) | Extends Moonlight X's per-app settings (MoreOrLessSoftware); the per-game jitter buffer is from Moonlight X too |
-| From 0.3.0: DualSense trigger effects over Bluetooth (Experimental, Android 12 and newer): the game's own adaptive trigger effects, four presets for games that send none, a strength setting, a status line and a Test button. Not tried with a real pad in Starwire yet. A separate test app's light bar change and four trigger effects worked on one | Bluetooth route and pad matching ported from Moonlight V+ (qiin2333); the code that passes the host's effects to Java is from Nightjar (Ramazan Kara); report layout written from Linux's hid-playstation driver, SDL and Nielk1's trigger notes; uses HiddenApiBypass (LSPosed). The rest is new in Starwire |
-| USB devices (Experimental), the phone's side: a setting under Controllers adds a "USB devices" page to the stream menu, which shares a wired device with the PC through the USB/IP exporter inside the app and an encrypted tunnel to the PC's USB helper, after the device rules decide what may be shared (one device at a time, Android 9 or later on 64-bit ARM). Tested only on a computer, against a fake helper on 127.0.0.1; no device has been shared through it on a phone yet | The exporter is ported from Moonlight V+'s usbip-backend (qiin2333), after yunsmall's Android-Usbipdcpp, and built on usbipdcpp (yunsmall, LGPL-3.0) and libusb; the stream menu's page, the tunnel, the device rules and one-device sharing are new in Starwire |
+| From 0.3.0: DualSense trigger effects over Bluetooth (Experimental, Android 12 and newer): the game's own adaptive trigger effects, four presets for games that send none, a strength setting, a status line and a Test button. In a stream on a RedMagic Astra (Android 16), a game's own effects came through Starwire to a DualSense. The presets and strength steps haven't been felt on a pad yet. Before that, a separate test app changed the same pad's light bar and sent it four trigger effects | Bluetooth route and pad matching ported from Moonlight V+ (qiin2333); the code that passes the host's effects to Java is from Nightjar (Ramazan Kara); report layout written from Linux's hid-playstation driver, SDL and Nielk1's trigger notes; uses HiddenApiBypass (LSPosed). The rest is new in Starwire |
+| USB devices (Experimental), the phone's side: a setting under Controllers adds a "USB devices" page to the stream menu, which shares a wired device with the PC through the USB/IP exporter inside the app and an encrypted tunnel to the PC's USB helper, after the device rules decide what may be shared (one device at a time, Android 9 or later on 64-bit ARM). Tested on a computer against a fake helper on 127.0.0.1, and tried once on a RedMagic Astra (Android 16) with a Windows 11 PC and the real helper: a device plugged into the tablet showed up on the PC and worked there, and Stop gave it back | The exporter is ported from Moonlight V+'s usbip-backend (qiin2333), after yunsmall's Android-Usbipdcpp, and built on usbipdcpp (yunsmall, LGPL-3.0) and libusb; the stream menu's page, the tunnel, the device rules and one-device sharing are new in Starwire |
+| USB devices, the PC's side: Starwire's USB helper for Windows (`setup-usb.cmd`, in the Windows zip) takes the device over the encrypted tunnel from a phone paired with the PC's microphone receiver, checks it against the same device rules and attaches it with usbip-win2's driver, version 0.9.8.1. Off until you turn it on in its menu, and each phone needs its own tick. Its own tests pass on Windows 11 with a fake driver and a test phone; the setup's install hasn't been tried yet ([USB-HELPER.md](windows/USB-HELPER.md)) | New in Starwire; uses usbip-win2's driver, installed separately |
 
 </details>
 
@@ -544,12 +743,12 @@ repos a star:
 | Project | Author | Used for |
 | --- | --- | --- |
 | [Moonlight Android](https://github.com/moonlight-stream/moonlight-android) | Cameron Gutman and contributors | The original client everything here is built on |
-| [Moonlight X](https://github.com/MoreOrLessSoftware/moonlight-android) | MoreOrLessSoftware | The base of Starwire: Vulkan renderer, PyroWave, overlay menu, per-app settings, Quick Launch, custom resolutions and frame rates |
-| [Artemis](https://github.com/ClassicOldSong/moonlight-android) | Yukino Song (ClassicOldSong) | Pan/zoom, touch modes, clipboard, server commands, Virtual Display, Warp pacing, floating button, and more (via Artemide) |
+| [Moonlight X](https://github.com/MoreOrLessSoftware/moonlight-android) | MoreOrLessSoftware | The base of Starwire: Vulkan renderer, PyroWave, overlay menu, per-app settings, Quick Launch, custom resolutions and frame rates. From 0.3.0: the Brightness item, the left edge swipe, Quit Session's question, what Starwire asks of Google's decoders, the rounded stats box and the room for the gesture bar |
+| [Artemis](https://github.com/ClassicOldSong/moonlight-android) | Yukino Song (ClassicOldSong) | Pan/zoom, touch modes, clipboard, server commands, Virtual Display, Warp pacing, floating button, the idea for Back opening the menu, and more (via Artemide) |
 | [Artemide](https://github.com/derflacco/moonlight-android) | derflacco | Nano Pacer / Fast V-Sync, Sync and Async LFR, async decode, MediaTek low-latency work, and the version of all the Artemis features above that Starwire ported |
 | [Moonlight (Axixi2233 fork)](https://github.com/Axixi2233/moonlight-android) | Axixi2233 | Full keyboard, shortcuts list, Lite overlay, shortcut file format (via Artemis) |
 | [Moonlight X Turnip](https://github.com/NoCrypt/moonlight-x-turnip) | ncpt (NoCrypt) | Custom Turnip Vulkan driver for PyroWave |
-| [Moonlight V+](https://github.com/qiin2333/moonlight-vplus) | qiin2333 | The USB exporter that USB sharing is built on (usbip-backend). Ideas: bitrate mid-stream, audio haptics, 1% lows, and skipping a dialog whose screen has closed. Ported: how the DualSense trigger effects reach the pad over Bluetooth (the four send calls, finding the pad) |
+| [Moonlight V+](https://github.com/qiin2333/moonlight-vplus) | qiin2333 | The USB exporter that USB sharing is built on (usbip-backend). Ideas: bitrate mid-stream and one change at a time, audio haptics, 1% lows, and skipping a dialog whose screen has closed. Ported: how the DualSense trigger effects reach the pad over Bluetooth (the four send calls, finding the pad) |
 | [Moonlit Artemis](https://github.com/4had45/moonlit-artemis) | Mohammad Forhad (4had45) | Ideas: monitor switcher, pinch to zoom anytime |
 | [Moonlight Fold](https://github.com/sblocktechnologies/moonlight-fold) | sblocktechnologies | Idea: letting the stream follow a foldable's inner screen |
 | [Nightjar](https://github.com/RamazanKara/nightjar) | Ramazan Kara | Ported: passing the host's DualSense trigger effects from moonlight-common-c to Java |
@@ -562,6 +761,21 @@ repos a star:
 | [Apollo](https://github.com/ClassicOldSong/Apollo) / [Sunshine](https://github.com/LizardByte/Sunshine) | ClassicOldSong / LizardByte | The hosts Vibepollo is built on |
 | [Claude Code](https://claude.com/claude-code) | Anthropic | Writing the Starwire code, ports, redesign and tests |
 | [REA](https://github.com/morluto/rea) | morluto | Reverse-engineering and analysis (MIT) |
+
+The DualSense and USB parts also rely on these:
+
+- [HiddenApiBypass](https://github.com/LSPosed/AndroidHiddenApiBypass) by LSPosed (Apache-2.0)
+  reaches the hidden Android call that sends the DualSense's trigger effects.
+- [Nielk1's trigger effect notes](https://gist.github.com/Nielk1/6d54cc2c00d2201ccb8c2720ad7538db)
+  (MIT) give the layout of the trigger effects, and which modes Starwire passes on to the pad.
+- Linux's [hid-playstation](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c)
+  driver (Sony Interactive Entertainment) and [SDL](https://github.com/libsdl-org/SDL) (Sam Lantinga
+  and SDL's contributors) are where the layout of the DualSense's reports was read from, not copied.
+- [libusb](https://github.com/libusb/libusb) (LGPL-2.1) reaches the shared USB device for usbipdcpp,
+  inside the app.
+- [usbip-win2](https://github.com/vadimgrn/usbip-win2) by vadimgrn is the Windows driver, version
+  0.9.8.1, that the PC's USB helper attaches a shared device with. You install it yourself; it isn't
+  part of Starwire.
 
 If I've credited something wrongly or missed you, please let me know.
 
@@ -578,14 +792,16 @@ Bug reports and ideas are very welcome as a
 Starwire is built for Android 5.0 or newer, on any CPU type (64-bit and 32-bit ARM, and x86),
 but the devices I test on run recent Android, so older versions haven't been tried. If something
 breaks on yours, please open an issue. Some features need a recent device (async decoding, the
-Vulkan renderer), and PyroWave and the custom Turnip driver option need a 64-bit ARM device
-(`arm64-v8a`), since their libraries are only built for that. Updates install over the top with
-your settings kept, as long as they come from these releases. Tools such as
+Vulkan renderer), and PyroWave, the custom Turnip driver option and USB devices need a 64-bit ARM
+device (`arm64-v8a`), since their libraries are only built for that. USB devices also needs
+Android 9 or newer, and DualSense trigger effects need Android 12 or newer. Updates install over
+the top with your settings kept, as long as they come from these releases. Tools such as
 [Obtainium](https://github.com/ImranR98/Obtainium) can keep it updated straight from the
 Releases page.
 
 The microphone's PC side (the receiver and its setup) needs Windows 10 or 11. Sending over the
-stream instead needs logabell's Apollo build on the PC.
+stream instead needs logabell's Apollo build on the PC. The USB helper has only been tried on
+Windows 11.
 
 </details>
 
@@ -603,16 +819,16 @@ B6:04:1D:43:9F:28:4F:17:16:64:6F:C0:F9:80:F1:9A:76:17:8F:A7:04:D5:6F:50:34:D4:06
 Or on a computer, with `apksigner` from the Android SDK's build tools:
 
 ```bash
-apksigner verify --print-certs Starwire-0.2.0.apk
+apksigner verify --print-certs Starwire-0.3.0.apk
 ```
 
 The `certificate SHA-256 digest` line should read
 `b6041d439f284f1716646fc0f980f19a76178fa704d56f5034d4062ad3c13f97`. That's the same
 fingerprint as above, in lower case without the colons.
 
-The Windows microphone zip isn't signed. GitHub lists each file's SHA-256 next to it on the
-release page; in PowerShell, `Get-FileHash .\Starwire-Microphone-for-Windows.zip` should print
-the same value.
+The Windows zip, with the microphone receiver and the USB helper, isn't signed. GitHub lists each
+file's SHA-256 next to it on the release page; in PowerShell,
+`Get-FileHash .\Starwire-Microphone-for-Windows.zip` should print the same value.
 
 </details>
 
