@@ -6,8 +6,7 @@ goes from a USB/IP exporter inside the app, through an encrypted tunnel called S
 tunnel"), version 1, to a USB helper on the PC, which hands it to the usbip-win2 driver. This file
 is the contract between the two sides: the app's tunnel
 (`app/src/main/java/com/limelight/binding/usb/tunnel/`) and the helper
-(`windows/StarwireUsbHelper.cs`). Both are to be tested against the same vectors file, byte for
-byte.
+(`windows/StarwireUsbHelper.cs`). Both are tested against the same vectors file, byte for byte.
 
 **Status.** Written before the code. It has had one security review round on the contract (Rv-1),
 whose findings are fixed here, as well as separate reviews of the tunnel, the exporter and the
@@ -32,10 +31,7 @@ share and attached it, Windows showed a working DualSense Wireless Controller, a
 used it on the PC. Stopping the share gave it back to the tablet all three times, and it worked
 there again. On the first of the three stops, the pad reset on the tablet and came back as a new
 USB device, so Starwire ended that share with END 2, as for a device unplugged from the phone,
-instead of END 1; the pad still came back and worked. The helper's branch had drifted from
-`feature/usb-tunnel`'s copy of this contract (the waiting-room rule and the split of the
-pairing-file reads below); the two are to be reconciled on `feature/usb-tunnel`, which holds the
-canonical contract.
+instead of END 1; the pad still came back and worked.
 
 ## In plain words
 
@@ -144,17 +140,20 @@ PC:                                            helper -- relay (127.0.0.1) -- us
 - Each side sends exactly one certificate: X.509, self-signed, a P-256 key, signed with ECDSA and
   SHA-256, subject and issuer `CN=Starwire` and nothing that names the phone or the PC, and a
   random serial number. Starwire makes a new one for each connection. The helper makes one when it
-  starts. Neither is saved with the pairing. SslStream may only take a private key that's in a
-  saved Windows key container (a known limit of .NET on Windows, not checked here yet). If so,
-  the helper makes a new container for its own Windows account when it starts, and deletes it
-  when it exits and again at its next start, in case it crashed.
+  starts. Neither is saved with the pairing. SslStream on Windows only takes a private key that's
+  in a saved key container (with a key held only in memory, the handshake fails; checked on
+  Windows 11 with .NET Framework 4.8.1). So the helper makes a new container for its own Windows
+  account when it starts, and deletes it when it exits and again at its next start, in case it
+  crashed.
 - Neither side checks a chain, names or dates, so a wrong clock doesn't matter. Each checks that
   the other's certificate has a P-256 key. The TLS handshake proves the other side holds that
   key's private half, and BIND proves the certificate belongs to someone with the pairing.
 - No session resumption: Starwire makes a new TLS context for each connection, so it never offers
   an earlier session.
-- No renegotiation. Neither side asks for it. Starwire refuses it. The helper refuses it too if
-  SslStream lets it, which is to be checked when the helper is written. TLS 1.3 has none. In TLS
+- No renegotiation. Neither side asks for it. Starwire refuses it. SslStream on .NET Framework
+  lets the phone start a TLS 1.2 renegotiation and goes along with it (checked with OpenSSL's
+  s_client), so after every read the helper checks that TLS still has the certificate BIND was
+  made over, and ends the session with END 9 if not. TLS 1.3 has none. In TLS
   1.2 only the other end of the session can start one, and BIND has already proved that end holds
   the pairing. If one happens anyway, both sides allow only the secure kind (RFC 5746), which ties
   the new handshake to the first, so a third party can't use it to get in.
@@ -708,9 +707,10 @@ OP_REQ_IMPORT for bus id `1-1`. The `refuse.` lines must not check out: a BIND m
 microphone's K_auth, one with the fingerprints the other way round, one made over a HELLO that
 offered versions 1 to 2, and a BIND_ACK for the other BIND.
 
-`SwutCodecTest` checks every line in the app (`./gradlew testNonRootDebugUnitTest`). The helper's
-tests are to check the same file. A change that makes either side disagree with the file is a
-change to the protocol.
+`SwutCodecTest` checks every line in the app (`./gradlew testNonRootDebugUnitTest`), and
+`StarwireUsbTunnelTests` checks the same file in the helper
+(`windows/tests/run-usb-helper-tests.ps1`). A change that makes either side disagree with the
+file is a change to the protocol.
 
 ### The device rules' cases
 
@@ -730,4 +730,5 @@ places, and reserved items and tags.
 
 `SwutPolicyCasesTest` checks that both copies are the same, that every SHARE in it is well formed,
 and that every rule a SHARE can break has a case. `UsbDeviceRulesTest` checks that Starwire's
-device rules reach every decision. The helper's rules are to reach every one too, in its own tests.
+device rules reach every decision, and `StarwireUsbTunnelTests` runs the helper's rules over the
+same cases.

@@ -76,3 +76,13 @@ described. It keeps back the requests a device could use to choose its own Windo
     powershell -NoProfile -ExecutionPolicy Bypass -File windows\tests\run-usb-helper-tests.ps1
 
 They need no driver and no network beyond 127.0.0.1, and install nothing.
+
+## Credits
+
+The driver's commands, their layouts and its error codes are adapted from
+[usbip-win2](https://github.com/vadimgrn/usbip-win2) 0.9.8.1 by vadimgrn (BSD-2-Clause; its
+notice is in `StarwireUsbHelper.cs`), and the helper finds the driver and reads its list the way
+usbip-win2's own tool does. How it finds the port of a device it attached before a detach, and
+waits for the detaches the driver has queued, follows
+[Vibepollo](https://github.com/Nonary/Vibepollo)'s `dualsense_usbip_transport.cpp` (Chase Payne,
+Nonary). The rest is new in Starwire.

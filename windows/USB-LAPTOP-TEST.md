@@ -11,8 +11,11 @@ attaches it, and Windows here sees a cabled DualSense. You play a game on this P
 laptop with Moonlight.
 
 What has been tried so far: the helper's tests with a fake driver, and `--probe` on this PC,
-which read the driver's version, checked its file's SHA-256 and read its list of devices. The
-helper has never attached or detached a real device. This test is the first time.
+which read the driver's version, checked its file's SHA-256 and read its list of devices. On 16
+November 2026 the helper also attached a real DualSense, shared by Starwire from a RedMagic Astra
+tablet, and gave it back three times ([USB-HELPER.md](USB-HELPER.md)). It has never attached a
+device that a PC shares with usbipd, and `--debug-attach` and `--debug-detach` have never been
+used with a real device. This test is the first time.
 
 > **Read this first.** USB/IP has no password and no encryption, on either side.
 >

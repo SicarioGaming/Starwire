@@ -49,5 +49,8 @@ authorised. A JVM test checks the option is off, and a device test checks a conn
 - `./gradlew assembleNonRootDebugAndroidTest` builds this module's device tests too
   (`NativeUsbIpTest`, `UsbIpBackendLifecycleTest`, from V+). The app's own device test,
   `UsbExporterLoopbackTest`, runs the real exporter on 127.0.0.1 with no USB device.
-- Not tried yet: any of the device tests on a phone or an emulator, and any real USB device
-  shared through this exporter from Starwire.
+- Tried: on 16 November 2026, the app's `UsbExporterLoopbackTest` passed on a RedMagic Astra
+  tablet (Android 16). The same day, a DualSense plugged into that tablet by cable was shared
+  through this exporter with a Windows 11 PC, and used there.
+- Not tried yet: V+'s own device tests (`NativeUsbIpTest`, `UsbIpBackendLifecycleTest`), which
+  no script runs, the app's device test on an emulator, and any USB device but a DualSense.
