@@ -185,6 +185,17 @@ steps and the checksums for each version.
   turned on. Off, as it is by default, the swipe reaches the PC as a touch. As in the other
   modes, a third finger lets go of what the first two were doing on the PC, so touches with three
   or more fingers don't reach it. Checked by tests, not yet tried in a stream.
+- **A long press and a drag in the gaming trackpad mode drag with the left button.** With
+  Long-press to right-click on, as it is by default, the long press held the right button. So
+  the PC got a right-button drag, with a right-click where it ended, and nothing was dragged.
+  It had been that way since 0.1.0. Now a long press presses nothing until the finger moves or
+  lifts. Moved, it presses the left button and drags. Lifted without moving, it's a right-click,
+  as before. The cursor holds still while the long press waits, so both start where the long
+  press was. A second finger tapped during a long press used to press the right button twice,
+  and now it's one right-click. With the setting off, a long press holds the left button
+  straight away, as before. Thank you to kayakyakr for reporting it in
+  [issue #5](https://github.com/SicarioGaming/Starwire/issues/5). Checked by tests, not yet
+  tried in a stream.
 - Starwire no longer tries to show an error or a "please wait" box on a screen Android has
   already closed. That could happen when a connection error or the host's answer came in late.
   This is tested on a computer, not yet on a phone. The idea is from Moonlight V+ (qiin2333).

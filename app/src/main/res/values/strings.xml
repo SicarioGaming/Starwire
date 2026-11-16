@@ -745,7 +745,7 @@
     <string name="title_checkbox_pinch_to_zoom">Pinch to zoom anytime</string>
     <string name="summary_checkbox_pinch_to_zoom">Pinch with two fingers to zoom and move around the stream, without turning on Pan/Zoom. Two-finger scrolls and taps still go to the PC. Not in Multi-touch mode.</string>
     <string name="title_checkbox_long_press_right_click">Long-press to right-click</string>
-    <string name="summary_checkbox_long_press_right_click">In the trackpad (gaming) touch mode, a long press holds the right mouse button instead of starting a left-button drag</string>
+    <string name="summary_checkbox_long_press_right_click">In the trackpad (gaming) touch mode, a long press is a right click when you lift your finger without moving it. Move your finger after the long press to drag with the left button. When off, a long press holds the left button straight away.</string>
 
     <!-- Custom Commands Activity -->
     <string name="title_custom_commands">Custom Commands</string>

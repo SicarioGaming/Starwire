@@ -18,6 +18,9 @@ public class RelativeTouchContext implements TouchContext {
     private boolean confirmedMove;
     private boolean confirmedDrag;
     private boolean confirmedScroll;
+    // Starwire's "Long-press to right-click": a long press that hasn't moved or lifted yet, so
+    // nothing is pressed on the PC. Lifted, it's a right click; moved, it's a left-button drag.
+    private boolean longPressPending;
     private double distanceMoved;
     private double xFactor, yFactor;
 
@@ -47,17 +50,19 @@ public class RelativeTouchContext implements TouchContext {
                 return;
             }
 
-            // We haven't been cancelled before the timer expired so begin dragging. With
-            // Starwire's "Long-press to right-click", one finger holds the right button instead.
+            // With Starwire's "Long-press to right-click", wait to see what the finger does. It
+            // used to hold the right button here, so a long press and a drag dragged with the
+            // right button, and the PC got a right-click where it ended (GitHub issue #5).
+            if (prefConfig.longPressRightClick) {
+                longPressPending = true;
+                return;
+            }
+
+            // We haven't been cancelled before the timer expired so begin dragging
             confirmedDrag = true;
-            dragButton = prefConfig.longPressRightClick && actionIndex == 0 ?
-                    MouseButtonPacket.BUTTON_RIGHT : getMouseButtonIndex();
-            conn.sendMouseButtonDown(dragButton);
+            conn.sendMouseButtonDown(getMouseButtonIndex());
         }
     };
-
-    // The button a long press is holding down, released when the finger lifts
-    private byte dragButton = MouseButtonPacket.BUTTON_LEFT;
 
     // Indexed by MouseButtonPacket.BUTTON_XXX - 1
     private final Runnable[] buttonUpRunnables = new Runnable[] {
@@ -176,7 +181,7 @@ public class RelativeTouchContext implements TouchContext {
         if (isNewFinger) {
             maxPointerCountInGesture = pointerCount;
             originalTouchTime = eventTime;
-            cancelled = confirmedDrag = confirmedMove = confirmedScroll = false;
+            cancelled = confirmedDrag = confirmedMove = confirmedScroll = longPressPending = false;
             distanceMoved = 0;
 
             if (actionIndex == 0) {
@@ -202,10 +207,16 @@ public class RelativeTouchContext implements TouchContext {
 
         if (confirmedDrag) {
             // Raise the button after a drag
-            conn.sendMouseButtonUp(dragButton);
+            conn.sendMouseButtonUp(buttonIndex);
         }
-        else if (isTap(eventTime))
+        else if (longPressPending || isTap(eventTime))
         {
+            // A long press lifted where it was is a right click
+            if (longPressPending) {
+                longPressPending = false;
+                buttonIndex = MouseButtonPacket.BUTTON_RIGHT;
+            }
+
             // Lower the mouse button
             conn.sendMouseButtonDown(buttonIndex);
 
@@ -234,17 +245,30 @@ public class RelativeTouchContext implements TouchContext {
 
         // If it leaves the tap bounds before the drag time expires, it's a move.
         if (!isWithinTapBounds(eventX, eventY)) {
-            confirmedMove = true;
-            cancelDragTimer();
+            confirmMove();
             return;
         }
 
         // Check if we've exceeded the maximum distance moved
         distanceMoved += Math.sqrt(Math.pow(eventX - lastTouchX, 2) + Math.pow(eventY - lastTouchY, 2));
         if (distanceMoved >= TAP_DISTANCE_THRESHOLD) {
-            confirmedMove = true;
-            cancelDragTimer();
+            confirmMove();
             return;
+        }
+    }
+
+    private void confirmMove() {
+        cancelDragTimer();
+
+        if (longPressPending) {
+            // A long press that moves is a drag. The left button goes down before the move is
+            // sent, so the drag starts where the long press was.
+            longPressPending = false;
+            confirmedDrag = true;
+            conn.sendMouseButtonDown(getMouseButtonIndex());
+        }
+        else {
+            confirmedMove = true;
         }
     }
 
@@ -288,6 +312,9 @@ public class RelativeTouchContext implements TouchContext {
                     if (confirmedScroll) {
                         conn.sendMouseHighResScroll((short)(deltaY * SCROLL_SPEED_FACTOR));
                     }
+                } else if (longPressPending) {
+                    // The cursor holds still while a long press waits, through any wobble inside
+                    // the tap bounds, so the right click or the drag starts where the long press was
                 } else {
                     if (prefConfig.absoluteMouseMode) {
                         conn.sendMouseMoveAsMousePosition(
@@ -329,7 +356,7 @@ public class RelativeTouchContext implements TouchContext {
 
         // If it was a confirmed drag, we'll need to raise the button now
         if (confirmedDrag) {
-            conn.sendMouseButtonUp(dragButton);
+            conn.sendMouseButtonUp(getMouseButtonIndex());
         }
     }
 
@@ -341,6 +368,12 @@ public class RelativeTouchContext implements TouchContext {
     @Override
     public void setPointerCount(int pointerCount) {
         this.pointerCount = pointerCount;
+
+        // A second finger makes it a two-finger gesture, not a long press. Its tap is the right
+        // click, so the first finger adds none when it lifts.
+        if (pointerCount > 1) {
+            longPressPending = false;
+        }
 
         if (pointerCount > maxPointerCountInGesture) {
             maxPointerCountInGesture = pointerCount;
