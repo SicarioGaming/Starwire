@@ -19,7 +19,7 @@ steps and the checksums for each version.
 
 - **A Brightness item in the stream menu,** which opens the brightness slider. A controller moves
   it in 5% steps, and A, B or Back closes it. It isn't shown on Android TV. From Moonlight X.
-  Checked by tests, not yet tried in a stream.
+  Checked by tests, and tried in a stream on a tablet.
 - **A Left edge swipe action setting,** in Settings under In-stream menu. It says what a swipe in
   from the left edge of the screen does while streaming: open the brightness slider, open the
   stream menu, or nothing. It's off (Disabled) by default, so the swipe goes to the game until you
@@ -36,8 +36,8 @@ steps and the checksums for each version.
   **Settings → In-stream menu** turns it off, and Back ends the stream again. A mouse right-click
   that Android sends as Back still reaches the PC as a right-click, and a controller's B still
   goes to the game. The idea comes from Artemis (Yukino Song), via Artemide. Thank you to
-  u/Glove5751 for asking for it. Tested in JVM tests only, with a stand-in for the remote. Not yet
-  tried on a phone, a tablet or a TV.
+  u/Glove5751 for asking for it. Tested in JVM tests, with a stand-in for the remote, and tried in
+  a stream on a tablet. Not yet tried on a phone or a TV.
 - **Controller vibration strength,** under Controllers: 0 to 100% of the game's rumble, on every
   controller and on this device when it vibrates in place of one. Audio haptics on the controller
   follows it too. 0% turns both off, and new installs start at 100%, as before. Checked by unit
@@ -58,9 +58,10 @@ steps and the checksums for each version.
   and how the pad is found are ported from Moonlight V+ (qiin2333), with two changes: setReport is
   only used on a phone without sendData, and a DualShock 4 is never taken for the pad. The code
   that passes the host's effects to Java is Nightjar's (Ramazan Kara). Only the trigger modes
-  Nielk1's notes list reach the pad; any other mode turns the trigger off. **Not tried on a pad
-  yet:** Starwire's trigger effects haven't been tried on a real DualSense, and nobody has felt
-  the presets or the strength steps. A separate test app used the same hidden sendData call on
+  Nielk1's notes list reach the pad; any other mode turns the trigger off. **Tried on one
+  tablet:** in a stream, a game's own trigger effects came through to a DualSense on a RedMagic
+  Astra (Android 16). Nobody has felt the presets or the strength steps yet. Before that, a
+  separate test app used the same hidden sendData call on
   one tablet and one DualSense. It changed the light bar, and four trigger effects felt as
   expected: firm resistance, a weapon click, a buzz and off. setReport did nothing there.
   Starwire's presets use other values, and light resistance and heavy pedal use a kind of effect
@@ -90,10 +91,11 @@ steps and the checksums for each version.
   that turns out to be a keyboard or mouse only once Starwire reads all of it isn't shared, and
   asks you then. One device at a time, on Android 9 or later on 64-bit ARM phones and tablets:
   x86_64 Chromebooks and emulators don't get the setting, even ones that run ARM apps. Tested
-  only on a computer: the stream menu's page, the exporter with its device rules and the tunnel
+  on a computer: the stream menu's page, the exporter with its device rules and the tunnel
   together, against a fake PC helper and a stand-in for the exporter's native part on 127.0.0.1.
-  Not tried yet: sharing a USB device on a phone or tablet, the real helper, Windows, and the
-  question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
+  Tried once on a RedMagic Astra (Android 16) with a Windows 11 PC and the real helper: a device
+  plugged into the tablet showed up on the PC and worked there, and Stop gave it back. Not tried
+  yet: the question for a keyboard with a controller. The APK carries the exporter for 64-bit ARM (and
   x86_64 in debug builds), and its licences are in Settings > About > Open-source licences. The
   setting's credit line names Moonlight V+ and usbipdcpp, as Settings > About > Credits does.
 - **The PC's side of sharing a USB device from the phone.** Starwire's USB helper
@@ -103,10 +105,10 @@ steps and the checksums for each version.
   checks the device against the device rules, attaches it with usbip-win2's driver through a
   relay on the PC itself, checks what the device tells Windows, and detaches only its own device
   when the session ends. USB sharing is off until you turn it on, and the firewall rule covers
-  Private and Domain networks only. The app's side (USB devices, above) and this helper haven't
-  been tried together yet. Tested on Windows 11 with a fake driver and a test phone over 127.0.0.1, and
-  with the shared test vectors and device rules' cases. It hasn't talked to a real phone or
-  attached a real device, and setup-usb.ps1 has only been tried without installing anything.
+  Private and Domain networks only. The app's side (USB devices, above) and this helper were
+  tried together once, with usbip-win2's driver: a tablet shared a device and the PC used it.
+  Tested on Windows 11 with a fake driver and a test phone over 127.0.0.1, and with the shared
+  test vectors and device rules' cases. setup-usb.ps1 has only been tried without installing anything.
   The helper's tunnel server was checked against a hostile local network, and these hold in its
   tests: when a session is stuck because the relay is blocked writing to a phone that stopped
   reading, or blocked writing to a driver that stopped reading, unpairing, Stop sharing and
@@ -119,7 +121,8 @@ steps and the checksums for each version.
   pairing check ends the session if the pairings file can't be read twice in a row; and the menu
   reads the paired phones off the icon's thread. The tests run over 127.0.0.1 with a fake driver
   and a test phone; the send timeouts are turned off in the teardown tests, so they prove the
-  teardown itself finishes. Not tried with a real phone, a real device or the real driver.
+  teardown itself finishes. These cases haven't been tried with a real phone, a real device or the
+  real driver.
 
 ### Changed
 

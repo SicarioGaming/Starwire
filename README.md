@@ -54,7 +54,7 @@
 - If you change the bitrate twice in a row, your latest choice wins.
 - On Android 5.0 and 5.1, the encrypted microphone's code refuses a damaged packet instead of throwing an error.
 
-**Not tried yet** (TO CONFIRM after the device tests): Starwire's trigger effects on a real DualSense, a game's effects through the host, sharing a USB device from a phone, and the PC's USB helper with the real driver. A separate test app changed the light bar and played four trigger effects on a DualSense with my RedMagic Astra (Android 16). Everything else new is checked by tests on a computer, and hasn't been tried in a stream yet.
+**Tried on my RedMagic Astra (Android 16)** with a test build: a game's trigger effects reached a DualSense in a stream, a USB device plugged into the tablet worked on the PC and Stop gave it back, Back opens the menu and the Brightness item worked, and updating over 0.2.1 kept my PCs, settings and microphone pairing. **Not tried yet:** Starwire's own trigger presets and strength steps on a pad. Everything else new is checked by tests on a computer, and hasn't been tried in a stream yet.
 
 </details>
 
