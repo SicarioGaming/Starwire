@@ -90,13 +90,13 @@ steps and the checksums for each version.
   share them. Choosing one asks Android's permission and shares it; choosing it again, unplugging
   it or ending the stream gives it back, and after a lost connection, or the phone's network going
   away, it offers to share it again. The device goes through the USB/IP exporter from Moonlight V+
-  (qiin2333), built on usbipdcpp (yunsmall), and an encrypted tunnel to the PC's USB helper, tied
-  to the microphone's pairing ([usb-protocol.md](docs/dev/usb-protocol.md)). Starwire's device
-  rules decide before anything is shared: pads, wheels, sticks and audio devices pass, keyboards
-  and mice need your yes each time, and hubs, storage, network adapters, vendor-specific devices
-  (wired Xbox pads among them, for now) and USB 3 devices are refused, with the reason. A device
-  that turns out to be a keyboard or mouse only once Starwire reads all of it isn't shared, and
-  asks you then. One device at a time, on Android 9 or later on 64-bit ARM phones and tablets:
+  (qiin2333 and CLF), built on usbipdcpp (yunsmall), and an encrypted tunnel to the PC's USB
+  helper, tied to the microphone's pairing ([usb-protocol.md](docs/dev/usb-protocol.md)). Starwire's
+  device rules decide before anything is shared: pads, wheels, sticks and audio devices pass,
+  keyboards and mice need your yes each time, and hubs, storage, network adapters, vendor-specific
+  devices (wired Xbox pads among them, for now) and USB 3 devices are refused, with the reason. A
+  device that turns out to be a keyboard or mouse only once Starwire reads all of it isn't shared,
+  and asks you then. One device at a time, on Android 9 or later on 64-bit ARM phones and tablets:
   x86_64 Chromebooks and emulators don't get the setting, even ones that run ARM apps. Tested
   on a computer: the stream menu's page, the exporter with its device rules and the tunnel
   together, against a fake PC helper and a stand-in for the exporter's native part on 127.0.0.1.

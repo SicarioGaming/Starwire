@@ -38,7 +38,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * same place. A tap still only opens the menu. The stream screen needs a PC, so the real button
  * (floating_menu_button.xml) goes on the settings screen, set up the way Game sets it up. The
  * device's own saved spot is put back afterwards. FloatingButtonTest covers turns and resizes.
- * It skips where the phone maker's game mode crashes recreated screens (ZteGameMode).
+ * Where the phone maker's game mode crashes recreated screens (ZteGameMode), the drag and its
+ * saved spot are still checked, and the test skips at the recreate.
  */
 @RunWith(AndroidJUnit4.class)
 public class FloatingButtonDeviceTest {
@@ -84,8 +85,6 @@ public class FloatingButtonDeviceTest {
 
     @Test
     public void aDraggedButtonStartsInTheSameSpotOnTheNextScreen() {
-        // The next screen is this one recreated
-        ZteGameMode.assumeScreensCanBeRecreated();
         try (ActivityScenario<StreamSettings> scenario = ActivityScenario.launch(StreamSettings.class)) {
             scenario.onActivity(this::addButton);
             waitFor("the button to be laid out", () -> button.isLaidOut());
@@ -120,7 +119,9 @@ public class FloatingButtonDeviceTest {
             assertEquals(dragged[0] / roomX, spot[0], 0.001f);
             assertEquals(dragged[1] / roomY, spot[1], 0.001f);
 
-            // A new screen puts it back where it was dragged
+            // A new screen puts it back where it was dragged. The next screen is this one recreated,
+            // which the phone maker's game mode crashes, so the rest skips there.
+            ZteGameMode.assumeScreensCanBeRecreated();
             scenario.recreate();
             scenario.onActivity(this::addButton);
             waitFor("the button back in its spot", () -> button.isLaidOut() &&
