@@ -302,17 +302,41 @@ public class GameDirectTouchLongPressTest {
     }
 
     // A finger held down drifts a little. 25 pixels is inside the 30 a long press allows, and the
-    // right-click is where the finger went down.
+    // right-click is where the finger went down. The touch panel goes on reporting the finger where
+    // it rests, a pixel up or down, and the cursor stays where the right button went down.
     @Test
     public void aLongPressThatMoves25PixelsIsStillALongPress() {
         openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
         finger(MotionEvent.ACTION_DOWN);
         advance(200);
         finger(MotionEvent.ACTION_MOVE, 25, 0);
-        advance(HELD_MS - 200);
+        for (int ms = 300; ms <= HELD_MS; ms += 100) {
+            advance(100);
+            finger(MotionEvent.ACTION_MOVE, 25, ms % 200 == 0 ? 1 : 0);
+        }
         finger(MotionEvent.ACTION_UP, 25, 0);
         advance(1000);
         assertEquals(rightClickOnly(), pc.timed);
+    }
+
+    // The finger drifts 25 pixels before the long press, and then moves on. 15 pixels more leave
+    // the cursor where it is, and 25 more start a drag with the right button: the 20 pixels a
+    // long press ignores are around where the finger was when it came.
+    @Test
+    public void afterALongPressThatDriftedTheRightButtonDragStarts20PixelsOn() {
+        openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);
+        finger(MotionEvent.ACTION_DOWN);
+        advance(200);
+        finger(MotionEvent.ACTION_MOVE, 25, 0);
+        advance(500);
+        finger(MotionEvent.ACTION_MOVE, 40, 0);
+        advance(16);
+        finger(MotionEvent.ACTION_MOVE, 50, 0);
+        advance(16);
+        finger(MotionEvent.ACTION_UP, 50, 0);
+        advance(1000);
+        assertEquals(list("650 " + placedAtTheFinger(), "650 down3", "716 " + placed(50, 0), "732 up3"),
+                pc.timed);
     }
 
     // Moved 40 pixels at 200 ms, before the long press, then on across the screen

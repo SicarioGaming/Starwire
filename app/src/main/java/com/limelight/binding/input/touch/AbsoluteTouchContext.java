@@ -16,6 +16,10 @@ public class AbsoluteTouchContext implements TouchContext {
     private long lastTouchUpTime = 0;
     private int lastTouchLocationX = 0;
     private int lastTouchLocationY = 0;
+    // Where the finger was when the long press came, which can be up to 30 pixels from where it
+    // went down
+    private int longPressX = 0;
+    private int longPressY = 0;
     private boolean cancelled;
     private boolean confirmedLongPress;
     private boolean confirmedLongPressDrag;
@@ -31,6 +35,8 @@ public class AbsoluteTouchContext implements TouchContext {
             // Right button down at original position after a long press. Nothing has been
             // pressed before it.
             confirmedLongPress = true;
+            longPressX = lastTouchLocationX;
+            longPressY = lastTouchLocationY;
             updatePositionToTouchDown();
             conn.sendMouseButtonDown(buttonSecondary);
         }
@@ -56,7 +62,7 @@ public class AbsoluteTouchContext implements TouchContext {
     private static final int DOUBLE_TAP_TIME_THRESHOLD = 250;
     private static final int DOUBLE_TAP_DISTANCE_THRESHOLD = 60;
 
-    private static final int TOUCH_DOWN_DEAD_ZONE_DISTANCE_THRESHOLD = 20;
+    private static final int LONG_PRESS_DEAD_ZONE_DISTANCE_THRESHOLD = 20;
 
     public AbsoluteTouchContext(NvConnection conn, int actionIndex, View view)
     {
@@ -205,10 +211,11 @@ public class AbsoluteTouchContext implements TouchContext {
                 tapConfirmed();
             }
 
-            // Ignore motion within the deadzone after a long press. Once the finger leaves it,
-            // the cursor follows the finger as in a drag.
+            // Ignore motion within the deadzone after a long press. It's around where the finger
+            // was when the long press came, so a finger that drifted before it isn't already past
+            // it. Once the finger leaves it, the cursor follows the finger as in a drag.
             if (confirmedLongPress &&
-                    distanceExceeds(eventX - lastTouchDownX, eventY - lastTouchDownY, TOUCH_DOWN_DEAD_ZONE_DISTANCE_THRESHOLD)) {
+                    distanceExceeds(eventX - longPressX, eventY - longPressY, LONG_PRESS_DEAD_ZONE_DISTANCE_THRESHOLD)) {
                 confirmedLongPressDrag = true;
             }
 

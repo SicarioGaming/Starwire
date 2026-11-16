@@ -218,7 +218,9 @@ steps and the checksums for each version.
   Starwire pressed the left button first and switched to the right one at 0.65 seconds, and 0.2.1
   did the same. Going by its source code, Vibepollo, like Sunshine, folds a right press that
   comes straight after a left release into that left click. Now a finger held still sends only
-  the right button, at the same 0.65 seconds, and lets go of it when you lift. A shorter press
+  the right button, at the same 0.65 seconds, and lets go of it when you lift. After that,
+  moving your finger more than 20 pixels from where it was then drags with the right button, so a
+  finger that drifted a little before the long press still gives a right-click. A shorter press
   that doesn't move is sent as a click when you lift. Moving your finger more than 30 pixels
   still drags with the left button, from where it went down. The same goes for multi-touch mode
   when the PC can't take touches, and with the buttons swapped it's the other way round. Checked
