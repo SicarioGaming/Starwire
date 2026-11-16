@@ -12,6 +12,14 @@ cd "$(dirname "$0")"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 git init -q --bare "$work/repo"
+# git fetch ends by starting "git maintenance run --auto", which on Linux goes on in the
+# background writing commit-graph files. On 9 Nov 2026 it was still writing when the trap above
+# removed the folder, so rm failed and the run failed with it. A repo thrown away at the end needs
+# no upkeep, so nothing is left running when the trap runs. (gc.auto is for a git older than 2.29,
+# whose fetch ran gc --auto instead.) A failed rm still fails the run, as it would mean something
+# else is writing there after git has returned.
+git -C "$work/repo" config maintenance.auto false
+git -C "$work/repo" config gc.auto 0
 
 total=0
 echo "# Upstream changes"
