@@ -802,6 +802,34 @@ public class UsbTunnelTest {
         assertEquals(1, exporter.stops.get());
     }
 
+    // The real exporter closes the tunnel's own end of its connection when the device is unplugged
+    // (UsbExporter.release), and that can come before the relay has started: END 2 all the same,
+    // not a lost connection. The tunnel's reads from its end are held, so only the relay can see
+    // the connection is gone, when it can't pass on the helper's DATA.
+    @Test
+    public void theExporterClosingTheTunnelsEndBeforeTheRelayStartsSendsEndTwo() throws Exception {
+        exporter.readsWaitFor = new CountDownLatch(1);
+        events.whenSharing = () -> {
+            try {
+                exporter.given.close();
+            }
+            catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        };
+        connect();
+        sharing();
+        byte[] ping = hex("aa");
+        helper.send(SwutCodec.data(ping, 0, ping.length));
+        assertArrayEquals(SwutCodec.end(SwutCodec.END_UNPLUGGED, 0), helper.read());
+        assertTrue("more after END", helper.readUntilClosed().isEmpty());
+        UsbTunnel.Ending e = events.awaitEnded();
+        assertEquals(e.toString(), UsbTunnel.Ending.DEVICE_GONE, e.kind);
+        assertFalse(e.canShareAgain());
+        assertEquals(1, exporter.stops.get());
+        assertEquals(Arrays.asList("sharing", "ended " + UsbTunnel.Ending.DEVICE_GONE), events.order());
+    }
+
     // An exporter that fails, or gives a SHARE that doesn't read, never gets a SHARE sent
     @Test
     public void anExporterThatCantShareTheDeviceSendsEndTwoAndNoShare() throws Exception {
