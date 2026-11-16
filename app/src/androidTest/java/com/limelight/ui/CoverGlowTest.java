@@ -212,7 +212,33 @@ public class CoverGlowTest {
                     android.view.KeyEvent.KEYCODE_DPAD_DOWN));
 
             save(root, target, "cover_glow_menu.png");
-            assertTrue("sheet " + menu.getWidth() + " px wide", menu.getWidth() <= 440 * d + 1);
+
+            // A sheet beside the game, sized as OverlayMenuView.fitMainPage sizes it for this
+            // device's screen: the usual 440 dp, five tiles across or fewer; or, where seven tiles
+            // of the usual size fit in 60% of the screen's width (a tablet held sideways), just
+            // wide enough for those seven
+            ViewGroup row = (ViewGroup) ((ViewGroup) findFirst(menu, android.widget.ScrollView.class)
+                    .getChildAt(0)).getChildAt(0);
+            int across = 0;
+            for (int i = 0; i < row.getChildCount(); i++) {
+                if (row.getChildAt(i) instanceof com.limelight.ui.overlay.OverlayMenuButton) {
+                    across++;
+                }
+            }
+            int usual = (int) (440 * d);
+            if (across == 7) {
+                int padding = menu.getPaddingLeft() + menu.getPaddingRight();
+                int gap = ((ViewGroup.MarginLayoutParams) row.getChildAt(1).getLayoutParams()).getMarginStart();
+                int tile = (usual - padding - gap * 4) / 5;
+                assertEquals("sheet seven tiles across", tile * 7 + gap * 6 + padding, menu.getWidth());
+                int screen = (int) (context.getResources().getConfiguration().screenWidthDp * d);
+                assertTrue("sheet " + menu.getWidth() + " px wide on a " + screen + " px screen",
+                        menu.getWidth() <= screen * 0.6f);
+            }
+            else {
+                assertTrue(across + " tiles across", across >= 1 && across <= 5);
+                assertEquals("sheet " + across + " tiles across", usual, menu.getWidth());
+            }
         });
     }
 
