@@ -13,7 +13,7 @@ steps and the checksums for each version.
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-10-28
+## [0.3.0] - 2026-11-16
 
 ### Added
 
