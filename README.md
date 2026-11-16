@@ -180,6 +180,10 @@ devices.
   in a right-click. A long press followed by a drag now drags with the left button, and a long
   press without moving is still a right-click. Thank you to kayakyakr for reporting it
   ([#5](https://github.com/SicarioGaming/Starwire/issues/5)).
+- **In direct touch mode, a long press came through on the PC as a left click** with Vibepollo,
+  because Starwire pressed the left button first and switched to the right one at 0.65 seconds.
+  A finger held still now sends only the right button, and a shorter press that does not move is
+  sent as a click when you lift.
 - A tap near the left edge of the screen goes to the game. Thank you to u/zolidz64 for reporting
   it.
 - A button or key that was held down when you opened the stream menu no longer stays pressed on
@@ -213,8 +217,8 @@ devices.
 - **Not run on this build:** the on-device test suite.
 - Everything else new in this release, such as vibration strength, the left edge swipe, the
   virtual desktop shortcuts and Quit Session's question, is checked by tests on a computer and has
-  not been tried in a stream yet. The fixes for #14 and #5 are also checked by tests on a computer
-  and have not been tried on a device yet.
+  not been tried in a stream yet. The fixes for #14, #5 and the long press in direct touch mode
+  are also checked by tests on a computer and have not been tried on a device yet.
 - 1,030 unit tests for the app pass on a computer (314 in 0.2.1). The USB helper's own tests pass
   on Windows 11, with a fake driver and a test phone over 127.0.0.1.
 - The emulator tests on 17 virtual Android devices run on GitHub when the release is published,
