@@ -310,7 +310,7 @@ public class PreferenceConfiguration {
     public String virtualDisplayMode;
     public int vsyncMode; // VSYNC_*
     public int warpFactor = 1; // Warp Drive 2, Warp 2 4, otherwise 1 (see warpFactorFor())
-    public boolean longPressRightClick; // gaming trackpad: long press holds the right button
+    public boolean longPressRightClick; // gaming trackpad: a long press lifted in place right-clicks
     public boolean pinchToZoom; // pinch-to-zoom anytime (Moonlit Artemis)
     // PC cursor in the video: HIDE_CURSOR_* (Vibepollo's Ctrl+Alt+Shift+N toggle)
     public int hideCursorMode;
