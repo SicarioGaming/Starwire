@@ -61,6 +61,7 @@ public class OverlayMenuViewTest {
         @Override public void onToggleFloatingButton() { events.add("floatingButton"); flip(OverlayMenuView.TOGGLE_FLOATING_BUTTON); }
         @Override public void onTogglePanZoom() { events.add("panZoom"); }
         @Override public void onSelectMouseMode() { events.add("mouseMode"); }
+        @Override public void onToggleTouchSensitivity() { events.add("sensitivity"); }
         @Override public void onUploadClipboard() { events.add("uploadClipboard"); }
         @Override public void onFetchClipboard() { events.add("fetchClipboard"); }
         @Override public void onShowServerCommands() { events.add("serverCommands"); }
@@ -140,6 +141,7 @@ public class OverlayMenuViewTest {
             com.limelight.R.string.overlay_menu_shortcuts,
             com.limelight.R.string.overlay_menu_mouse_mode,
             com.limelight.R.string.overlay_menu_pan_zoom,
+            com.limelight.R.string.overlay_menu_touch_sensitivity,
             com.limelight.R.string.overlay_menu_upload_clipboard,
             com.limelight.R.string.overlay_menu_fetch_clipboard,
             com.limelight.R.string.overlay_menu_server_commands,
@@ -158,6 +160,7 @@ public class OverlayMenuViewTest {
     @Test
     public void newButtonsCallTheirActions() {
         click(str(com.limelight.R.string.overlay_menu_pan_zoom));
+        click(str(com.limelight.R.string.overlay_menu_touch_sensitivity));
         click(str(com.limelight.R.string.overlay_menu_upload_clipboard));
         click(str(com.limelight.R.string.overlay_menu_fetch_clipboard));
         click(str(com.limelight.R.string.overlay_menu_rotate_screen));
@@ -167,6 +170,7 @@ public class OverlayMenuViewTest {
 
         assertTrue(listener.events.contains("fullKeyboard"));
         assertTrue(listener.events.contains("panZoom"));
+        assertTrue(listener.events.contains("sensitivity"));
         assertTrue(listener.events.contains("uploadClipboard"));
         assertTrue(listener.events.contains("fetchClipboard"));
         assertTrue(listener.events.contains("rotate"));
@@ -326,7 +330,7 @@ public class OverlayMenuViewTest {
                 com.limelight.R.string.overlay_menu_guide, com.limelight.R.string.overlay_menu_shortcuts,
                 com.limelight.R.string.overlay_menu_monitors, com.limelight.R.string.overlay_menu_bitrate,
                 com.limelight.R.string.overlay_menu_mouse_mode, com.limelight.R.string.overlay_menu_pan_zoom,
-                com.limelight.R.string.overlay_menu_upload_clipboard,
+                com.limelight.R.string.overlay_menu_touch_sensitivity, com.limelight.R.string.overlay_menu_upload_clipboard,
                 com.limelight.R.string.overlay_menu_fetch_clipboard, com.limelight.R.string.overlay_menu_server_commands,
                 com.limelight.R.string.overlay_menu_task_manager, com.limelight.R.string.overlay_menu_rotate_screen,
                 com.limelight.R.string.overlay_menu_onscreen_controller, com.limelight.R.string.overlay_menu_floating_button,

@@ -31,18 +31,19 @@ import org.robolectric.annotation.GraphicsMode;
 import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
- * On a tablet held sideways the stream menu shows every tool at once: seven across in three rows,
- * nothing to scroll, and Close, Quit Session and Disconnect whole below them. The sheet grows to
- * hold seven tiles of the usual size. Phones and handhelds keep the usual sheet and scroll as
- * before, and so does a tablet with Android's Large font size, where seven tiles of the usual
- * size would break a label.
+ * On a tablet held sideways the stream menu shows every tool at once: seven across in three full
+ * rows, nothing to scroll, and Close, Quit Session and Disconnect whole below them. The sheet
+ * grows to hold seven tiles of the usual size. Phones and handhelds keep the usual sheet and
+ * scroll as before, and so does a tablet with Android's Large font size, where seven tiles of the
+ * usual size would break a label.
  *
- * Every tool is shown here: Fix PC Cursor, Brightness and USB devices too, 20 tiles. With
- * Sensitivity, and five across, the RedMagic Astra had 21 of them in five rows, and its grid
- * scrolled.
+ * Every tool is shown here: Fix PC Cursor, Brightness and USB devices too, 21 tiles. Five across,
+ * the RedMagic Astra had them in five rows, and its grid scrolled. Without Sensitivity there were
+ * 20, and seven across left the last row one short.
  *
  * Real graphics, so the labels are measured as on a device.
  */
@@ -59,7 +60,7 @@ public class MenuThreeRowsTest {
     private static final String HANDHELD = "w960dp-h540dp-normal-long-land-xhdpi";
 
     // Keyboard to Menu Button, then the three that show only sometimes
-    private static final int TOOLS = 20;
+    private static final int TOOLS = 21;
 
     private Activity activity;
     private FrameLayout frame;
@@ -120,12 +121,30 @@ public class MenuThreeRowsTest {
         return Math.round(px / activity.getResources().getDisplayMetrics().density);
     }
 
-    private void assertEveryToolShowsInThreeRows() {
+    // How many tiles each row holds (the last row's gaps are fillers, not tiles)
+    private List<Integer> tilesPerRow() {
+        List<Integer> counts = new ArrayList<>();
+        ViewGroup rows = rows();
+        for (int r = 0; r < rows.getChildCount(); r++) {
+            ViewGroup row = (ViewGroup) rows.getChildAt(r);
+            int tiles = 0;
+            for (int i = 0; i < row.getChildCount(); i++) {
+                if (row.getChildAt(i) instanceof OverlayMenuButton) {
+                    tiles++;
+                }
+            }
+            counts.add(tiles);
+        }
+        return counts;
+    }
+
+    private void assertEveryToolShowsInThreeFullRows() {
         openMenu();
-        assertTrue("the tools take " + rows().getChildCount() + " rows", rows().getChildCount() <= 3);
+        assertEquals("tiles in each row", Arrays.asList(7, 7, 7), tilesPerRow());
+        assertEquals("tools on the menu", TOOLS, tiles().size());
+        assertNotNull("no Sensitivity on the menu", find(menu, activity.getString(R.string.overlay_menu_touch_sensitivity)));
         assertTrue("the grid needs " + dp(rows().getHeight()) + " dp and shows " + dp(grid().getHeight())
                 + ", so it scrolls", rows().getHeight() <= grid().getHeight());
-        assertEquals("tools on the menu", TOOLS, tiles().size());
         for (OverlayMenuButton tile : tiles()) {
             assertShowsWhole(tile);
             assertLabelWhole(tile);
@@ -167,14 +186,14 @@ public class MenuThreeRowsTest {
 
     @Test
     @Config(qualifiers = ASTRA)
-    public void anAstraShowsEveryToolInThreeRows() {
-        assertEveryToolShowsInThreeRows();
+    public void anAstraShowsEveryToolInThreeFullRows() {
+        assertEveryToolShowsInThreeFullRows();
     }
 
     @Test
     @Config(qualifiers = TABLET)
-    public void aTabletShowsEveryToolInThreeRows() {
-        assertEveryToolShowsInThreeRows();
+    public void aTabletShowsEveryToolInThreeFullRows() {
+        assertEveryToolShowsInThreeFullRows();
     }
 
     @Test
@@ -218,40 +237,45 @@ public class MenuThreeRowsTest {
     @Test
     @Config(qualifiers = ASTRA)
     public void aControllerMovesThroughSevenAcross() {
-        // Rows of seven: Keyboard to Monitors, Bitrate to PC Commands, then Task Manager to USB
-        // devices, one short
+        // Three full rows of seven: Keyboard to Monitors, Bitrate to Get Clipboard, then PC
+        // Commands to USB devices
         openMenu();
         assertSelected(R.string.overlay_menu_close);
-        // Up from Close to the last tile, then up a row at a time to the top
+        // Up from Close to the last tile, then up the seventh column to the top
         press(KeyEvent.KEYCODE_DPAD_UP);
         assertSelected(R.string.overlay_menu_usb_devices);
         press(KeyEvent.KEYCODE_DPAD_UP);
         assertSelected(R.string.overlay_menu_fetch_clipboard);
         press(KeyEvent.KEYCODE_DPAD_UP);
-        assertSelected(R.string.overlay_menu_shortcuts);
+        assertSelected(R.string.overlay_menu_monitors);
         press(KeyEvent.KEYCODE_DPAD_UP);
-        assertSelected(R.string.overlay_menu_shortcuts);
-        // Right to the end of the top row, and no further
+        assertSelected(R.string.overlay_menu_monitors);
+        // That's the end of the top row
         press(KeyEvent.KEYCODE_DPAD_RIGHT);
         assertSelected(R.string.overlay_menu_monitors);
-        press(KeyEvent.KEYCODE_DPAD_RIGHT);
-        assertSelected(R.string.overlay_menu_monitors);
-        // Down the seventh column. The last row has no seventh tile, so down goes to its last one
-        press(KeyEvent.KEYCODE_DPAD_DOWN);
-        assertSelected(R.string.overlay_menu_server_commands);
-        press(KeyEvent.KEYCODE_DPAD_DOWN);
-        assertSelected(R.string.overlay_menu_usb_devices);
-        // Left along the last row to its start, and no further
-        for (int i = 0; i < 5; i++) {
+        // Left along the top row to its start, and no further
+        for (int i = 0; i < 6; i++) {
             press(KeyEvent.KEYCODE_DPAD_LEFT);
         }
-        assertSelected(R.string.overlay_menu_task_manager);
+        assertSelected(R.string.overlay_menu_keyboard);
         press(KeyEvent.KEYCODE_DPAD_LEFT);
-        assertSelected(R.string.overlay_menu_task_manager);
-        press(KeyEvent.KEYCODE_DPAD_UP);
-        assertSelected(R.string.overlay_menu_bitrate);
-        // Down from the last row to the bar: Close, then Quit Session and Disconnect below it
+        assertSelected(R.string.overlay_menu_keyboard);
+        // Down a row, then right to Sensitivity, the fifth
         press(KeyEvent.KEYCODE_DPAD_DOWN);
+        assertSelected(R.string.overlay_menu_bitrate);
+        for (int i = 0; i < 4; i++) {
+            press(KeyEvent.KEYCODE_DPAD_RIGHT);
+        }
+        assertSelected(R.string.overlay_menu_touch_sensitivity);
+        // Down to the last row, and right to its end, and no further
+        press(KeyEvent.KEYCODE_DPAD_DOWN);
+        assertSelected(R.string.overlay_menu_floating_button);
+        press(KeyEvent.KEYCODE_DPAD_RIGHT);
+        press(KeyEvent.KEYCODE_DPAD_RIGHT);
+        assertSelected(R.string.overlay_menu_usb_devices);
+        press(KeyEvent.KEYCODE_DPAD_RIGHT);
+        assertSelected(R.string.overlay_menu_usb_devices);
+        // Down from the last row to the bar: Close, then Quit Session and Disconnect below it
         press(KeyEvent.KEYCODE_DPAD_DOWN);
         assertSelected(R.string.overlay_menu_close);
         press(KeyEvent.KEYCODE_DPAD_DOWN);

@@ -162,9 +162,7 @@ devices.
   Win+Ctrl+Right and Win+Tab (Task View).
 - **Quit Session asks first,** because it closes the game on the PC. From Moonlight X.
 - **The stream menu fits up to seven buttons per row on wide screens** such as tablets, so all
-  the built-in buttons show without scrolling. The Sensitivity button is gone from the menu.
-  Trackpad sensitivity is still in Settings, under Touch & mouse, and now applies for the whole
-  stream.
+  the built-in buttons show without scrolling.
 - **Virtual display** is the new name of the setting that used to be called "Display on the PC",
   with the choices Host default, On and Off. A choice you already made stays as it was. Thank you
   to u/elenayebenes for asking about it.
@@ -689,6 +687,7 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | Task Manager (Ctrl+Shift+Esc) | Ported from Artemis (Yukino Song), via Artemide |
 | Rotate screen, Pan/Zoom mode (pinch to zoom, drag to pan, double-tap to reset) | Ported from Artemis (Yukino Song), via Artemide |
 | Touch mode picker (multi-touch, direct touch, natural and gaming trackpad, disabled, swapped clicks) | Ported from Artemis (Yukino Song), via Artemide |
+| Trackpad sensitivity, toggled from the menu | Ported from Artemis (Yukino Song) and Axixi2233's fork, via Artemide |
 | Send / get clipboard **(Apollo / Vibepollo)** | Ported from Artemis (Yukino Song), via Artemide |
 | PC commands (run the host's server commands) **(Apollo / Vibepollo)** | Ported from Artemis (Yukino Song), via Artemide |
 | On-screen full keyboard (82 keys, sticky Ctrl/Alt/Shift/Win, vibration) | Ported from Axixi2233's fork (axi) and Artemis (Yukino Song), via Artemide |
@@ -734,7 +733,6 @@ The menu itself, its quick actions and custom commands come from Moonlight X
 | From 0.3.0: controller vibration strength, 0 to 100% of the game's rumble on every controller. Audio haptics on the controller follows it too. Not yet tried on a device | New in Starwire |
 | Hide PC cursor (never / while touching / always) **(Vibepollo)** | New in Starwire |
 | Long-press to right-click in gaming trackpad mode | New in Starwire |
-| Trackpad sensitivity, a setting for both trackpad modes. From 0.3.0 it always applies: the stream menu's Sensitivity item, which switched it off and on, is gone | Ported from Artemis (Yukino Song) and Axixi2233's fork, via Artemide |
 | Settings, the game screen and the stream menu fit more Android devices, down to narrow screens like a Galaxy Z Fold's cover screen; the game screen's header scrolls away with the covers | New in Starwire |
 | An "Impact:" line under settings that change latency, smoothness, picture quality or battery | New in Starwire |
 | From 0.3.0: with gesture navigation, the last setting scrolls clear of the gesture bar. Checked by a test, not yet tried on a device | Ported from Moonlight X (MoreOrLessSoftware) |

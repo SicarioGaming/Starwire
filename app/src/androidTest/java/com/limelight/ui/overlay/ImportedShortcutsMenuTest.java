@@ -109,6 +109,7 @@ public class ImportedShortcutsMenuTest {
         @Override public void onToggleFloatingButton() {}
         @Override public void onTogglePanZoom() {}
         @Override public void onSelectMouseMode() {}
+        @Override public void onToggleTouchSensitivity() {}
         @Override public void onUploadClipboard() {}
         @Override public void onFetchClipboard() {}
         @Override public void onShowServerCommands() {}
