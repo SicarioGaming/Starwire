@@ -231,7 +231,15 @@ devices.
   DualSense from the same tablet, and the light bar changed.
 - **Not tried on a controller yet:** Starwire's own trigger presets, apart from the gun click
   that the Test button sends, and the strength steps.
-- **Not run on these builds:** the on-device test suite.
+- **On-device tests:** the test suite that runs on a device ran on my tablet with the final debug
+  build. Its first run ended early: 125 of its 147 tests passed and 2 failed, and the second
+  failure crashed the app before the last 20 could run. Both failures were in the tests, and both
+  are fixed. One expected the stream menu's narrower sheet. The other recreates a screen. On my
+  tablet, the phone maker's game mode crashes the app when a screen is recreated, which a smoke
+  test had already found, so that test now skips there too. Then, with the fixed tests, I ran the
+  20 tests that had not run and the 20 in the two test files with the failures: 39 passed and 1
+  skipped. So on this build, 146 of the 147 tests passed and 1 skipped. Both times, 5 of the 6
+  smoke tests passed, one of them a short stream from my PC, and 1 skipped for the same game mode.
 - Everything else new in this release, such as vibration strength, the left edge swipe, the
   virtual desktop shortcuts and Quit Session's question, is checked by tests on a computer and has
   not been tried in a stream yet. The fixes for #14 and #5 are also checked by tests on a computer
