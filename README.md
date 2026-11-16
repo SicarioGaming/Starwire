@@ -235,7 +235,7 @@ devices.
   virtual desktop shortcuts and Quit Session's question, is checked by tests on a computer and has
   not been tried in a stream yet. The fixes for #14 and #5 are also checked by tests on a computer
   and have not been tried on a device yet.
-- 1,030 unit tests for the app pass on a computer (314 in 0.2.1). The USB helper's own tests pass
+- 1,070 unit tests for the app pass on a computer (314 in 0.2.1). The USB helper's own tests pass
   on Windows 11, with a fake driver and a test phone over 127.0.0.1.
 - The emulator tests on 17 virtual Android devices run on GitHub when the release is published,
   so their results come after the release and appear on the
