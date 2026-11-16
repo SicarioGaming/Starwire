@@ -215,7 +215,7 @@
     <!-- DualSense trigger effects over Bluetooth (Experimental), under Controllers -->
     <string name="category_dualsense">DualSense (Experimental)</string>
     <string name="title_checkbox_dualsense_effects">Trigger effects</string>
-    <string name="summary_checkbox_dualsense_effects">Adaptive triggers on a DualSense paired over Bluetooth, on Android 12 and newer. It uses a hidden Android call, so an update can stop it. Not tried with a real pad yet.</string>
+    <string name="summary_checkbox_dualsense_effects">Adaptive triggers on a DualSense paired over Bluetooth, on Android 12 and newer. It uses a hidden Android call, so an update can stop it.</string>
     <string name="summary_checkbox_dualsense_effects_old_android">Needs Android 12 or newer.</string>
     <string name="title_dualsense_status">Status</string>
     <string name="title_dualsense_test">Test</string>
