@@ -23,6 +23,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.GraphicsMode;
@@ -36,7 +37,8 @@ import java.util.List;
  * On a tablet held sideways the stream menu shows every tool at once: seven across in three rows,
  * nothing to scroll, and Close, Quit Session and Disconnect whole below them. The sheet grows to
  * hold seven tiles of the usual size. Phones and handhelds keep the usual sheet and scroll as
- * before.
+ * before, and so does a tablet with Android's Large font size, where seven tiles of the usual
+ * size would break a label.
  *
  * Every tool is shown here: Fix PC Cursor, Brightness and USB devices too, 20 tiles. With
  * Sensitivity, and five across, the RedMagic Astra had 21 of them in five rows, and its grid
@@ -184,6 +186,21 @@ public class MenuThreeRowsTest {
         assertEquals(440, dp(menu.getWidth()));
         assertEquals(5, ((ViewGroup) rows().getChildAt(0)).getChildCount());
         assertTrue("the grid doesn't scroll", rows().getHeight() > grid().getHeight());
+    }
+
+    @Test
+    @Config(qualifiers = ASTRA)
+    public void anAstraWithLargeTextKeepsTheUsualSheet() {
+        // With Android's Large font size (115%) a label no longer fits a tile of the usual size,
+        // so the sheet stays 440 dp with five across or fewer, every label whole
+        RuntimeEnvironment.setFontScale(1.15f);
+        openMenu();
+        assertEquals(440, dp(menu.getWidth()));
+        int columns = ((ViewGroup) rows().getChildAt(0)).getChildCount();
+        assertTrue(columns + " across", columns <= 5);
+        for (OverlayMenuButton tile : tiles()) {
+            assertLabelWhole(tile);
+        }
     }
 
     private void press(int keyCode) {
