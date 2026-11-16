@@ -442,6 +442,27 @@ public class OverlayMenuView extends LinearLayout {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
+    // Over the stream, Android shows the stream instead of the window wherever nothing is drawn.
+    // It works out where that is only when the screen is laid out, from where each view is then,
+    // and the sheet is laid out as it starts to slide in from the right. The slide doesn't lay it
+    // out again, so its left part stayed see-through and the stream showed there. The floating
+    // button hid this, as the room Android leaves for its shadow covers the screen. So the sheet
+    // keeps the stream out of where it slides to as well, with the same room for its shadow.
+    @Override
+    public boolean gatherTransparentRegion(android.graphics.Region region) {
+        boolean opaque = super.gatherTransparentRegion(region);
+        if (region != null && isAttachedToWindow()) {
+            int[] location = new int[2];
+            getLocationInWindow(location);
+            int left = location[0] - Math.round(getTranslationX());
+            int top = location[1] - Math.round(getTranslationY());
+            int shadow = getZ() > 0 ? (int) getZ() : 0;
+            region.op(left - shadow, top - shadow, left + getWidth() + shadow,
+                top + getHeight() + shadow * 3, android.graphics.Region.Op.DIFFERENCE);
+        }
+        return opaque;
+    }
+
     public void buildMenu() {
         activeRegion = Region.BAR;
         barIndex = 0;

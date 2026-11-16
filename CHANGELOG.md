@@ -205,6 +205,15 @@ steps and the checksums for each version.
   holding Select on a controller, the three-finger tap and the left edge swipe. Holding Select
   always let go of controller buttons, but not of keys. Tested in JVM tests only. Not yet tried
   on a device.
+- **The left part of the stream menu was cut off** when the floating menu button was off. The
+  game showed through more than a third of the menu, until something made Android lay out the
+  screen again, like turning on the floating button or the stats. It happened however the menu
+  was opened: holding Select, Back, the three-finger tap or the left edge swipe. Android works
+  out where the stream shows through only when it lays out the screen, and it did that as the
+  menu began to slide in from the right. The menu now keeps the stream out of where it slides to
+  as well. Thank you to SippyCupXIII for reporting it
+  ([#14](https://github.com/SicarioGaming/Starwire/issues/14)). Checked by JVM tests on a
+  1920x1080 screen at 320, 400 and 480 dpi, not yet tried on a device.
 - On the Android 11 phone emulators, the PC list and the games screen never let the app go idle,
   so the device tests that open them never finished. A possible cause is fixed. Each time Android
   measured the system bars, these screens and the settings screens set the navigation bar's look
