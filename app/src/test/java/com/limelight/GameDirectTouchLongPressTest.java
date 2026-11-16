@@ -28,10 +28,10 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * What the PC gets for a finger in direct touch, the mode "Use touchscreen as trackpad" off starts
- * a stream in, with the time each input goes out. A long press here holds one finger still for
- * 1.5 seconds with no move at all, then lifts it. That's what a tablet's own touch panel recorded
- * for a long press that the PC took as a left click, with no right-click.
+ * What Starwire sends the PC for a finger in direct touch, the mode "Use touchscreen as trackpad"
+ * off starts a stream in, with the time each input goes out. A long press here holds one finger
+ * still for 1.5 seconds with no move at all, then lifts it. That's what a tablet's own touch panel
+ * recorded for a long press that the PC took as a left click, with no right-click.
  *
  * Direct touch used to press the left button 100 ms after the finger went down, as in Moonlight.
  * At 650 ms the long press let go of it and pressed the right button. Version 0.2.1 did the same.
@@ -42,8 +42,9 @@ import java.util.Locale;
  * click that was still held.
  *
  * Now nothing is pressed until the touch is a tap, a drag or a long press. A long press sends only
- * the right button. A finger lifted before then without moving away is a left click as it lifts.
- * One that moves more than 30 pixels first presses the left button where it went down, and drags.
+ * the right button. A finger lifted before then without moving away is a left click as it lifts,
+ * let go 100 ms later or when the next touch starts. One that moves more than 30 pixels first
+ * presses the left button where it went down, and drags.
  *
  * Game runs as in GameTrackpadDragTest: with no game in its Intent, onCreate sets up the stream
  * screen and finishes before anything connects, and the test gives it a connection that writes
@@ -427,9 +428,10 @@ public class GameDirectTouchLongPressTest {
                 "316 scroll 120"), pc.timed);
     }
 
-    // As before, a move after the long press drags with the right button. A wobble of 10 pixels
-    // leaves the cursor where it is. Once the finger is more than 20 pixels from where it went
-    // down, the cursor follows it until it lifts, back toward the start too.
+    // As Starwire sent it before, a move after the long press drags with the right button. A
+    // wobble of 10 pixels now leaves the cursor where it is. Once the finger is more than 20
+    // pixels from where it was at the long press, here where it went down, the cursor follows it
+    // until it lifts, back toward the start too.
     @Test
     public void aLongPressThenAMoveIsARightButtonDrag() {
         openStreamScreen(Game.MOUSE_MODE_DIRECT_TOUCH);

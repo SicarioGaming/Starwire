@@ -34,8 +34,8 @@ public class AbsoluteTouchContext implements TouchContext {
     private final Runnable longPressRunnable = new Runnable() {
         @Override
         public void run() {
-            // Right button down at original position after a long press. Nothing has been
-            // pressed before it.
+            // Right button (left when swapped) down where the finger went down, unless the
+            // double tap rule keeps the cursor still. Nothing has been pressed before it.
             confirmedLongPress = true;
             longPressX = lastTouchLocationX;
             longPressY = lastTouchLocationY;
@@ -119,9 +119,10 @@ public class AbsoluteTouchContext implements TouchContext {
             }
 
             // Start the long press timer. No button goes down until we know whether this is a
-            // tap, a drag or a long press. Sunshine's input.cpp, which Vibepollo uses, merges a
-            // left button release followed by a right button press into a right click inside the
-            // left click, so the left button can't go down first and give way to the right one.
+            // tap, a drag or a long press. Vibepollo's input.cpp, from Sunshine, holds a left
+            // button release back for 10 ms once the cursor is placed by position. A right button
+            // press in that time becomes a right click inside the left click, so the left button
+            // can't go down first and give way to the right one.
             startLongPressTimer();
         }
 
@@ -204,7 +205,8 @@ public class AbsoluteTouchContext implements TouchContext {
 
         confirmedTap = true;
 
-        // Left button down at original position
+        // Left button (right when swapped) down where the finger went down, unless the double
+        // tap rule keeps the cursor still
         updatePositionToTouchDown();
         conn.sendMouseButtonDown(buttonPrimary);
     }
